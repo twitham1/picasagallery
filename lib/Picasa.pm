@@ -2,11 +2,11 @@
 
 # by twitham@sbcglobal.net, 2013-06
 
-# currently read-only but writing should be posssible enhancement
-
 package Picasa;
 use File::Find;
 use File::Basename;
+use Data::Dumper;
+
 my $db;	    # picasa database pointer needed for File::Find's _wanted.
 
 # return new picasa database object of given directories (or empty)
@@ -61,7 +61,8 @@ sub contact2person {
 # return a picasa picture object for given $dir $pic
 sub picasa {
     my($self, $dir, $pic) = @_;
-    return {} unless $dir and $pic;
+    return {} unless $dir;
+    return $self->{dirs}{$dir} || {} unless $pic;
     return $self->{dirs}{$dir}{$pic} || {};
 }
 
@@ -80,6 +81,28 @@ sub faces {
     return @ret;
 }
 
+# write the .picasa.ini in given $dir, backing up the original once
+sub save {
+    my($self, $dir) = @_;
+    my $out = "$dir/.picasa.ini";
+    mkdir $dir or die "can't mkdir $dir: $!\n" unless -d $dir;
+    if (-f $out) {		# backup the original, but only once
+	my $tmp = $out . '_original';
+	rename $out, $tmp or warn "$0: can't rename $out $tmp: $!\n";
+    }
+    open my $fh, '>', $out or warn "can't write $out: $!\n" and return 0;
+    for my $file (sort keys %{$self->{dirs}{$dir}}) {
+	if (my @key = sort keys %{$self->{dirs}{$dir}{$file}}) {
+	    print $fh ($file =~ /\[.+\]/ ? $file : "[$file]"), "\n";
+	    for my $f (@key) {
+		print $fh "$f=$self->{dirs}{$dir}{$file}{$f}\n";
+	    }
+	}
+    }
+    close $fh or warn "can't close $out: $!\n" and return 0;
+    return 1;
+}
+
 # return NW, SE coordinates encoded in $rect
 sub rect {
     my($self, $rect) = @_;
@@ -90,6 +113,48 @@ sub rect {
 	push @out, hex($1) / 65536;
     }
     return @out;
+}
+
+# merge $srcdir/$srcpic's data into $dstdir/[$dstpic];
+sub merge {
+    my($self, $srcdir, $srcpic, $dstdir, $dstpic) = @_;
+    $dstpic = $srcpic unless $dstpic;
+    for my $c ($srcpic, grep /\[(.album:\w+|Contacts\d*)\]/,
+	       keys %{$self->{dirs}{$srcdir}}) {
+	my $tmp = $self->_merge($self->{dirs}{$srcdir}{$c},
+				$self->{dirs}{$dstdir}{$c});
+	$self->{dirs}{$dstdir}{$c} = $tmp if keys %$tmp;
+    }
+}
+
+# return ref to hash merge of two hash refs, warning of any conflicts
+sub _merge {
+    my($self, $a, $b) = @_;
+    my %keys;
+    my $c = {};
+    map { $keys{$_}++ } keys %$a, keys %$b;
+    for (sort keys %keys) {
+	if (defined $a->{$_} and defined $b->{$_}) {
+	    if ($a->{$_} eq $b->{$_}) {
+		$c->{$_} = $a->{$_};
+	    } elsif ($a->{$_} and ! $b->{$_}) {
+		$c->{$_} = $a->{$_};
+	    } elsif ($b->{$_} and ! $a->{$_}) {
+		$c->{$_} = $b->{$_};
+	    } else {
+		warn "WARN $_: ($a->{$_} ne $b->{$_}) using first, second lost\n";
+		$c->{$_} = $a->{$_};
+	    }
+	} elsif (defined $a->{$_}) {
+	    $c->{$_} = $a->{$_};
+	} elsif (defined $b->{$_}) {
+	    $c->{$_} = $b->{$_};
+	} else {
+	    warn "WARN $_: this shouldn't happen: both values undefined\n";
+	}
+    }
+#    print Dumper $a, $b, $c;
+    return $c;
 }
 
 # add a file or directory to the database
@@ -110,6 +175,7 @@ sub _readfile {
     my($file) = @_;
     my $data = {};
     my $fh;
+#    warn ">$file<\n";
     return $data unless open $fh, $file;
     my $section = '';
     my($name, $dir) = fileparse $file;
