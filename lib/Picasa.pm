@@ -93,13 +93,14 @@ sub save {
     open my $fh, '>', $out or warn "can't write $out: $!\n" and return 0;
     for my $file (sort keys %{$self->{dirs}{$dir}}) {
 	if (my @key = sort keys %{$self->{dirs}{$dir}{$file}}) {
-	    print $fh ($file =~ /\[.+\]/ ? $file : "[$file]"), "\n";
+	    print $fh ($file =~ /\[.+\]/ ? $file : "[$file]"), "\r\n";
 	    for my $f (@key) {
-		print $fh "$f=$self->{dirs}{$dir}{$file}{$f}\n";
+		print $fh "$f=$self->{dirs}{$dir}{$file}{$f}\r\n";
 	    }
 	}
     }
     close $fh or warn "can't close $out: $!\n" and return 0;
+    unlink $out unless -s $out;
     return 1;
 }
 
@@ -142,7 +143,7 @@ sub _merge {
 	    } elsif ($b->{$_} and ! $a->{$_}) {
 		$c->{$_} = $b->{$_};
 	    } else {
-		warn "WARN $_: ($a->{$_} ne $b->{$_}) using first, second lost\n";
+		warn "WARN $_: (keep:) $a->{$_} (lose:) $b->{$_}\n";
 		$c->{$_} = $a->{$_};
 	    }
 	} elsif (defined $a->{$_}) {
@@ -160,9 +161,9 @@ sub _merge {
 # add a file or directory to the database
 sub _wanted {
     my($file, $dir) = fileparse $_;
-    if ($file eq '.picasa.ini') {
+    if ($file eq '.picasa.ini' or $file eq 'Picasa.ini') {
 	&_understand($db, _readfile($_));
-    } elsif ($file =~ /^\..+/) { # ignore hidden files/directories
+    } elsif ($file =~ /^\..+/ or $file eq 'Originals') { # ignore hidden files/directories
 	$File::Find::prune = 1;
     } elsif (-f $_) {
 	$db->{dirs}{$dir}{$file} = {}
@@ -220,9 +221,9 @@ sub _understand {
 sub _identical {
     my($a, $b) = @_;
     for my $k (keys %$a, keys %$b) {
-	$a->{$k} eq $b->{$k} or warn "$k: $a->{$k} ne $b->{$k}\n";
+	$a->{$k} eq $b->{$k} or warn "$k: (keep:) $a->{$k} (lose:) $b->{$k} ($File::Find::name)\n";
     }
     return $a;
 }
 
-1;
+1;				# return true
