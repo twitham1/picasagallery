@@ -81,6 +81,25 @@ sub faces {
     return @ret;
 }
 
+# return array of [id, name, date, location, description] of albums in $pic
+sub albums {
+    my($self, $dir, $pic) = @_;
+    my @ret;
+    return @ret unless $dir and $pic;
+    my $this = $self->{dirs}{$dir}{$pic};
+    return @ret unless $this and $this->{albums};
+    for my $id (split ',', $this->{albums}) {
+	my $this = $self->{album}{$id};
+	push @ret, [$id,
+		    $this->{name} || '',
+		    $this->{date} || '',
+		    $this->{location} || '',
+		    $this->{description} || '',
+	];
+    }
+    return @ret;
+}
+
 # write the .picasa.ini in given $dir, backing up the original once
 sub save {
     my($self, $dir) = @_;
