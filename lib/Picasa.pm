@@ -38,7 +38,8 @@ sub dirs {
 sub pics {
     my $self = shift;
     my $dir = shift or return ();
-    return keys %{$self->{dirs}{$dir}};
+    my $pat = shift || '(?i).jpg$';
+    return grep /$pat/, keys %{$self->{dirs}{$dir}};
 }
 
 # return all contacts of the database
@@ -105,21 +106,32 @@ sub save {
     my($self, $dir) = @_;
     my $out = "$dir/.picasa.ini";
     mkdir $dir or die "can't mkdir $dir: $!\n" unless -d $dir;
-    if (-f $out) {		# backup the original, but only once
-	my $tmp = $out . '_original';
-	rename $out, $tmp or warn "$0: can't rename $out $tmp: $!\n";
+    my $was;
+    if (open my $fh, $out) {
+	$was .= $_ while (<$fh>);
     }
-    open my $fh, '>', $out or warn "can't write $out: $!\n" and return 0;
+    my $now;
     for my $file (sort keys %{$self->{dirs}{$dir}}) {
 	if (my @key = sort keys %{$self->{dirs}{$dir}{$file}}) {
-	    print $fh ($file =~ /\[.+\]/ ? $file : "[$file]"), "\r\n";
+	    $now .= ($file =~ /\[.+\]/ ? $file : "[$file]") . "\r\n";
 	    for my $f (@key) {
-		print $fh "$f=$self->{dirs}{$dir}{$file}{$f}\r\n";
+		$now .= "$f=$self->{dirs}{$dir}{$file}{$f}\r\n";
 	    }
 	}
     }
-    close $fh or warn "can't close $out: $!\n" and return 0;
-    unlink $out unless -s $out;
+    if ($was eq $now) {
+#	print "# $out unchanged\n";
+    } else {
+	print "# $out being replaced\n";
+	if (-f $out) {		# backup the original, but only once
+		my $tmp = $out . '_original';
+		rename $out, $tmp or warn "$0: can't rename $out $tmp: $!\n";
+	}
+	open my $fh, '>', $out or warn "can't write $out: $!\n" and return 0;
+	print $fh $now;
+	close $fh or warn "can't close $out: $!\n" and return 0;
+	unlink $out unless -s $out;
+    }
     return 1;
 }
 
