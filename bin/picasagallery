@@ -1,0 +1,426 @@
+@rem = '--*-Perl-*--
+@echo off
+if "%OS%" == "Windows_NT" goto WinNT
+perl -x -S "%0" %1 %2 %3 %4 %5 %6 %7 %8 %9
+goto endofperl
+:WinNT
+perl -x -S %0 %*
+if NOT "%COMSPEC%" == "%SystemRoot%\system32\cmd.exe" goto endofperl
+if %errorlevel% == 9009 echo You do not have Perl in your PATH.
+if errorlevel 1 goto script_failed_so_exit_with_non_zero_val 2>nul
+goto endofperl
+@rem ';
+#!/usr/bin/perl
+#line 15
+
+use strict;
+use warnings;
+use POSIX qw/strftime/;
+use Tk;
+use Tk::Frame;
+use Tk::JPEG;
+use Tk::PNG;
+use Tk::Bitmap;
+use Tk::Pixmap;
+use Tk::Photo;
+use Tk::Font;
+use Tk::Table;
+use Data::Dumper;
+use File::Path;
+use Picasa;
+
+# convert can't deal with .ico files (yet)
+# Tk can deal with Tiff/NEF as of 804.027_501 with Tk::TIFF
+my $conf = {
+    keep => '(?i)\.(jpe?g|gif|x[pb]m|png|bmp|tiff?|nef)$',
+    reject => '(Thumbs.db|desktop.ini)',
+    datefmt => '%Y-%m-%d.%H:%M:%S', # must be sortable
+    update => \&update,
+    debug => 0,
+    };
+(my $datepat = $conf->{datefmt}) =~ s/%./\\d+/g;
+
+my $picasa;	     # picasa database
+my $current;	     # pointer to current point in picasa virtual tree
+my $refreshing = ""; # directory currently refreshing
+my $mode = 0;	     # looking at directories 0, or pictures 1
+my $info = 0;	     # overlay images with information?
+
+$Data::Dumper::Indent = 1;	# development hack; remove this!!!
+#print Dumper $picasa;
+#exit;
+
+my $tmp;
+my $cache;			# where to cache browser thumbnails
+if ($^O eq "MSWin32") {		# Windows hacks
+    $tmp = "/temp";
+    $ENV{HOME} ||= $ENV{USERPROFILE};
+    $ENV{HOME} =~ s@\\@/@g;
+    $cache = "$tmp/.thumbcache";
+} else {		
+    $tmp = "/tmp";
+    $cache = ".thumbcache"; # fix this to be in $HOME
+}
+mkdir $cache unless -d $cache;
+
+my(@tn);			# thumbnails
+my $mw = Tk::MainWindow->new (-title => "Picasa Gallery");
+my ($cx, $cy) = ($mw->screenwidth, $mw->screenheight);
+warn "$cx x $cy\n" if $conf->{debug};
+
+$cx = 1280; $cy = 720;		# development hack!!! remove this
+$mw->geometry(sprintf "%dx%d", $cx, $cy);
+
+my $tnx = 7;				     # columns of thumbnails
+my $tpx = int(($cx - 4 * $tnx - 50) / $tnx); # 50 should be actual scroll bar width intead
+
+# text metadata in corners of browser
+my($nw, $n, $ne, $se, $s, $sw) = ('', '', '', '', '', '');
+my $big = $mw->Font(-family => 'Helvetica',
+		    -size => 20,
+		    -weight => 'bold',
+    );
+my $med = $mw->Font(-family => 'Helvetica',
+		    -size => 15,
+#		    -weight => 'bold',
+    );
+
+my $top = $mw->Frame()->pack(-side => "top", -fill => 'x');
+$top->Label(-textvariable => \$nw, -font => $med)->pack(-side => "left");
+$top->Label(-textvariable => \$ne, -font => $med)->pack(-side => "right");
+$top->Label(-textvariable => \$n,  -font => $big, -fg => 'blue')
+    ->pack(-side => "top");
+my $bot = $mw->Frame()->pack(-side => "bottom", -fill => 'x');
+$bot->Label(-textvariable => \$sw, -font => $med)->pack(-side => "left");
+$bot->Label(-textvariable => \$se, -font => $med)->pack(-side => "right");
+$bot->Label(-textvariable => \$s, -font => $med, -fg => 'blue')
+    ->pack(-side => "bottom");
+
+# thumbnail table grid
+my $tg = $mw->Table(-rows => 4,
+		    -columns => 7,
+		    -scrollbars => 'w',
+		    -background => 'black',
+    )->pack(-side => "top", -expand => 1, -fill => "both");
+
+# full size image viewer
+my $full = $mw->Toplevel(-width => $cx, -height => $cy);
+my $canvas = $full->Canvas(-width => $cx, -height => $cy)
+    ->pack(-expand => 1, -fill => 'both');
+my $image = $mw->Photo(-width => $cx, -height => $cy);
+$image->blank;
+$canvas->createImage(0, 0, -image => $image, -anchor => 'nw');
+$full->update;
+$mw->raise;
+$mw->update;
+
+for my $w ($mw, $full) {
+    $w->bind($_, sub {		# up or exit
+	if ($mode) {
+	    $mw->raise; $mode = 0;
+	} elsif ($picasa->{dir}{file} eq '/') {
+	    $full->destroy;
+	    $mw->destroy;
+	    exit;
+	} else {
+	    $picasa->up;
+	    &newdir;
+	}
+	&move;
+	     }) for (qw(<Key-q> <Escape>));
+    $w->bind($_, sub {		# enter subdirectory or full picture
+	if ($picasa->down) {
+	    &newdir;
+	    $mw->raise; $mode = 0;
+	} else {
+	    &newpic;
+	    $full->raise; $mode = 1;
+	}
+	&move;
+	     }) for (qw(<Key-d> <Return>));
+    $w->bind($_, sub {
+	$picasa->next;
+	$mode and &newpic;
+	&move;
+	     }) for (qw(<Right> <space> <Key-n>));
+    $w->bind($_, sub {
+	$picasa->prev;
+	$mode and &newpic;
+	&move;
+	     }) for (qw(<Left> <Up> <BackSpace> <Key-p>));
+    $w->bind($_, sub {
+	for (1 .. $tnx) { $picasa->next }
+	$mode and &newpic;
+	&move;
+	     }) for (qw(<Down>));
+    $w->bind($_, sub {
+	for (1 .. $tnx) { $picasa->prev }
+	$mode and &newpic;
+	&move;
+	     }) for (qw(<Up>));
+    $w->bind($_, sub {
+	$info = $info ? 0 : 1;
+	$mode and &newpic;
+	&move;
+	     }) for (qw(<Key-i>));
+}
+
+$picasa = Picasa->new($conf);
+$picasa->recursedirs('.');	# start finding the pictures
+
+MainLoop;
+
+exit;
+
+BEGIN {	     # filtering is expensive, so we update only once a second
+    my @child;
+    my $updated = 0;
+    sub update {
+	$mw->update;		# let GUI work while we are busy
+	return unless time > $updated;
+	return unless $picasa->{root};
+	return unless $picasa->{file};
+	return unless $picasa->{file}{dir};
+	return unless $picasa->{file}{file};
+
+	warn "updating $File::Find::name\n" if $conf->{debug};
+	my $loc = "$picasa->{file}{dir}$picasa->{file}{file}";
+	$picasa->{file} = $picasa->filter($loc);
+	&move;		# updates statistics
+	$updated = time;
+    }
+}
+
+sub nums {			# format the counts of attributes
+    my $this = shift;
+    return sprintf "%ds %du %df %da %dc",
+    $this->{stars},
+    $this->{uploads},
+    scalar @{$this->{faces}},
+    scalar @{$this->{albums}},
+    $this->{caption} =~ /^\d+$/ ? $this->{caption} :
+	$this->{caption} ? 1 : 0;
+}
+
+sub stats {			# format the [average] image metrics
+    my($this, $x, $y) = @_;
+    my $w = $this->{width} / $this->{files};
+    my $h = $this->{height} / $this->{files};
+    my $scale = $x / $w < $y / $h ? $x / $w : $y / $h;
+
+    return sprintf "%.0f KB (%.2f MP) %.0f x %.0f (%.3f) %.0f%%",
+    $this->{bytes} / 1024 / $this->{files},
+    $this->{pixels} / 1000 / 1000 / $this->{files},
+    $w, $h, $w / $h, 100 * $scale;
+}
+
+sub move {			# move to new directory or file
+    return unless $picasa->{index} >= 0;
+
+    $mw->title("PG: $picasa->{file}{dir}");
+    $tg->see(int($picasa->{index} / $tnx + 1), # Table index begins at 1, not 0!
+	     $picasa->{index} % $tnx + 1);
+
+    return unless $current = $picasa->{file};
+    warn "location: $picasa->{dir}{dir} $picasa->{dir}{file} - $picasa->{file}{dir} $picasa->{file}{file} ($picasa->{index})\n" if $conf->{debug};
+    return unless $current->{files};
+
+
+    if (@tn) {
+	$tn[$_]->{wdgt}->configure(-bg => $tn[$_]->{phys}{titl} =~ m@/$@ ?
+				   "Blue" : "Black") for 0 .. $#tn;
+	$tn[$picasa->{index}]->{wdgt}->configure(-bg => "White")
+	    if $tn[$picasa->{index}]->{wdgt};
+    }
+
+    $n = $current->{file};
+    $n =~ s@$datepat-@@ unless $n =~ m!/$!;
+
+    $nw = sprintf "(%s) %.2f MB (%.2f GP) in %d files",
+    &nums($current),
+    $current->{bytes} / 1024 / 1024,
+    $current->{pixels} / 1000 / 1000 / 1000,
+    $current->{files};
+
+    $ne = &stats($current, $tpx, $tpx);
+    $s = $current->{dir};
+
+    # my @t = split /\D+/, $current->{time};
+    # $t[0] -= 1900; $t[1]--;
+    # $sw = strftime "%x", @t;
+    $sw = $current->{time};
+    $se = $current->{time} eq $current->{endtime} ?
+	$current->{caption} || '' : $current->{endtime};
+}
+
+sub newdir {		 # replace all thumbnails in current directory
+    my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
+    $now =~ s@/+@/@g;
+    $refreshing eq $now and return;
+    warn "\n\nnewdir $now\n" if $conf->{debug};
+    $refreshing = $now;
+    $tg->clear;			# clean up previous pics
+    for (@tn) {
+	$_ && ref $_ && $_->{wdgt} && Exists ($_->{wdgt}) &&
+	    $_->{wdgt}->destroy ();
+    }
+    @tn = ();			# start over
+    $mw->raise; $mode = 0;
+#    $mw->overrideredirect(1);
+
+    # Gather all pics in this folder
+    $current = $picasa->{dir};
+    foreach my $img (@{$current->{children}}) {
+	my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
+	$now =~ s@/+@/@g;
+	$refreshing eq $now or return;
+
+        my $child = "$now$img";
+	my $this = $picasa->filter($child) or next;
+	my $pf = $this->{physical} or next;
+        my $ps = -s $pf or next;
+	my $data = $picasa->{pics}{$pf} or next; # data of this picture
+	my $x = $data->{width} or next;
+	my $y = $data->{height} or next;
+
+        # Thumbnail
+#        my ($rx, $ry) = $angl == 90 || $angl == 270 ? ($y, $x) : ($x, $y);
+        my ($rx, $ry) = ($x, $y);
+        my $tf = $tpx / ($ry > $rx ? $ry : $rx);
+        my ($tX, $tY) = map { int } ($tf * $rx, $tf * $ry);
+
+        my $t;
+#        unless ($t = $mw->PhotoXY ($pf, $tX, $tY, $angl)) {
+        unless ($t = $mw->PhotoXYthumb($pf, $tX, $tY, 0)) {
+            warn "$pf: Cannot read\n";
+            next;
+	}
+
+        my $titl = $img;
+        utf8::upgrade ($titl);
+
+        my $w = $tg->Label(-image => $t);
+	$w->configure(-bg => "Black");
+        push @tn, {
+            wdgt => $w,         # Widget
+            # angl => $angl,      # rotation angle
+            phys => {           # Physical location and size
+                file => $pf,
+                titl => $titl,
+	    },
+	};
+
+        my $nt = $#tn;
+	warn "putting $nt / $tnx ($w in $tg - $t - $pf)\n" if $conf->{debug} > 1;
+	$tg->put(int($nt / $tnx) + 1, # Table index begins at 1, not 0!
+		 $nt % $tnx + 1,
+		 $w);
+
+        $w->update;		# Display the thumbnail
+    }
+    &move;
+    $refreshing = "";
+}
+
+sub newpic {	     # replace the full picture with current selection
+    my $this = $picasa->{file} or return;
+    my $pf = $this->{physical} or return;
+    my $ps = -s $pf or return;
+    my $data = $picasa->{pics}{$pf} or return; # data of this picture
+    my $x = $data->{width} or return;
+    my $y = $data->{height} or return;
+    my $scale = $cx / $x < $cy / $y ? $cx / $x : $cy / $y;
+    my($X, $Y) = $image->PhotoXYfull($pf, map { int } $scale * $x, $scale * $y)
+	or return;
+    $full->title("PG: $picasa->{file}{file}");
+
+    $canvas->delete('faces');
+    $canvas->delete('caption');
+    $canvas->delete('info');
+    return unless $info;
+
+    for my $f (@{$this->{faces}}) { # named rectangles around faces!
+	next unless ref $f;
+	my($id, $l, $t, $r, $b) = @$f;
+	$canvas->createRectangle($X + $l * $x * $scale, $Y + $t * $y * $scale,
+				 $X + $r * $x * $scale, $Y + $b * $y * $scale,
+				 -outline => 'red',
+				 -tags => 'faces');
+	$canvas->createText(2 + $X + $l * $x * $scale, $Y + $t * $y * $scale,
+			    -anchor => 'nw',
+			    -font => $med,
+			    -fill => 'red',
+			    -text => $picasa->contact2person($id),
+			    -tags => 'faces');
+    }
+    if ($this->{caption}) {
+	$canvas->createText($cx / 2, $cy,
+			    -anchor => 's',
+			    -font => $med,
+			    -fill => 'white',
+			    -text => $this->{caption},
+			    -tags => 'caption');
+    }
+    $canvas->createText($cx - 2, 2,
+			-anchor => 'ne',
+			-font => $med,
+			-fill => 'black',
+			-text => &stats($this, $cx, $cy),
+			-tags => 'info');
+    my $text = &nums($this);
+    (my $file = $this->{file}) =~ s/$this->{time}-//;
+    $text = "$this->{dir}\n$file\n$this->{time}\n($text)\n\n";
+    $canvas->createText(2, 2,
+			-anchor => 'nw',
+			-font => $med,
+			-fill => 'black',
+			-text => $text,
+			-tags => 'info');
+    $text = '';
+    map { $text .= "\n" . $picasa->{album}{$_}{name} } @{$this->{albums}};
+    $canvas->createText(2, $cy - 2,
+			-anchor => 'sw',
+			-font => $med,
+			-fill => 'black',
+			-text => $text,
+			-tags => 'info');
+}
+
+#my $pxyid = 10000;
+sub Tk::PhotoXYthumb {
+    my ($w, $f, $x, $y, $r) = (@_, 0);
+    $f && $x && $y or return;
+    my $ext = 'png';		# thumnail format
+    my $cfn = "$cache/$f-$x-$y.$ext";
+    unless (-f $cfn) {
+	my($dir, $file) = Picasa::dirfile($cfn);
+	mkpath $dir;
+	my ($rx, $ry) = $r == 90 || $r == 270 ? ($y, $x) : ($x, $y);
+	my $geo = "${rx}x${ry}";
+	my @rot = $r ? ("-rotate", $r) : ();
+	system "convert", "-size", $geo, "-thumbnail", "$geo+0+0", @rot, $f, $cfn;
+    }
+    return $w->Photo(-file => $cfn);
+}
+
+BEGIN {
+    my $id = 10000;
+    sub Tk::PhotoXYfull {	# read $f file into $w image scaled to size x/y
+	my ($w, $f, $x, $y, $r) = (@_, 0);
+	$f && $x && $y or return;
+	$w->blank;
+	my $cfn = "$cache/tmp-$$-" . $id++;
+	my $ext = 'jpg';	# full format
+	my ($rx, $ry) = $r == 90 || $r == 270 ? ($y, $x) : ($x, $y);
+	my $geo = "${rx}x${ry}";
+	my @rot = $r ? ("-rotate", $r) : ();
+	system "convert", "-size", $geo, "-resize", "$geo+0+0", @rot, $f, $cfn;
+	my($l, $t) = (int(($cx - $x) / 2), int(($cy - $y) / 2));
+	$w->read($cfn, -to => $l, $t);
+	unlink $cfn;
+	return $l, $t;
+    }
+}
+
+__END__
+:endofperl
