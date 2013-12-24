@@ -50,27 +50,30 @@ $Data::Dumper::Indent = 1;	# development hack; remove this!!!
 #print Dumper $picasa;
 #exit;
 
+my $mw = Tk::MainWindow->new (-title => "Picasa Gallery");
+my ($cx, $cy) = ($mw->screenwidth, $mw->screenheight);
+warn "$cx x $cy\n" if $conf->{debug};
+
 my $tmp;
 my $cache;			# where to cache browser thumbnails
+my $or = 0;			# whether to use overrideredirect
 if ($^O eq "MSWin32") {		# Windows hacks
     $tmp = "/temp";
     $ENV{HOME} ||= $ENV{USERPROFILE};
     $ENV{HOME} =~ s@\\@/@g;
     $cache = "$tmp/.thumbcache";
+    $cx = 1280; $cy = 720;	# development hack!!! remove this
 } else {		
     $tmp = "/tmp";
     $cache = ".thumbcache"; # fix this to be in $HOME
+#    $or = 1;
 }
 mkdir $cache unless -d $cache;
 
-my(@tn);			# thumbnails
-my $mw = Tk::MainWindow->new (-title => "Picasa Gallery");
-my ($cx, $cy) = ($mw->screenwidth, $mw->screenheight);
-warn "$cx x $cy\n" if $conf->{debug};
-
-$cx = 1280; $cy = 720;		# development hack!!! remove this
+$mw->overrideredirect(1) if $or;
 $mw->geometry(sprintf "%dx%d", $cx, $cy);
 
+my(@tn);				     # thumbnails
 my $tnx = 7;				     # columns of thumbnails
 my $tpx = int(($cx - 4 * $tnx - 50) / $tnx); # 50 should be actual scroll bar width intead
 
@@ -105,20 +108,28 @@ my $tg = $mw->Table(-rows => 4,
 
 # full size image viewer
 my $full = $mw->Toplevel(-width => $cx, -height => $cy);
-my $canvas = $full->Canvas(-width => $cx, -height => $cy)
-    ->pack(-expand => 1, -fill => 'both');
+$full->overrideredirect(1) if $or;
+my $canvas = $full->Canvas(-width => $cx, -height => $cy,
+			   -highlightthickness=> 0, -borderwidth => 0)
+    ->pack(-side => 'top', -anchor => 'nw', -expand => 1, -fill => 'both');
 my $image = $mw->Photo(-width => $cx, -height => $cy);
 $image->blank;
 $canvas->createImage(0, 0, -image => $image, -anchor => 'nw');
-$full->update;
 $mw->raise;
-$mw->update;
+$mw->waitVisibility;
 
+$full->bind('<Configure>' => 	# resize window
+	    sub  { my $w = shift;
+		   ($cx, $cy) = ($w->Width, $w->Height);
+		   $canvas->configure(-width => $cx,
+				      -height => $cy);
+		   $image->configure(-width => $cx,
+				     -height => $cy);
+	    });
 for my $w ($mw, $full) {
     $w->bind($_, sub {		# up or exit
-	if ($mode) {
-	    $mw->raise; $mode = 0;
-	} elsif ($picasa->{dir}{file} eq '/') {
+	$mw->raise; $mode = 0;
+	if ($picasa->{dir}{file} eq '/') {
 	    $full->destroy;
 	    $mw->destroy;
 	    exit;
@@ -234,7 +245,7 @@ sub move {			# move to new directory or file
     }
 
     $n = $current->{file};
-    $n =~ s@$datepat-@@ unless $n =~ m!/$!;
+    $n =~ s/$current->{time}-// unless $n =~ m!/$!;
 
     $nw = sprintf "(%s) %.2f MB (%.2f GP) in %d files",
     &nums($current),
@@ -266,7 +277,6 @@ sub newdir {		 # replace all thumbnails in current directory
     }
     @tn = ();			# start over
     $mw->raise; $mode = 0;
-#    $mw->overrideredirect(1);
 
     # Gather all pics in this folder
     $current = $picasa->{dir};
@@ -346,7 +356,8 @@ sub newpic {	     # replace the full picture with current selection
 				 $X + $r * $x * $scale, $Y + $b * $y * $scale,
 				 -outline => 'red',
 				 -tags => 'faces');
-	$canvas->createText(2 + $X + $l * $x * $scale, $Y + $t * $y * $scale,
+	$canvas->createText(2 + $X + $l * $x * $scale,
+			    2 + $Y + $t * $y * $scale,
 			    -anchor => 'nw',
 			    -font => $med,
 			    -fill => 'red',
@@ -354,7 +365,7 @@ sub newpic {	     # replace the full picture with current selection
 			    -tags => 'faces');
     }
     if ($this->{caption}) {
-	$canvas->createText($cx / 2, $cy,
+	$canvas->createText($cx / 2, $cy - 2,
 			    -anchor => 's',
 			    -font => $med,
 			    -fill => 'white',
