@@ -13,9 +13,23 @@ goto endofperl
 #!/usr/bin/perl
 #line 15
 
+# picasagallery by twitham@sbcglobal.net, 2013-12
+
+# GOAL: replace mythgallery with Picasa aware version that understands:
+#	albums, faces, stars, uploads, captions, exif, tags, etc.
+
+# TODO: add filtering
+# TODO: add caption to thumbnails
+# TODO: replace directory thumbnails with stacks of pictures & file count
+# TODO: toggle option to replace face thumbnails with zoomed face crops
+# TODO: auto-update the cache when dir/file timestamps are newer
+# TODO: [random] slideshow below current point in tree w/ variable time
+# TODO: pop-up menu of all options and/or keyboard shortcut info
+
 use strict;
 use warnings;
-use POSIX qw/strftime/;
+#use POSIX qw/strftime/;
+use Date::Calc qw/Delta_YMD Delta_Days/; # for age calculations
 use Tk;
 use Tk::Frame;
 use Tk::JPEG;
@@ -24,58 +38,59 @@ use Tk::Bitmap;
 use Tk::Pixmap;
 use Tk::Photo;
 use Tk::Font;
-use Tk::Table;
-use Data::Dumper;
-use File::Path;
-use Picasa;
+use Tk::Table;			 # for picture browser
+use Data::Dumper;		 # for saving metadata cache
+use File::Path;			 # for creating thumbnail paths
+use Image::ExifTool qw(:Public); # for picture metadata
+use Picasa;			 # for groking Picasa data!
 
-# convert can't deal with .ico files (yet)
-# Tk can deal with Tiff/NEF as of 804.027_501 with Tk::TIFF
-my $conf = {
-    keep => '(?i)\.(jpe?g|gif|x[pb]m|png|bmp|tiff?|nef)$',
-    reject => '(Thumbs.db|desktop.ini)',
-    datefmt => '%Y-%m-%d.%H:%M:%S', # must be sortable
-    update => \&update,
-    debug => 0,
-    };
-(my $datepat = $conf->{datefmt}) =~ s/%./\\d+/g;
+my $picasa;			# picasa database
 
-my $picasa;	     # picasa database
+# config file can override any settings here:
+our $conf = {
+    config	=> '.picasagallery_conf.pl', # config to require, if present
+    metadata	=> '.picasagallery_cache.pl', # cache of picture data
+    cache	=> '.thumbcache', # where to put thumbnails
+    keep	=> '(?i)\.(jpe?g|gif|x[pb]m|png|bmp|tiff?|nef)$',
+    reject	=> '(Thumbs.db|desktop.ini)',
+    datefmt	=> '%Y-%m-%d.%H:%M:%S', # must be sortable w/ year first
+    update	=> \&update,		# don't change this
+    debug	=> 0,			# debug to STDERR?
+    info	=> 0,			# overlay metadata on images?
+    width	=> 1280,		# initial size
+    height	=> 720,
+    fullscreen	=> 0, # go full-screen with no borders (ignore width/height)?
+    age		=> {}, # optional contact(id|name) => 'yyyy/mm/dd' birthday
+};
+
+require $conf->{config} if -f $conf->{config};
+$picasa = require $conf->{metadata} if -f $conf->{metadata};
+
 my $current;	     # pointer to current point in picasa virtual tree
 my $refreshing = ""; # directory currently refreshing
-my $mode = 0;	     # looking at directories 0, or pictures 1
-my $info = 0;	     # overlay images with information?
+my $fullmode = 0;    # looking at directories 0, or pictures 1
 
-$Data::Dumper::Indent = 1;	# development hack; remove this!!!
-#print Dumper $picasa;
-#exit;
+$Data::Dumper::Indent = 1;   # readable format for the cached metadata
 
-my $mw = Tk::MainWindow->new (-title => "Picasa Gallery");
-my ($cx, $cy) = ($mw->screenwidth, $mw->screenheight);
-warn "$cx x $cy\n" if $conf->{debug};
-
-my $tmp;
-my $cache;			# where to cache browser thumbnails
-my $or = 0;			# whether to use overrideredirect
-if ($^O eq "MSWin32") {		# Windows hacks
-    $tmp = "/temp";
-    $ENV{HOME} ||= $ENV{USERPROFILE};
-    $ENV{HOME} =~ s@\\@/@g;
-    $cache = "$tmp/.thumbcache";
-    $cx = 1280; $cy = 720;	# development hack!!! remove this
-} else {		
-    $tmp = "/tmp";
-    $cache = ".thumbcache"; # fix this to be in $HOME
-#    $or = 1;
+my $mw = Tk::MainWindow->new (-title => "Picasa Gallery", -bg => 'black');
+my($mx, $my) = ($conf->{width}, $conf->{height});
+if ($conf->{fullscreen}) {
+    ($mx, $my) = ($mw->screenwidth, $mw->screenheight);
+    warn "going fullscreen to $mx x $my\n" if $conf->{debug};
+    $mw->overrideredirect(1); # must be done before window is mapped
 }
-mkdir $cache unless -d $cache;
+$mw->geometry(sprintf "%dx%d", $mx, $my);
 
-$mw->overrideredirect(1) if $or;
-$mw->geometry(sprintf "%dx%d", $cx, $cy);
+mkdir $conf->{cache} or die $! unless -d $conf->{cache};
 
-my(@tn);				     # thumbnails
-my $tnx = 7;				     # columns of thumbnails
-my $tpx = int(($cx - 4 * $tnx - 50) / $tnx); # 50 should be actual scroll bar width intead
+my $exif = new Image::ExifTool;
+$exif->Options(FastScan => 1,
+	       DateFormat => $conf->{datefmt});
+
+my(@tn);		       # thumbnails: array of labels of Photos
+my $tnx = 7;		       # columns of thumbnails to display
+my $tpx = int(($mx - 4 * $tnx - 50) / $tnx); # 50 should be actual scroll bar width intead
+my $tpy = int($tpx / 1.1);	# "average" aspect ratio for most pics
 
 # text metadata in corners of browser
 my($nw, $n, $ne, $se, $s, $sw) = ('', '', '', '', '', '');
@@ -88,16 +103,16 @@ my $med = $mw->Font(-family => 'Helvetica',
 #		    -weight => 'bold',
     );
 
-my $top = $mw->Frame()->pack(-side => "top", -fill => 'x');
-$top->Label(-textvariable => \$nw, -font => $med)->pack(-side => "left");
-$top->Label(-textvariable => \$ne, -font => $med)->pack(-side => "right");
-$top->Label(-textvariable => \$n,  -font => $big, -fg => 'blue')
-    ->pack(-side => "top");
-my $bot = $mw->Frame()->pack(-side => "bottom", -fill => 'x');
-$bot->Label(-textvariable => \$sw, -font => $med)->pack(-side => "left");
-$bot->Label(-textvariable => \$se, -font => $med)->pack(-side => "right");
-$bot->Label(-textvariable => \$s, -font => $med, -fg => 'blue')
-    ->pack(-side => "bottom");
+my @c = (-fg => 'white', -bg => 'black');
+my $top = $mw->Frame(@c)->pack(-side => "top", -fill => 'x');
+$top->Label(-textvariable => \$nw, -font => $med, @c)->pack(-side => "left");
+$top->Label(-textvariable => \$ne, -font => $med, @c)->pack(-side => "right");
+$top->Label(-textvariable => \$n,  -font => $big, @c, -fg => 'red')->pack(-side => "top");
+
+my $bot = $mw->Frame(@c)->pack(-side => "bottom", -fill => 'x');
+$bot->Label(-textvariable => \$sw, -font => $med, @c)->pack(-side => "left");
+$bot->Label(-textvariable => \$se, -font => $med, @c)->pack(-side => "right");
+$bot->Label(-textvariable => \$s,  -font => $med, @c, -fg => 'red')->pack(-side => "bottom");
 
 # thumbnail table grid
 my $tg = $mw->Table(-rows => 4,
@@ -107,31 +122,36 @@ my $tg = $mw->Table(-rows => 4,
     )->pack(-side => "top", -expand => 1, -fill => "both");
 
 # full size image viewer
-my $full = $mw->Toplevel(-width => $cx, -height => $cy);
-$full->overrideredirect(1) if $or;
-my $canvas = $full->Canvas(-width => $cx, -height => $cy,
+my $full = $mw->Toplevel(-width => $mx, -height => $my, -background => 'black');
+$full->overrideredirect(1) if $conf->{fullscreen};
+my $canvas = $full->Canvas(-width => $mx, -height => $my, -background => 'black',
 			   -highlightthickness=> 0, -borderwidth => 0)
     ->pack(-side => 'top', -anchor => 'nw', -expand => 1, -fill => 'both');
-my $image = $mw->Photo(-width => $cx, -height => $cy);
+my $image = $mw->Photo(-width => $mx, -height => $my);
 $image->blank;
 $canvas->createImage(0, 0, -image => $image, -anchor => 'nw');
 $mw->raise;
-$mw->waitVisibility;
 
 $full->bind('<Configure>' => 	# resize window
 	    sub  { my $w = shift;
-		   ($cx, $cy) = ($w->Width, $w->Height);
-		   $canvas->configure(-width => $cx,
-				      -height => $cy);
-		   $image->configure(-width => $cx,
-				     -height => $cy);
+		   ($mx, $my) = ($w->Width, $w->Height);
+		   $canvas->configure(-width => $mx,
+				      -height => $my);
+		   $image->configure(-width => $mx,
+				     -height => $my);
 	    });
 for my $w ($mw, $full) {
     $w->bind($_, sub {		# up or exit
-	$mw->raise; $mode = 0;
-	if ($picasa->{dir}{file} eq '/') {
+	if ($fullmode) {
+	    $mw->raise; $fullmode = 0;
+	} elsif ($picasa->{dir}{file} eq '/') {
 	    $full->destroy;
 	    $mw->destroy;
+	    if (open my $fh, '>', "$conf->{metadata}~") {
+		print $fh Dumper $picasa or die $!;
+		close $fh and rename "$conf->{metadata}~",
+		$conf->{metadata} or die $!;
+	    }
 	    exit;
 	} else {
 	    $picasa->up;
@@ -142,42 +162,50 @@ for my $w ($mw, $full) {
     $w->bind($_, sub {		# enter subdirectory or full picture
 	if ($picasa->down) {
 	    &newdir;
-	    $mw->raise; $mode = 0;
+	    $mw->raise; $fullmode = 0;
 	} else {
 	    &newpic;
-	    $full->raise; $mode = 1;
+	    $full->raise; $fullmode = 1;
 	}
 	&move;
 	     }) for (qw(<Key-d> <Return>));
     $w->bind($_, sub {
 	$picasa->next;
-	$mode and &newpic;
+	$fullmode and &newpic;
 	&move;
 	     }) for (qw(<Right> <space> <Key-n>));
     $w->bind($_, sub {
 	$picasa->prev;
-	$mode and &newpic;
+	$fullmode and &newpic;
 	&move;
 	     }) for (qw(<Left> <Up> <BackSpace> <Key-p>));
     $w->bind($_, sub {
 	for (1 .. $tnx) { $picasa->next }
-	$mode and &newpic;
+	$fullmode and &newpic;
 	&move;
 	     }) for (qw(<Down>));
     $w->bind($_, sub {
 	for (1 .. $tnx) { $picasa->prev }
-	$mode and &newpic;
+	$fullmode and &newpic;
 	&move;
 	     }) for (qw(<Up>));
     $w->bind($_, sub {
-	$info = $info ? 0 : 1;
-	$mode and &newpic;
+	$conf->{info} = $conf->{info} ? 0 : 1;
+	$fullmode and &newpic;
 	&move;
 	     }) for (qw(<Key-i>));
 }
 
-$picasa = Picasa->new($conf);
-$picasa->recursedirs('.');	# start finding the pictures
+unless ($picasa) {
+    $picasa = Picasa->new($conf);
+    $picasa->recursedirs('.');	# start finding the pictures
+}
+$mw->after(500, \&newdir);
+
+if ($conf->{fullscreen}) {	# force needed on Linux
+    $mw->focusForce;
+    $mw->grabGlobal;
+}
 
 MainLoop;
 
@@ -197,7 +225,7 @@ BEGIN {	     # filtering is expensive, so we update only once a second
 	warn "updating $File::Find::name\n" if $conf->{debug};
 	my $loc = "$picasa->{file}{dir}$picasa->{file}{file}";
 	$picasa->{file} = $picasa->filter($loc);
-	&move;		# updates statistics
+	&move;			# updates statistics
 	$updated = time;
     }
 }
@@ -237,11 +265,10 @@ sub move {			# move to new directory or file
     return unless $current->{files};
 
 
-    if (@tn) {
-	$tn[$_]->{wdgt}->configure(-bg => $tn[$_]->{phys}{titl} =~ m@/$@ ?
-				   "Blue" : "Black") for 0 .. $#tn;
-	$tn[$picasa->{index}]->{wdgt}->configure(-bg => "White")
-	    if $tn[$picasa->{index}]->{wdgt};
+    for my $i (0 .. $#tn) {
+	my $w = $tg->get(int($i / $tnx + 1), $i % $tnx + 1);
+	$w->configure(-bg => 'black');
+	$w->configure(-bg => 'white') if $i == $picasa->{index};
     }
 
     $n = $current->{file};
@@ -253,7 +280,7 @@ sub move {			# move to new directory or file
     $current->{pixels} / 1000 / 1000 / 1000,
     $current->{files};
 
-    $ne = &stats($current, $tpx, $tpx);
+    $ne = &stats($current, $tpx, $tpy);
     $s = $current->{dir};
 
     # my @t = split /\D+/, $current->{time};
@@ -270,16 +297,11 @@ sub newdir {		 # replace all thumbnails in current directory
     $refreshing eq $now and return;
     warn "\n\nnewdir $now\n" if $conf->{debug};
     $refreshing = $now;
-    $tg->clear;			# clean up previous pics
-    for (@tn) {
-	$_ && ref $_ && $_->{wdgt} && Exists ($_->{wdgt}) &&
-	    $_->{wdgt}->destroy ();
-    }
-    @tn = ();			# start over
-    $mw->raise; $mode = 0;
+    $mw->raise; $fullmode = 0;
 
     # Gather all pics in this folder
     $current = $picasa->{dir};
+    my $index = 0;
     foreach my $img (@{$current->{children}}) {
 	my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
 	$now =~ s@/+@/@g;
@@ -293,40 +315,28 @@ sub newdir {		 # replace all thumbnails in current directory
 	my $x = $data->{width} or next;
 	my $y = $data->{height} or next;
 
-        # Thumbnail
 #        my ($rx, $ry) = $angl == 90 || $angl == 270 ? ($y, $x) : ($x, $y);
         my ($rx, $ry) = ($x, $y);
-        my $tf = $tpx / ($ry > $rx ? $ry : $rx);
+        my $tf = $tpy / $ry < $tpx / $rx ? $tpy / $ry : $tpx / $rx;
         my ($tX, $tY) = map { int } ($tf * $rx, $tf * $ry);
 
-        my $t;
-#        unless ($t = $mw->PhotoXY ($pf, $tX, $tY, $angl)) {
-        unless ($t = $mw->PhotoXYthumb($pf, $tX, $tY, 0)) {
-            warn "$pf: Cannot read\n";
-            next;
+	unless ($tn[$index]) { # connect 1 photo to each cell only once
+	    my $cell = $tg->Label(-width => $tpx, -height => $tpy, -image =>
+				  $mw->Photo(-width => $tpx, -height => $tpy));
+	    $tn[$index] = $cell;
+	    $tg->put(int($index / $tnx) + 1, # Table index begins at 1, not 0!
+		     $index % $tnx + 1,
+		     $cell);
 	}
+	my $image = $tn[$index]->cget(-image); # replace cell's photo
+	$image->PhotoXYthumb($pf, $tX, $tY, 0);
 
-        my $titl = $img;
-        utf8::upgrade ($titl);
-
-        my $w = $tg->Label(-image => $t);
-	$w->configure(-bg => "Black");
-        push @tn, {
-            wdgt => $w,         # Widget
-            # angl => $angl,      # rotation angle
-            phys => {           # Physical location and size
-                file => $pf,
-                titl => $titl,
-	    },
-	};
-
-        my $nt = $#tn;
-	warn "putting $nt / $tnx ($w in $tg - $t - $pf)\n" if $conf->{debug} > 1;
-	$tg->put(int($nt / $tnx) + 1, # Table index begins at 1, not 0!
-		 $nt % $tnx + 1,
-		 $w);
-
-        $w->update;		# Display the thumbnail
+#	warn "putting $index / $tnx ($w in $tg - $t - $pf)\n" if $conf->{debug} > 1;
+        $tn[$index]->update;	# Display the thumbnail
+	$index++;
+    }
+    while ($index <= $#tn) {	# blank the unused cells
+    	$tn[$index++]->cget(-image)->blank;
     }
     &move;
     $refreshing = "";
@@ -339,70 +349,117 @@ sub newpic {	     # replace the full picture with current selection
     my $data = $picasa->{pics}{$pf} or return; # data of this picture
     my $x = $data->{width} or return;
     my $y = $data->{height} or return;
-    my $scale = $cx / $x < $cy / $y ? $cx / $x : $cy / $y;
+    my $scale = $mx / $x < $my / $y ? $mx / $x : $my / $y;
     my($X, $Y) = $image->PhotoXYfull($pf, map { int } $scale * $x, $scale * $y)
 	or return;
     $full->title("PG: $picasa->{file}{file}");
 
-    $canvas->delete('faces');
+    $canvas->delete('exif');
     $canvas->delete('caption');
     $canvas->delete('info');
-    return unless $info;
+    $canvas->delete('faces');
+    return unless $conf->{info};
+
+    if (my $info = $exif->ImageInfo($pf)) {
+	my @info;
+	push @info, $info->{Make} if $info->{Make};
+	push @info, $info->{Model} if $info->{Model};
+	push @info, "$info->{ExposureTime}s" if $info->{ExposureTime};
+	push @info, $info->{FocalLength} if $info->{FocalLength};
+	push @info, "($info->{FocalLengthIn35mmFormat})" if $info->{FocalLengthIn35mmFormat};
+	push @info, "f/$info->{FNumber}" if $info->{FNumber};
+	push @info, "ISO: $info->{ISO}" if $info->{ISO};
+	push @info, $info->{Flash} if $info->{Flash};
+	$canvas->createTextBox($mx - 2, $my - 2, 'black',
+			       -justify => 'right',
+			       -anchor => 'se',
+			       -font => $med,
+			       -fill => 'white',
+			       -text => (join " \n", @info),
+			       -tags => 'exif');
+    }
+    $canvas->createTextBox($mx, 0, 'black',
+			   -justify => 'right',
+			   -anchor => 'ne',
+			   -font => $med,
+			   -fill => 'white',
+			   -text => &stats($this, $mx, $my),
+			   -tags => 'info');
+    my $text = &nums($this);
+    (my $file = $this->{file}) =~ s/$this->{time}-//;
+    $text = "$this->{dir}\n$file\n($text)\n$this->{time}";
+    $text .= "\n$this->{endtime}" if $this->{time} ne $this->{endtime};;
+# TODO: add total statistics here for directories
+#    $text .= "\n$this->{files} files\n$nw" if $this->{files} > 1;
+    $canvas->createTextBox(0, 0, 'black',
+			   -anchor => 'nw',
+			   -font => $med,
+			   -fill => 'white',
+			   -text => $text,
+			   -tags => 'info');
+    $text = join "\n", map { $picasa->{album}{$_}{name} } @{$this->{albums}};
+    $canvas->createTextBox(0, $my, 'black',
+			   -anchor => 'sw',
+			   -font => $med,
+			   -fill => 'white',
+			   -text => $text,
+			   -tags => 'info');
+    if ($this->{caption}) {
+	$canvas->createTextBox($mx / 2, $my, 'black',
+			       -anchor => 's',
+			       -font => $med,
+			       -fill => 'white',
+			       -text => $this->{caption},
+			       -tags => 'caption');
+    }
 
     for my $f (@{$this->{faces}}) { # named rectangles around faces!
 	next unless ref $f;
 	my($id, $l, $t, $r, $b) = @$f;
+	my $name = $picasa->contact2person($id);
 	$canvas->createRectangle($X + $l * $x * $scale, $Y + $t * $y * $scale,
 				 $X + $r * $x * $scale, $Y + $b * $y * $scale,
 				 -outline => 'red',
 				 -tags => 'faces');
-	$canvas->createText(2 + $X + $l * $x * $scale,
-			    2 + $Y + $t * $y * $scale,
+	$canvas->createText($X + $l * $x * $scale + 2, $Y + $t * $y * $scale,
 			    -anchor => 'nw',
 			    -font => $med,
 			    -fill => 'red',
-			    -text => $picasa->contact2person($id),
+			    -text => $name,
 			    -tags => 'faces');
+	if (my $birth = $conf->{age}{$id} # option to show ages of faces :-)
+	    || $conf->{age}{$name}) {
+	    my($yr, $m, $d) = split '/', $birth;
+	    my($Yr, $M, $D) = split /\D+/, $this->{time};
+	    my($year, $mon, $day) = Delta_YMD($yr, $m, $d, $Yr, $M, $D);
+	    warn "age $id/$name: $Yr, $M, $D - $yr, $m, $d = $year, $mon, $day\n"
+		if $conf->{debug};
+	    my $age;
+	    if ($year < 1 && $mon < 3) {
+		$age = sprintf "%dd", Delta_Days($yr, $m, $d, $Yr, $M, $D);
+	    } elsif ($year < 3) {
+		$age = sprintf "%dm", int($year * 12 + $mon);
+	    } else {
+		$age = sprintf "%d", int($year + $mon / 12 + $day / 365);
+	    }
+	    $canvas->createText($X + $r * $x * $scale - 2, $Y + $b * $y * $scale,
+				-justify => 'right',
+				-anchor => 'se',
+				-font => $med,
+				-fill => 'red',
+				-text => $age,
+				-tags => 'faces');
+	}
     }
-    if ($this->{caption}) {
-	$canvas->createText($cx / 2, $cy - 2,
-			    -anchor => 's',
-			    -font => $med,
-			    -fill => 'white',
-			    -text => $this->{caption},
-			    -tags => 'caption');
-    }
-    $canvas->createText($cx - 2, 2,
-			-anchor => 'ne',
-			-font => $med,
-			-fill => 'black',
-			-text => &stats($this, $cx, $cy),
-			-tags => 'info');
-    my $text = &nums($this);
-    (my $file = $this->{file}) =~ s/$this->{time}-//;
-    $text = "$this->{dir}\n$file\n$this->{time}\n($text)\n\n";
-    $canvas->createText(2, 2,
-			-anchor => 'nw',
-			-font => $med,
-			-fill => 'black',
-			-text => $text,
-			-tags => 'info');
-    $text = '';
-    map { $text .= "\n" . $picasa->{album}{$_}{name} } @{$this->{albums}};
-    $canvas->createText(2, $cy - 2,
-			-anchor => 'sw',
-			-font => $med,
-			-fill => 'black',
-			-text => $text,
-			-tags => 'info');
 }
 
-#my $pxyid = 10000;
+# read $f file into $w image scaled to size $x / $y, with cacheing
 sub Tk::PhotoXYthumb {
     my ($w, $f, $x, $y, $r) = (@_, 0);
     $f && $x && $y or return;
-    my $ext = 'png';		# thumnail format
-    my $cfn = "$cache/$f-$x-$y.$ext";
+    $w->blank;
+    my $ext = 'jpg';		# thumnail format
+    my $cfn = "$conf->{cache}/$f-$x-$y.$ext";
     unless (-f $cfn) {
 	my($dir, $file) = Picasa::dirfile($cfn);
 	mkpath $dir;
@@ -411,26 +468,37 @@ sub Tk::PhotoXYthumb {
 	my @rot = $r ? ("-rotate", $r) : ();
 	system "convert", "-size", $geo, "-thumbnail", "$geo+0+0", @rot, $f, $cfn;
     }
-    return $w->Photo(-file => $cfn);
+    $w->read($cfn, -to => int(($tpx - $x) / 2), int(($tpy - $y) / 2));
 }
 
+# read $f file into $w image scaled to size $x / $y
 BEGIN {
     my $id = 10000;
-    sub Tk::PhotoXYfull {	# read $f file into $w image scaled to size x/y
+    my $ext = 'jpg';		# full format
+    sub Tk::PhotoXYfull {
 	my ($w, $f, $x, $y, $r) = (@_, 0);
 	$f && $x && $y or return;
 	$w->blank;
-	my $cfn = "$cache/tmp-$$-" . $id++;
-	my $ext = 'jpg';	# full format
+	my $cfn = "$conf->{cache}/tmp-$$-" . $id++ . ".$ext";
 	my ($rx, $ry) = $r == 90 || $r == 270 ? ($y, $x) : ($x, $y);
 	my $geo = "${rx}x${ry}";
 	my @rot = $r ? ("-rotate", $r) : ();
 	system "convert", "-size", $geo, "-resize", "$geo+0+0", @rot, $f, $cfn;
-	my($l, $t) = (int(($cx - $x) / 2), int(($cy - $y) / 2));
+	my($l, $t) = (int(($mx - $x) / 2), int(($my - $y) / 2));
 	$w->read($cfn, -to => $l, $t);
 	unlink $cfn;
 	return $l, $t;
     }
+}
+
+# createText on a box of given color $c
+sub Tk::Canvas::createTextBox {
+    my($w, $x, $y, $c, %opt) = @_;
+    my $t = $w->createText($x, $y, %opt);
+    my @opt;
+    push @opt, (-tags => $opt{'-tags'}) if $opt{'-tags'};
+    $w->createRectangle($w->bbox($t), -fill => $c, @opt);
+    $w->raise($t);
 }
 
 __END__
