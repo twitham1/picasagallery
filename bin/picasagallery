@@ -326,10 +326,16 @@ sub newdir {		 # replace all thumbnails in current directory
 		     $index % $tnx + 1,
 		     $cell);
 	}
-        my $scale = $tpy / $y < $tpx / $x ? $tpy / $y : $tpx / $x;
 	my $image = $tn[$index]->cget(-image); # replace cell's photo
-	$image->PhotoXYthumb($pf, (map { int } $scale * $x, $scale * $y),
-			     $data->{caption} || 0);
+	if ($img =~ m!/$!) {	# directory: stack some pics
+	    $child =~ s@/$@@;
+	    $image->StackXYthumb($child, $tpx, $tpy, "$this->{files}: $img",
+				 $this->{first}, $this->{physical}, $this->{'last'});
+	} else {
+	    my $scale = $tpy / $y < $tpx / $x ? $tpy / $y : $tpx / $x;
+	    $image->PhotoXYthumb($pf, (map { int } $scale * $x, $scale * $y),
+				 $data->{caption} || 0);
+	}
 
 #	warn "putting $index / $tnx ($w in $tg - $t - $pf)\n" if $conf->{debug} > 1;
         $tn[$index]->update;	# Display the thumbnail
@@ -458,7 +464,6 @@ sub newpic {	     # replace the full picture with current selection
 sub Tk::PhotoXYthumb {
     my ($w, $f, $x, $y, $c) = @_;
     $f && $x && $y or return;
-    $w->blank;
     my $ext = 'jpg';		# thumnail format
     my $cfn = "$conf->{cache}/$f-$x-$y.$ext";
     unless (-f $cfn && -M _ < -M $f) {
@@ -473,8 +478,34 @@ sub Tk::PhotoXYthumb {
 	    system qw/convert -thumbnail/, $geo, $f, $cfn;
 	}
     }
+    $w->blank;
     $w->read($cfn, -to => int(($tpx - $x) / 2), int(($tpy - $y) / 2));
 }
+
+# @pics stacked into $w image of size $x / $y, with cacheing as $f
+sub Tk::StackXYthumb {
+    my ($w, $f, $x, $y, $label, @pic) = @_;
+    warn "StackXYthumb: my ($w, $f, $x, $y, $label, @pic)\n" if $conf->{debug};
+    $f && $x && $y && @pic or return;
+    my $ext = 'jpg';		# thumnail format
+    my $cfn = "$conf->{cache}/$f-$x-$y.$ext";
+    
+    unless (-f $cfn && @pic == grep { -M $_ > -M $cfn } @pic) {
+	my($dir, $file) = Picasa::dirfile($cfn);
+	-d $dir or mkpath $dir or warn "can't mkdir $dir: $!\n";
+	my $geo = sprintf "%.0fx%.0f", $x * 2 / 3, $y * 2 / 3;
+	system 'convert', '-size', "${x}x${y}", 'xc:navy',
+	'(', $pic[0], '-thumbnail', $geo, ')', qw/-gravity northwest -composite/,
+	'(', $pic[1], '-thumbnail', $geo, ')', qw/-gravity center -composite/,
+	'(', $pic[2], '-thumbnail', $geo, ')', qw/-gravity southeast -composite/,
+	qw/-background #0006 -fill white -gravity center -size/,
+	sprintf("%.0fx%.0f", $x, $y / 4),
+	"caption:$label", '-composite', $cfn;
+    }
+    $w->blank;
+    $w->read($cfn);
+}
+
 
 # read $f file into $w image scaled to size $x / $y
 BEGIN {
