@@ -15,21 +15,21 @@ goto endofperl
 
 # picasagallery by twitham@sbcglobal.net, 2013-12
 
-# GOAL: replace mythgallery with Picasa aware version that understands:
-#	albums, faces, stars, uploads, captions, exif, tags, etc.
+# GOAL: keyboard-driven mythgallery-style browser that understands Picasa:
+#	albums, faces, stars, uploads, captions, exif, tags, location, etc.
 
-# TODO: add filtering
-# TODO: add caption to thumbnails
+# TODO: add filtering by flags, age
+# TODO: add captions to thumbnails
 # TODO: replace directory thumbnails with stacks of pictures & file count
 # TODO: toggle option to replace face thumbnails with zoomed face crops
 # TODO: auto-update the cache when dir/file timestamps are newer
 # TODO: [random] slideshow below current point in tree w/ variable time
-# TODO: pop-up menu of all options and/or keyboard shortcut info
+# TODO: pop-up menu of all options and/or keyboard shortcut help
+# TODO: support all Picasa file formats (videos for example)
 
 use strict;
 use warnings;
 #use POSIX qw/strftime/;
-use Date::Calc qw/Delta_YMD Delta_Days/; # for age calculations
 use Tk;
 use Tk::Frame;
 use Tk::JPEG;
@@ -42,6 +42,7 @@ use Tk::Table;			 # for picture browser
 use Data::Dumper;		 # for saving metadata cache
 use File::Path;			 # for creating thumbnail paths
 use Image::ExifTool qw(:Public); # for picture metadata
+use Date::Calc qw/Delta_YMD Delta_Days/; # for age calculations
 use Picasa;			 # for groking Picasa data!
 
 my $picasa;			# picasa database
@@ -68,7 +69,6 @@ $picasa = require $conf->{metadata} if -f $conf->{metadata};
 
 my $current;	     # pointer to current point in picasa virtual tree
 my $refreshing = ""; # directory currently refreshing
-my $fullmode = 0;    # looking at directories 0, or pictures 1
 
 $Data::Dumper::Indent = 1;   # readable format for the cached metadata
 
@@ -94,12 +94,13 @@ my $tpy = int($tpx / 1.1);	# "average" aspect ratio for most pics
 
 # text metadata in corners of browser
 my($nw, $n, $ne, $se, $s, $sw) = ('', '', '', '', '', '');
+# maybe font should be replaced on <configure> window resize...
 my $big = $mw->Font(-family => 'Helvetica',
-		    -size => 20,
+		    -size => int($my / 40), # 20,
 		    -weight => 'bold',
     );
 my $med = $mw->Font(-family => 'Helvetica',
-		    -size => 15,
+		    -size => int($my / 50), # 15,
 #		    -weight => 'bold',
     );
 
@@ -130,7 +131,7 @@ my $canvas = $full->Canvas(-width => $mx, -height => $my, -background => 'black'
 my $image = $mw->Photo(-width => $mx, -height => $my);
 $image->blank;
 $canvas->createImage(0, 0, -image => $image, -anchor => 'nw');
-$mw->raise;
+$mw->raiseFocus;
 
 $full->bind('<Configure>' => 	# resize window
 	    sub  { my $w = shift;
@@ -141,9 +142,12 @@ $full->bind('<Configure>' => 	# resize window
 				     -height => $my);
 	    });
 for my $w ($mw, $full) {
+#    $w->bind('<KeyPress>', [\&processkey, Ev('A'), Ev('k'), Ev('K'), Ev('N')]);
     $w->bind($_, sub {		# up or exit
-	if ($fullmode) {
-	    $mw->raise; $fullmode = 0;
+	my $tmp = $mw->focusCurrent;
+	warn "focus=$tmp, mw=$mw, full=$full\n";
+	if ($mw->focusCurrent eq $full) {
+	    $mw->raiseFocus;
 	} elsif ($picasa->{dir}{file} eq '/') {
 	    $full->destroy;
 	    $mw->destroy;
@@ -161,37 +165,37 @@ for my $w ($mw, $full) {
 	     }) for (qw(<Key-q> <Escape>));
     $w->bind($_, sub {		# enter subdirectory or full picture
 	if ($picasa->down) {
+	    $mw->raiseFocus;
 	    &newdir;
-	    $mw->raise; $fullmode = 0;
 	} else {
+	    $full->raiseFocus;
 	    &newpic;
-	    $full->raise; $fullmode = 1;
 	}
 	&move;
 	     }) for (qw(<Key-d> <Return>));
     $w->bind($_, sub {
 	$picasa->next;
-	$fullmode and &newpic;
+	&newpic;
 	&move;
 	     }) for (qw(<Right> <space> <Key-n>));
     $w->bind($_, sub {
 	$picasa->prev;
-	$fullmode and &newpic;
+	&newpic;
 	&move;
 	     }) for (qw(<Left> <Up> <BackSpace> <Key-p>));
     $w->bind($_, sub {
 	for (1 .. $tnx) { $picasa->next }
-	$fullmode and &newpic;
+	&newpic;
 	&move;
 	     }) for (qw(<Down>));
     $w->bind($_, sub {
 	for (1 .. $tnx) { $picasa->prev }
-	$fullmode and &newpic;
+	&newpic;
 	&move;
 	     }) for (qw(<Up>));
     $w->bind($_, sub {
 	$conf->{info} = $conf->{info} ? 0 : 1;
-	$fullmode and &newpic;
+	&newpic;
 	&move;
 	     }) for (qw(<Key-i>));
 }
@@ -200,16 +204,17 @@ unless ($picasa) {
     $picasa = Picasa->new($conf);
     $picasa->recursedirs('.');	# start finding the pictures
 }
+
 $mw->after(500, \&newdir);
-
-if ($conf->{fullscreen}) {	# force needed on Linux
-    $mw->focusForce;
-    $mw->grabGlobal;
-}
-
+$mw->raiseFocus;
 MainLoop;
 
 exit;
+
+sub processkey {
+    my($win, $ascii, $code, $str, $num) = @_;
+    warn "'$ascii $code $str $num' was pressed\n";
+}
 
 BEGIN {	     # filtering is expensive, so we update only once a second
     my @child;
@@ -297,7 +302,7 @@ sub newdir {		 # replace all thumbnails in current directory
     $refreshing eq $now and return;
     warn "\n\nnewdir $now\n" if $conf->{debug};
     $refreshing = $now;
-    $mw->raise; $fullmode = 0;
+    $mw->raiseFocus;
 
     # Gather all pics in this folder
     $current = $picasa->{dir};
@@ -315,11 +320,6 @@ sub newdir {		 # replace all thumbnails in current directory
 	my $x = $data->{width} or next;
 	my $y = $data->{height} or next;
 
-#        my ($rx, $ry) = $angl == 90 || $angl == 270 ? ($y, $x) : ($x, $y);
-        my ($rx, $ry) = ($x, $y);
-        my $tf = $tpy / $ry < $tpx / $rx ? $tpy / $ry : $tpx / $rx;
-        my ($tX, $tY) = map { int } ($tf * $rx, $tf * $ry);
-
 	unless ($tn[$index]) { # connect 1 photo to each cell only once
 	    my $cell = $tg->Label(-width => $tpx, -height => $tpy, -image =>
 				  $mw->Photo(-width => $tpx, -height => $tpy));
@@ -328,8 +328,9 @@ sub newdir {		 # replace all thumbnails in current directory
 		     $index % $tnx + 1,
 		     $cell);
 	}
+        my $scale = $tpy / $y < $tpx / $x ? $tpy / $y : $tpx / $x;
 	my $image = $tn[$index]->cget(-image); # replace cell's photo
-	$image->PhotoXYthumb($pf, $tX, $tY, 0);
+	$image->PhotoXYthumb($pf, map { int } ($scale * $x, $scale * $y));
 
 #	warn "putting $index / $tnx ($w in $tg - $t - $pf)\n" if $conf->{debug} > 1;
         $tn[$index]->update;	# Display the thumbnail
@@ -343,6 +344,7 @@ sub newdir {		 # replace all thumbnails in current directory
 }
 
 sub newpic {	     # replace the full picture with current selection
+    $full->focusCurrent eq $full or return;
     my $this = $picasa->{file} or return;
     my $pf = $this->{physical} or return;
     my $ps = -s $pf or return;
@@ -419,12 +421,12 @@ sub newpic {	     # replace the full picture with current selection
 	my $name = $picasa->contact2person($id);
 	$canvas->createRectangle($X + $l * $x * $scale, $Y + $t * $y * $scale,
 				 $X + $r * $x * $scale, $Y + $b * $y * $scale,
-				 -outline => 'red',
+				 -outline => 'magenta',
 				 -tags => 'faces');
 	$canvas->createText($X + $l * $x * $scale + 2, $Y + $t * $y * $scale,
 			    -anchor => 'nw',
-			    -font => $med,
-			    -fill => 'red',
+			    -font => $big,
+			    -fill => 'magenta',
 			    -text => $name,
 			    -tags => 'faces');
 	if (my $birth = $conf->{age}{$id} # option to show ages of faces :-)
@@ -445,8 +447,8 @@ sub newpic {	     # replace the full picture with current selection
 	    $canvas->createText($X + $r * $x * $scale - 2, $Y + $b * $y * $scale,
 				-justify => 'right',
 				-anchor => 'se',
-				-font => $med,
-				-fill => 'red',
+				-font => $big,
+				-fill => 'magenta',
 				-text => $age,
 				-tags => 'faces');
 	}
@@ -455,18 +457,23 @@ sub newpic {	     # replace the full picture with current selection
 
 # read $f file into $w image scaled to size $x / $y, with cacheing
 sub Tk::PhotoXYthumb {
-    my ($w, $f, $x, $y, $r) = (@_, 0);
+    my ($w, $f, $x, $y, $c) = @_;
     $f && $x && $y or return;
     $w->blank;
     my $ext = 'jpg';		# thumnail format
     my $cfn = "$conf->{cache}/$f-$x-$y.$ext";
-    unless (-f $cfn) {
+    unless (-f $cfn && -M _ < -M $f) {
 	my($dir, $file) = Picasa::dirfile($cfn);
-	mkpath $dir;
-	my ($rx, $ry) = $r == 90 || $r == 270 ? ($y, $x) : ($x, $y);
-	my $geo = "${rx}x${ry}";
-	my @rot = $r ? ("-rotate", $r) : ();
-	system "convert", "-size", $geo, "-thumbnail", "$geo+0+0", @rot, $f, $cfn;
+	-d $dir or mkpath $dir or warn "can't mkdir $dir: $!\n";
+	my $geo = "${x}x${y}";
+	if ($c) {
+# TODO: add captions:
+	    system qw/convert -background #0006 -fill white -gravity center -size/,
+	    $tpx . 'x' . int($tpy / 6), "caption:$c", $f, '-thumbnail',  $geo,
+	    qw/+swap -gravity south -composite/, $cfn;
+	} else {
+	    system qw/convert -size/, $geo, '-thumbnail', $geo, $f, $cfn;
+	}
     }
     $w->read($cfn, -to => int(($tpx - $x) / 2), int(($tpy - $y) / 2));
 }
@@ -476,14 +483,12 @@ BEGIN {
     my $id = 10000;
     my $ext = 'jpg';		# full format
     sub Tk::PhotoXYfull {
-	my ($w, $f, $x, $y, $r) = (@_, 0);
+	my ($w, $f, $x, $y) = @_;
 	$f && $x && $y or return;
 	$w->blank;
 	my $cfn = "$conf->{cache}/tmp-$$-" . $id++ . ".$ext";
-	my ($rx, $ry) = $r == 90 || $r == 270 ? ($y, $x) : ($x, $y);
-	my $geo = "${rx}x${ry}";
-	my @rot = $r ? ("-rotate", $r) : ();
-	system "convert", "-size", $geo, "-resize", "$geo+0+0", @rot, $f, $cfn;
+	my $geo = "${x}x${y}";
+	system "convert", "-size", $geo, "-resize", "$geo+0+0", $f, $cfn;
 	my($l, $t) = (int(($mx - $x) / 2), int(($my - $y) / 2));
 	$w->read($cfn, -to => $l, $t);
 	unlink $cfn;
@@ -499,6 +504,17 @@ sub Tk::Canvas::createTextBox {
     push @opt, (-tags => $opt{'-tags'}) if $opt{'-tags'};
     $w->createRectangle($w->bbox($t), -fill => $c, @opt);
     $w->raise($t);
+}
+
+# raise window $w and ensure it has focus
+sub Tk::raiseFocus {
+    my($w) = @_;
+    $w->deiconify;
+    $w->raise;
+    if ($conf->{fullscreen}) {	# force needed on Linux
+	$w->focusForce;		# with overrideredirect(1)
+	$w->grabGlobal;
+    }
 }
 
 __END__
