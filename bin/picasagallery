@@ -19,7 +19,6 @@ goto endofperl
 #	albums, faces, stars, uploads, captions, exif, tags, location, etc.
 
 # TODO: add filtering by flags, age
-# TODO: replace directory thumbnails with stacks of pictures & file count
 # TODO: toggle option to replace face thumbnails with zoomed face crops
 # TODO: auto-update the cache when dir/file timestamps are newer
 # TODO: [random] slideshow below current point in tree w/ variable time
@@ -52,7 +51,7 @@ our $conf = {
     metadata	=> '.picasagallery_cache.pl', # cache of picture data
     cache	=> '.thumbcache', # where to put thumbnails
     keep	=> '(?i)\.(jpe?g|gif|x[pb]m|png|bmp|tiff?|nef)$',
-    reject	=> '(Thumbs.db|desktop.ini)',
+    reject	=> '(?i)(Thumbs.db|desktop.ini)',
     datefmt	=> '%Y-%m-%d.%H:%M:%S', # must be sortable w/ year first
     update	=> \&update,		# don't change this
     debug	=> 0,			# debug to STDERR?
@@ -284,7 +283,10 @@ sub move {			# move to new directory or file
     $current->{files};
 
     $ne = &stats($current, $tpx, $tpy);
-    $s = $current->{dir};
+
+    my $total = @{$picasa->{dir}{children}};
+    my $cur = $picasa->{index} + 1;
+    $s = "$current->{dir}: $cur / $total";
 
     # my @t = split /\D+/, $current->{time};
     # $t[0] -= 1900; $t[1]--;
@@ -377,7 +379,7 @@ sub newpic {	     # replace the full picture with current selection
 	push @info, "f/$info->{FNumber}" if $info->{FNumber};
 	push @info, "ISO: $info->{ISO}" if $info->{ISO};
 	push @info, $info->{Flash} if $info->{Flash};
-	$canvas->createTextBox($mx - 2, $my - 2, 'black',
+	$canvas->createTextBox($mx, $my, 'black',
 			       -justify => 'right',
 			       -anchor => 'se',
 			       -font => $med,
@@ -411,11 +413,29 @@ sub newpic {	     # replace the full picture with current selection
 			   -fill => 'white',
 			   -text => $text,
 			   -tags => 'info');
+
+    my $total = @{$picasa->{dir}{children}};
+    my $cur = $picasa->{index} + 1;
+    $canvas->createTextBox($mx / 2, 0, 'black',
+			   -anchor => 'n',
+			   -font => $med,
+			   -fill => 'red',
+			   -text => "$cur / $total",
+			   -tags => 'info');
+    my $bar = $mx / $total;	# disappearing "progress" bar!
+    $bar = 5 if $bar < 5;	# TODO: all info could disappear...
+    my $id = $canvas->createLine($bar * $picasa->{index}, 2,
+    				 $bar * $picasa->{index} + $bar, 2,
+    				 -fill => 'red',
+    				 -width => 5,
+    				 -tags => 'info');
+#    $full->after(3000, sub { $canvas->delete($id) });
+
     if ($this->{caption}) {
 	$canvas->createTextBox($mx / 2, $my, 'black',
 			       -anchor => 's',
 			       -font => $med,
-			       -fill => 'white',
+			       -fill => 'red',
 			       -text => $this->{caption},
 			       -tags => 'caption');
     }
