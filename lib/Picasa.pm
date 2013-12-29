@@ -11,8 +11,7 @@
 # {file} => { current virtual focused "file/?" after filtering/navigating }
 # {index} => current file index ( should this be in {dir} ? )
 
-# TODO:	add filters: stars, uploads, faces, age, [ movies, geotags, captions ]
-# TODO:	Tk browser that can replace mythgallery
+# TODO:	add filters: stars, uploads, faces, age, [ movies, tags, geotags, captions ]
 
 package Picasa;
 use strict;
@@ -174,11 +173,16 @@ sub filter {
 	# TODO: directories should get several samples rather than 1:
 	$data->{physical} or $data->{physical} = $filename;
 
-	$data->{time} = $this->{time} unless 
+	$data->{time} = $this->{time} and
+	    $data->{first} = $filename unless
 	    $data->{time} && $data->{time} lt $this->{time};
-	$data->{endtime} = $this->{time} unless 
+
+	$data->{endtime} = $this->{time} and
+	    $data->{'last'} = $filename unless
 	    $data->{endtime} && $data->{endtime} gt $this->{time};
     }
+    # $data->{first} eq $data->{physical} && delete $data->{first};
+    # $data->{'last'} eq $data->{physical} && delete $data->{'last'};
     $data->{children} = [sort keys %child]; # maybe sort later? sort by option?
     $data->{faces} or $data->{faces} = [keys %face];
     $data->{albums} or $data->{albums} = [keys %album];
@@ -285,11 +289,11 @@ sub save {
     my($self, $dir) = @_;
     my $out = "$dir/.picasa.ini";
     mkdir $dir or die "can't mkdir $dir: $!\n" unless -d $dir;
-    my $was;
+    my $was = '';
     if (open my $fh, $out) {
 	$was .= $_ while (<$fh>);
     }
-    my $now;
+    my $now = '';
     for my $file (sort keys %{$self->{dirs}{$dir}}) {
 	next if $file =~ m@/$@;	# skip subdirs
 	next if $file =~ m@^<<\w+>>$@; # skip internal metadata
@@ -381,7 +385,7 @@ sub _wanted {
 	$File::Find::prune = 1;
 	return;
     }
-    return if $file =~ /$conf->{reject}/;
+    $File::Find::prune = 1, return if $file =~ /$conf->{reject}/;
     if (-f $_) {
 	return unless $file =~ /$conf->{keep}/;
 	$db->{dirs}{$dir}{$file} = {}
@@ -392,10 +396,11 @@ sub _wanted {
 	my $info = $exiftool->ImageInfo($key); #, $exif);
 #	my $info = $exiftool->ImageInfo($key, $exif);
 	return unless $info;
+	return unless $info->{ImageWidth} && $info->{ImageHeight};
 	my $this = $db->{pics}{$key} = {
 	    bytes	=> -s $key,
-	    width	=> $info->{ImageWidth} || 0,
-	    height	=> $info->{ImageHeight} || 0,
+	    width	=> $info->{ImageWidth},
+	    height	=> $info->{ImageHeight},
 	    time	=> $info->{DateTimeOriginal} || $info->{CreateDate}
 	    || $info->{ModifyDate} || $info->{FileModifyDate} || 0,
 	    caption	=> $info->{'Caption-Abstract'}
