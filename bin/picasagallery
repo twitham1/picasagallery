@@ -20,14 +20,12 @@ goto endofperl
 
 # TODO: add filtering by flags, age
 # TODO: toggle option to replace face thumbnails with zoomed face crops
-# TODO: auto-update the cache when dir/file timestamps are newer
 # TODO: [random] slideshow below current point in tree w/ variable time
 # TODO: pop-up menu of all options and/or keyboard shortcut help
 # TODO: support all Picasa file formats (videos for example)
 
 use strict;
 use warnings;
-#use POSIX qw/strftime/;
 use Tk;
 use Tk::Frame;
 use Tk::JPEG;
@@ -43,34 +41,39 @@ use Image::ExifTool qw(:Public); # for picture metadata
 use Date::Calc qw/Delta_YMD Delta_Days/; # for age calculations
 use Picasa;			 # for groking Picasa data!
 
-my $picasa;			# picasa database
+my $picasa;			# working picasa database
+my $picasa_tmp;			# picasa database while updating
 
-# config file can override any settings here:
+# config file can override any settings here (Picasa.pm also uses some):
 our $conf = {
     config	=> '.picasagallery_conf.pl', # config to require, if present
     metadata	=> '.picasagallery_cache.pl', # cache of picture data
     cache	=> '.thumbcache', # where to put thumbnails
     keep	=> '(?i)\.(jpe?g|gif|x[pb]m|png|bmp|tiff?|nef)$',
-    reject	=> '(?i)(Thumbs.db|desktop.ini)',
-    datefmt	=> '%Y-%m-%d.%H:%M:%S', # must be sortable w/ year first
-    update	=> \&update,		# don't change this
+    reject	=> '(?i)(thumbs?(.db)?|desktop.ini)',
+    datefmt	=> '%Y-%m-%d %H:%M:%S %a', # must be sortable w/year first
+    update	=> \&update,		# don't change this (GUI updates)
     debug	=> 0,			# debug to STDERR?
     info	=> 0,			# overlay metadata on images?
     width	=> 1280,		# initial size
     height	=> 720,
     fullscreen	=> 0, # go full-screen with no borders (ignore width/height)?
-    age		=> {}, # optional contact(id|name) => 'yyyy/mm/dd' birthday
+    age		=> {}, # optional contact(id|name) => 'yyyy/mm/dd' birthdays
+    bg		=> 'black',	# background color for the application
+    select	=> '#080',	# current thumbnail selection color
+    text	=> 'white',	# corner information text color
+    title	=> 'red',	# header/footer color
+    face	=> 'magenta', # face box color (uncommon picture color)
 };
 
-require $conf->{config} if -f $conf->{config};
+require $conf->{config} if -f $conf->{config}; # start with previous run data:
 $picasa = require $conf->{metadata} if -f $conf->{metadata};
 
-my $current;	     # pointer to current point in picasa virtual tree
-my $refreshing = ""; # directory currently refreshing
+my $refreshing = "hello";	# directory currently refreshing
 
 $Data::Dumper::Indent = 1;   # readable format for the cached metadata
 
-my $mw = Tk::MainWindow->new (-title => "Picasa Gallery", -bg => 'black');
+my $mw = Tk::MainWindow->new (-title => "Picasa Gallery", -bg => $conf->{bg});
 my($mx, $my) = ($conf->{width}, $conf->{height});
 if ($conf->{fullscreen}) {
     ($mx, $my) = ($mw->screenwidth, $mw->screenheight);
@@ -102,28 +105,28 @@ my $med = $mw->Font(-family => 'Helvetica',
 #		    -weight => 'bold',
     );
 
-my @c = (-fg => 'white', -bg => 'black');
+my @c = (-fg => $conf->{text}, -bg => $conf->{bg});
 my $top = $mw->Frame(@c)->pack(-side => "top", -fill => 'x');
 $top->Label(-textvariable => \$nw, -font => $med, @c)->pack(-side => "left");
 $top->Label(-textvariable => \$ne, -font => $med, @c)->pack(-side => "right");
-$top->Label(-textvariable => \$n,  -font => $big, @c, -fg => 'red')->pack(-side => "top");
+$top->Label(-textvariable => \$n,  -font => $big, @c, -fg => $conf->{title})->pack(-side => "top");
 
 my $bot = $mw->Frame(@c)->pack(-side => "bottom", -fill => 'x');
 $bot->Label(-textvariable => \$sw, -font => $med, @c)->pack(-side => "left");
 $bot->Label(-textvariable => \$se, -font => $med, @c)->pack(-side => "right");
-$bot->Label(-textvariable => \$s,  -font => $med, @c, -fg => 'red')->pack(-side => "bottom");
+$bot->Label(-textvariable => \$s,  -font => $med, @c, -fg => $conf->{title})->pack(-side => "bottom");
 
 # thumbnail table grid
 my $tg = $mw->Table(-rows => 4,
 		    -columns => 7,
 		    -scrollbars => 'w',
-		    -background => 'black',
+		    -bg => $conf->{bg},
     )->pack(-side => "top", -expand => 1, -fill => "both");
 
 # full size image viewer
-my $full = $mw->Toplevel(-width => $mx, -height => $my, -background => 'black');
+my $full = $mw->Toplevel(-width => $mx, -height => $my, -bg => $conf->{bg});
 $full->overrideredirect(1) if $conf->{fullscreen};
-my $canvas = $full->Canvas(-width => $mx, -height => $my, -background => 'black',
+my $canvas = $full->Canvas(-width => $mx, -height => $my, -bg => $conf->{bg},
 			   -highlightthickness=> 0, -borderwidth => 0)
     ->pack(-side => 'top', -anchor => 'nw', -expand => 1, -fill => 'both');
 my $image = $mw->Photo(-width => $mx, -height => $my);
@@ -138,109 +141,135 @@ $full->bind('<Configure>' => 	# resize window
 				      -height => $my);
 		   $image->configure(-width => $mx,
 				     -height => $my);
+		   &newpic;
 	    });
 for my $w ($mw, $full) {
 #    $w->bind('<KeyPress>', [\&processkey, Ev('A'), Ev('k'), Ev('K'), Ev('N')]);
-    $w->bind($_, sub {		# up or exit
-	my $tmp = $mw->focusCurrent;
-	if ($mw->focusCurrent eq $full) {
-	    $mw->raiseFocus;
-	} elsif ($picasa->{dir}{file} eq '/') {
-	    $full->destroy;
-	    $mw->destroy;
-	    if (open my $fh, '>', "$conf->{metadata}~") {
-		print $fh Dumper $picasa or die $!;
-		close $fh and rename "$conf->{metadata}~",
-		$conf->{metadata} or die $!;
+
+    for (qw(<Key-q> <Escape>)) {
+	$w->bind($_, sub {	# up or exit
+	    my $tmp = $mw->focusCurrent;
+	    if ($mw->focusCurrent eq $full) {
+		$mw->raiseFocus;
+	    } elsif ($picasa->{dir}{file} eq '/') {
+		$full->destroy;
+		$mw->destroy;
+		if ($picasa->{done} and
+		    open my $fh, '>', "$conf->{metadata}~") {
+		    print $fh Dumper $picasa or die $!;
+		    close $fh and rename "$conf->{metadata}~",
+		    $conf->{metadata} or die $!;
+		}
+		exit;
+	    } else {
+		$picasa->up;
+		&newdir;
 	    }
-	    exit;
-	} else {
-	    $picasa->up;
-	    &newdir;
-	}
-	&move;
-	     }) for (qw(<Key-q> <Escape>));
-    $w->bind($_, sub {		# enter subdirectory or full picture
-	if ($picasa->down) {
-	    $mw->raiseFocus;
-	    &newdir;
-	} else {
-	    $full->raiseFocus;
+	    &move;
+		 });
+    }
+    for (qw(<Key-d> <Return>)) {
+	$w->bind($_, sub {	# enter subdirectory or full picture
+	    if ($picasa->down) {
+		$mw->raiseFocus;
+		&newdir;
+	    } else {
+		$full->raiseFocus;
+		&newpic;
+	    }
+	    &move;
+		 });
+    }
+    for (qw(<Right> <space> <Key-n>)) {
+	$w->bind($_, sub {	# next picture or subdir
+	    $picasa->next;
 	    &newpic;
-	}
-	&move;
-	     }) for (qw(<Key-d> <Return>));
-    $w->bind($_, sub {
-	$picasa->next;
-	&newpic;
-	&move;
-	     }) for (qw(<Right> <space> <Key-n>));
-    $w->bind($_, sub {
-	$picasa->prev;
-	&newpic;
-	&move;
-	     }) for (qw(<Left> <Up> <BackSpace> <Key-p>));
-    $w->bind($_, sub {
-	for (1 .. $tnx) { $picasa->next }
-	&newpic;
-	&move;
-	     }) for (qw(<Down>));
-    $w->bind($_, sub {
-	for (1 .. $tnx) { $picasa->prev }
-	&newpic;
-	&move;
-	     }) for (qw(<Up>));
-    $w->bind($_, sub {
-	$conf->{info} = $conf->{info} ? 0 : 1;
-	&newpic;
-	&move;
-	     }) for (qw(<Key-i>));
+	    &move;
+		 });
+    }
+    for (qw(<Left> <Up> <BackSpace> <Key-p>)) {
+	$w->bind($_, sub {	# previous picture or subdir
+	    $picasa->prev;
+	    &newpic;
+	    &move;
+		 });
+    }
+    for (qw(<Down>)) {
+	$w->bind($_, sub {	# next row
+	    for (1 .. $tnx) { $picasa->next }
+	    &newpic;
+	    &move;
+		 });
+    }
+    for (qw(<Up>)) {
+	$w->bind($_, sub {	# previous row
+	    for (1 .. $tnx) { $picasa->prev }
+	    &newpic;
+	    &move;
+		 });
+    }
+    for (qw(<Key-i>)) {
+	$w->bind($_, sub {	# information toggle
+	    $conf->{info} = $conf->{info} ? 0 : 1;
+	    &newpic;
+	    &move;
+		 });
+    }
 }
 
-unless ($picasa) {
-    $picasa = Picasa->new($conf);
-    $picasa->recursedirs('.');	# start finding the pictures
+warn "starting Picasa recursion\n" if $conf->{debug};
+$picasa_tmp = Picasa->new($conf); # rebuild all data since prior run
+$picasa or $picasa = $picasa_tmp; # keep previous run or use first run live
+$mw->after(500, \&newdir);	# show browser after we have some data
+$picasa_tmp->recursedirs('.');	# updates GUI via $conf->{update}
+warn "Picasa recursion done!\n" if $conf->{debug};
+
+if ($picasa_tmp->{done} && $picasa ne $picasa_tmp) {
+    warn "replacing $picasa with $picasa_tmp\n" if $conf->{debug};
+    my $old = $picasa;
+    $picasa_tmp->{index} = $picasa->{index}; # retain current location
+    $picasa_tmp->{dir} = $picasa->{dir};
+    $picasa_tmp->{file} = $picasa->{file};
+    $picasa = $picasa_tmp;
+    undef $old;			# free previous data, now stale
 }
 
-$mw->after(500, \&newdir);
-$mw->raiseFocus;
-MainLoop;
-
-exit;
+MainLoop;			# never returns
+exit;				# should never get here
 
 sub processkey {
     my($win, $ascii, $code, $str, $num) = @_;
     warn "'$ascii $code $str $num' was pressed\n";
 }
 
-BEGIN {	     # filtering is expensive, so we update only once a second
-    my @child;
+BEGIN {	# filtering for stats is expensive, so we update GUI only once a second
     my $updated = 0;
     sub update {
 	$mw->update;		# let GUI work while we are busy
 	return unless time > $updated;
-	return unless $picasa->{root};
-	return unless $picasa->{file};
-	return unless $picasa->{file}{dir};
-	return unless $picasa->{file}{file};
+	return unless $picasa_tmp->{root};
+	return unless $picasa_tmp->{file};
+	return unless $picasa_tmp->{file}{dir};
+	return unless $picasa_tmp->{file}{file};
 
 	warn "updating $File::Find::name\n" if $conf->{debug};
-	my $loc = "$picasa->{file}{dir}$picasa->{file}{file}";
-	$picasa->{file} = $picasa->filter($loc);
-	&move;			# updates statistics
+	my $loc = "$picasa_tmp->{file}{dir}$picasa_tmp->{file}{file}";
+	$picasa_tmp->{file} = $picasa_tmp->filter($loc);
+	&move;			# updates statistics on GUI
 	$updated = time;
     }
 }
 
 sub nums {			# format the counts of attributes
     my $this = shift;
-    return sprintf "%ds %du %df %da %dc",
+    my $out = sprintf "%ds %du %df %da %dc",
     $this->{stars},
     $this->{uploads},
     scalar @{$this->{faces}},
     scalar @{$this->{albums}},
     $this->{caption} =~ /^\d+$/ ? $this->{caption} :
 	$this->{caption} ? 1 : 0;
+    return $out =~ /[1-9]/ ? $out : '';
 }
 
 sub stats {			# format the [average] image metrics
@@ -262,25 +291,28 @@ sub move {			# move to new directory or file
     $tg->see(int($picasa->{index} / $tnx + 1), # Table index begins at 1, not 0!
 	     $picasa->{index} % $tnx + 1);
 
-    return unless $current = $picasa->{file};
+    return unless my $current = $picasa->{file};
     warn "location: $picasa->{dir}{dir} $picasa->{dir}{file} - $picasa->{file}{dir} $picasa->{file}{file} ($picasa->{index})\n" if $conf->{debug};
     return unless $current->{files};
 
 
     for my $i (0 .. $#tn) {
 	my $w = $tg->get(int($i / $tnx + 1), $i % $tnx + 1);
-	$w->configure(-bg => 'black');
-	$w->configure(-bg => 'white') if $i == $picasa->{index};
+	$w->configure(-bg => $conf->{bg});
+	$w->configure(-bg => $conf->{select}) if $i == $picasa->{index};
     }
 
     $n = $current->{file};
     $n =~ s/$current->{time}-// unless $n =~ m!/$!;
 
-    $nw = sprintf "(%s) %.2f MB (%.2f GP) in %d files",
-    &nums($current),
+    # $nw = 
+    # $nw = "($nw) " if $nw;
+    $nw = sprintf "%.2f MB (%.2f GP) in %d files",
     $current->{bytes} / 1024 / 1024,
     $current->{pixels} / 1000 / 1000 / 1000,
     $current->{files};
+    my $tmp = &nums($current);
+    $nw .= " ($tmp)" if $tmp;
 
     $ne = &stats($current, $tpx, $tpy);
 
@@ -288,9 +320,6 @@ sub move {			# move to new directory or file
     my $cur = $picasa->{index} + 1;
     $s = "$current->{dir}: $cur / $total";
 
-    # my @t = split /\D+/, $current->{time};
-    # $t[0] -= 1900; $t[1]--;
-    # $sw = strftime "%x", @t;
     $sw = $current->{time};
     $se = $current->{time} eq $current->{endtime} ?
 	$current->{caption} || '' : $current->{endtime};
@@ -305,7 +334,7 @@ sub newdir {		 # replace all thumbnails in current directory
     $mw->raiseFocus;
 
     # Gather all pics in this folder
-    $current = $picasa->{dir};
+    my $current = $picasa->{dir};
     my $index = 0;
     foreach my $img (@{$current->{children}}) {
 	my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
@@ -321,12 +350,12 @@ sub newdir {		 # replace all thumbnails in current directory
 	my $y = $data->{height} or next;
 
 	unless ($tn[$index]) { # connect 1 photo to each cell only once
-	    my $cell = $tg->Label(-width => $tpx, -height => $tpy, -image =>
-				  $mw->Photo(-width => $tpx, -height => $tpy));
-	    $tn[$index] = $cell;
+	    $tn[$index] = $tg->Label(-width => $tpx, -height => $tpy, -image =>
+				     $mw->Photo(-width => $tpx, -height => $tpy),
+				     -bg => $conf->{bg});
 	    $tg->put(int($index / $tnx) + 1, # Table index begins at 1, not 0!
 		     $index % $tnx + 1,
-		     $cell);
+		     $tn[$index]);
 	}
 	my $image = $tn[$index]->cget(-image); # replace cell's photo
 	if ($img =~ m!/$!) {	# directory: stack some pics
@@ -353,6 +382,10 @@ sub newdir {		 # replace all thumbnails in current directory
 sub newpic {	     # replace the full picture with current selection
     $full->focusCurrent eq $full or return;
     my $this = $picasa->{file} or return;
+    if ($this->{file} =~ m!/$!) { # raise browser to see directory option
+	&newdir;
+	return;
+    }
     my $pf = $this->{physical} or return;
     my $ps = -s $pf or return;
     my $data = $picasa->{pics}{$pf} or return; # data of this picture
@@ -379,63 +412,62 @@ sub newpic {	     # replace the full picture with current selection
 	push @info, "f/$info->{FNumber}" if $info->{FNumber};
 	push @info, "ISO: $info->{ISO}" if $info->{ISO};
 	push @info, $info->{Flash} if $info->{Flash};
-	$canvas->createTextBox($mx, $my, 'black',
+	$canvas->createTextBox($mx, $my, $conf->{bg},
 			       -justify => 'right',
 			       -anchor => 'se',
 			       -font => $med,
-			       -fill => 'white',
+			       -fill => $conf->{text},
 			       -text => (join " \n", @info),
 			       -tags => 'exif');
     }
-    $canvas->createTextBox($mx, 0, 'black',
+    $canvas->createTextBox($mx, 0, $conf->{bg},
 			   -justify => 'right',
 			   -anchor => 'ne',
 			   -font => $med,
-			   -fill => 'white',
+			   -fill => $conf->{text},
 			   -text => &stats($this, $mx, $my),
 			   -tags => 'info');
-    my $text = &nums($this);
     (my $file = $this->{file}) =~ s/$this->{time}-//;
-    $text = "$this->{dir}\n$file\n($text)\n$this->{time}";
-    $text .= "\n$this->{endtime}" if $this->{time} ne $this->{endtime};;
-# TODO: add total statistics here for directories
-#    $text .= "\n$this->{files} files\n$nw" if $this->{files} > 1;
-    $canvas->createTextBox(0, 0, 'black',
+    my $text = "$this->{dir}\n$file\n$this->{time}";
+    $text .= "\n$this->{endtime}" if $this->{time} ne $this->{endtime};
+    my $tmp = &nums($this);
+    $text .= "\n($tmp)" if $tmp;
+    $canvas->createTextBox(0, 0, $conf->{bg},
 			   -anchor => 'nw',
 			   -font => $med,
-			   -fill => 'white',
+			   -fill => $conf->{text},
 			   -text => $text,
 			   -tags => 'info');
     $text = join "\n", map { $picasa->{album}{$_}{name} } @{$this->{albums}};
-    $canvas->createTextBox(0, $my, 'black',
+    $canvas->createTextBox(0, $my, $conf->{bg},
 			   -anchor => 'sw',
 			   -font => $med,
-			   -fill => 'white',
+			   -fill => $conf->{text},
 			   -text => $text,
 			   -tags => 'info');
 
     my $total = @{$picasa->{dir}{children}};
     my $cur = $picasa->{index} + 1;
-    $canvas->createTextBox($mx / 2, 0, 'black',
+    $canvas->createTextBox($mx / 2, 0, $conf->{bg},
 			   -anchor => 'n',
 			   -font => $med,
-			   -fill => 'red',
+			   -fill => $conf->{title},
 			   -text => "$cur / $total",
 			   -tags => 'info');
     my $bar = $mx / $total;	# disappearing "progress" bar!
     $bar = 5 if $bar < 5;	# TODO: all info could disappear...
     my $id = $canvas->createLine($bar * $picasa->{index}, 2,
     				 $bar * $picasa->{index} + $bar, 2,
-    				 -fill => 'red',
+    				 -fill => $conf->{title},
     				 -width => 5,
     				 -tags => 'info');
 #    $full->after(3000, sub { $canvas->delete($id) });
 
     if ($this->{caption}) {
-	$canvas->createTextBox($mx / 2, $my, 'black',
+	$canvas->createTextBox($mx / 2, $my, $conf->{bg},
 			       -anchor => 's',
 			       -font => $med,
-			       -fill => 'red',
+			       -fill => $conf->{title},
 			       -text => $this->{caption},
 			       -tags => 'caption');
     }
@@ -446,12 +478,12 @@ sub newpic {	     # replace the full picture with current selection
 	my $name = $picasa->contact2person($id);
 	$canvas->createRectangle($X + $l * $x * $scale, $Y + $t * $y * $scale,
 				 $X + $r * $x * $scale, $Y + $b * $y * $scale,
-				 -outline => 'magenta',
+				 -outline => $conf->{face},
 				 -tags => 'faces');
 	$canvas->createText($X + $l * $x * $scale + 2, $Y + $t * $y * $scale,
 			    -anchor => 'nw',
-			    -font => $big,
-			    -fill => 'magenta',
+			    -font => $med,
+			    -fill => $conf->{face},
 			    -text => $name,
 			    -tags => 'faces');
 	if (my $birth = $conf->{age}{$id} # option to show ages of faces :-)
@@ -473,7 +505,7 @@ sub newpic {	     # replace the full picture with current selection
 				-justify => 'right',
 				-anchor => 'se',
 				-font => $big,
-				-fill => 'magenta',
+				-fill => $conf->{face},
 				-text => $age,
 				-tags => 'faces');
 	}
@@ -486,17 +518,19 @@ sub Tk::PhotoXYthumb {
     $f && $x && $y or return;
     my $ext = 'jpg';		# thumnail format
     my $cfn = "$conf->{cache}/$f-$x-$y.$ext";
-    unless (-f $cfn && -M _ < -M $f) {
+    unless (-f $cfn && -M _ <= -M $f) {
 	my($dir, $file) = Picasa::dirfile($cfn);
 	-d $dir or mkpath $dir or warn "can't mkdir $dir: $!\n";
 	my $geo = "${x}x${y}";
 	if ($c) {
-	    system qw/convert -background #0006 -fill white -gravity center -size/,
-	    $tpx . 'x' . int($tpy / 6), "caption:$c", $f, '-thumbnail',  $geo,
-	    qw/+swap -gravity south -composite/, $cfn;
+	    system qw/convert -fill white -gravity center -background/,
+	    '#0006', '-size', $tpx . 'x' . int($tpy / 6), "caption:$c", $f,
+	    '-thumbnail', $geo, qw/+swap -gravity south -composite/, $cfn;
 	} else {
 	    system qw/convert -thumbnail/, $geo, $f, $cfn;
 	}
+	my($time) = (stat $f)[9]; # timestamp same as source file
+	utime $time, $time, $cfn;
     }
     $w->blank;
     $w->read($cfn, -to => int(($tpx - $x) / 2), int(($tpy - $y) / 2));
@@ -505,12 +539,12 @@ sub Tk::PhotoXYthumb {
 # @pics stacked into $w image of size $x / $y, with cacheing as $f
 sub Tk::StackXYthumb {
     my ($w, $f, $x, $y, $label, @pic) = @_;
-    warn "StackXYthumb: my ($w, $f, $x, $y, $label, @pic)\n" if $conf->{debug};
+#    warn "StackXYthumb: my ($w, $f, $x, $y, $label, @pic)\n" if $conf->{debug};
     $f && $x && $y && @pic or return;
     my $ext = 'jpg';		# thumnail format
     my $cfn = "$conf->{cache}/$f-$x-$y.$ext";
     
-    unless (-f $cfn && @pic == grep { -M $_ > -M $cfn } @pic) {
+    unless (-f $cfn && @pic == grep { -M $_ >= -M $cfn } @pic) {
 	my($dir, $file) = Picasa::dirfile($cfn);
 	-d $dir or mkpath $dir or warn "can't mkdir $dir: $!\n";
 	my $geo = sprintf "%.0fx%.0f", $x * 2 / 3, $y * 2 / 3;
@@ -518,9 +552,10 @@ sub Tk::StackXYthumb {
 	'(', $pic[0], '-thumbnail', $geo, ')', qw/-gravity northwest -composite/,
 	'(', $pic[1], '-thumbnail', $geo, ')', qw/-gravity center -composite/,
 	'(', $pic[2], '-thumbnail', $geo, ')', qw/-gravity southeast -composite/,
-	qw/-background #0006 -fill white -gravity center -size/,
-	sprintf("%.0fx%.0f", $x, $y / 4),
-	"caption:$label", '-composite', $cfn;
+	qw/-fill white -gravity center -background/, '#0006', '-size', 
+	sprintf("%.0fx%.0f", $x, $y / 5), "caption:$label", '-composite', $cfn;
+	my($time) = sort { $b <=> $a } map { (stat $_)[9] } @pic; # latest
+	utime $time, $time, $cfn;
     }
     $w->blank;
     $w->read($cfn);
