@@ -19,10 +19,11 @@ goto endofperl
 #	albums, faces, stars, uploads, captions, exif, tags, location, etc.
 
 # TODO: add filtering by flags, age
-# TODO: toggle option to replace face thumbnails with zoomed face crops
 # TODO: [random] slideshow below current point in tree w/ variable time
+# TODO: toggle option to replace face thumbnails with zoomed face crops
 # TODO: pop-up menu of all options and/or keyboard shortcut help
 # TODO: support all Picasa file formats (videos for example)
+# TODO: option to toggle full-screen mode
 
 use strict;
 use warnings;
@@ -50,7 +51,7 @@ our $conf = {
     metadata	=> '.picasagallery_cache.pl', # cache of picture data
     cache	=> '.thumbcache', # where to put thumbnails
     keep	=> '(?i)\.(jpe?g|gif|x[pb]m|png|bmp|tiff?|nef)$',
-    reject	=> '(?i)(thumbs?(.db)?|desktop.ini)',
+    reject	=> '(?i)\b(thumbs?(.db)?|desktop.ini)\b',
     datefmt	=> '%Y-%m-%d %H:%M:%S %a', # must be sortable w/year first
     update	=> \&update,		# don't change this (GUI updates)
     debug	=> 0,			# debug to STDERR?
@@ -58,9 +59,9 @@ our $conf = {
     width	=> 1280,		# initial size
     height	=> 720,
     fullscreen	=> 0, # go full-screen with no borders (ignore width/height)?
-    age		=> {}, # optional contact(id|name) => 'yyyy/mm/dd' birthdays
+    birthday	=> {}, # optional contact(id|name) => 'yyyy/mm/dd' birthdays
     bg		=> 'black',	# background color for the application
-    select	=> '#080',	# current thumbnail selection color
+    select	=> 'green',	# current thumbnail selection color
     text	=> 'white',	# corner information text color
     title	=> 'red',	# header/footer color
     face	=> 'magenta', # face box color (uncommon picture color)
@@ -305,8 +306,6 @@ sub move {			# move to new directory or file
     $n = $current->{file};
     $n =~ s/$current->{time}-// unless $n =~ m!/$!;
 
-    # $nw = 
-    # $nw = "($nw) " if $nw;
     $nw = sprintf "%.2f MB (%.2f GP) in %d files",
     $current->{bytes} / 1024 / 1024,
     $current->{pixels} / 1000 / 1000 / 1000,
@@ -334,9 +333,8 @@ sub newdir {		 # replace all thumbnails in current directory
     $mw->raiseFocus;
 
     # Gather all pics in this folder
-    my $current = $picasa->{dir};
     my $index = 0;
-    foreach my $img (@{$current->{children}}) {
+    foreach my $img (@{$picasa->{dir}{children}}) {
 	my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
 	$now =~ s@/+@/@g;
 	$refreshing eq $now or return;
@@ -486,8 +484,8 @@ sub newpic {	     # replace the full picture with current selection
 			    -fill => $conf->{face},
 			    -text => $name,
 			    -tags => 'faces');
-	if (my $birth = $conf->{age}{$id} # option to show ages of faces :-)
-	    || $conf->{age}{$name}) {
+	if (my $birth = $conf->{birthday}{$id} # show ages of faces :-)
+	    || $conf->{birthday}{$name}) {
 	    my($yr, $m, $d) = split '/', $birth;
 	    my($Yr, $M, $D) = split /\D+/, $this->{time};
 	    my($year, $mon, $day) = Delta_YMD($yr, $m, $d, $Yr, $M, $D);
