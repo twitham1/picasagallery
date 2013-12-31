@@ -24,6 +24,7 @@ goto endofperl
 # TODO: pop-up menu of all options and/or keyboard shortcut help
 # TODO: support all Picasa file formats (videos for example)
 # TODO: option to toggle full-screen mode
+# TODO: add zoom/pan to image viewer
 
 use strict;
 use warnings;
@@ -70,7 +71,7 @@ our $conf = {
 require $conf->{config} if -f $conf->{config}; # start with previous run data:
 $picasa = require $conf->{metadata} if -f $conf->{metadata};
 
-my $refreshing = "hello";	# directory currently refreshing
+my $refreshing = '';		# directory currently refreshing
 
 $Data::Dumper::Indent = 1;   # readable format for the cached metadata
 
@@ -296,7 +297,6 @@ sub move {			# move to new directory or file
     warn "location: $picasa->{dir}{dir} $picasa->{dir}{file} - $picasa->{file}{dir} $picasa->{file}{file} ($picasa->{index})\n" if $conf->{debug};
     return unless $current->{files};
 
-
     for my $i (0 .. $#tn) {
 	my $w = $tg->get(int($i / $tnx + 1), $i % $tnx + 1);
 	$w->configure(-bg => $conf->{bg});
@@ -514,7 +514,7 @@ sub newpic {	     # replace the full picture with current selection
 sub Tk::PhotoXYthumb {
     my ($w, $f, $x, $y, $c) = @_;
     $f && $x && $y or return;
-    my $ext = 'jpg';		# thumnail format
+    my $ext = 'jpg';		# jpg is smaller than png
     my $cfn = "$conf->{cache}/$f-$x-$y.$ext";
     unless (-f $cfn && -M _ <= -M $f) {
 	my($dir, $file) = Picasa::dirfile($cfn);
@@ -539,14 +539,14 @@ sub Tk::StackXYthumb {
     my ($w, $f, $x, $y, $label, @pic) = @_;
 #    warn "StackXYthumb: my ($w, $f, $x, $y, $label, @pic)\n" if $conf->{debug};
     $f && $x && $y && @pic or return;
-    my $ext = 'jpg';		# thumnail format
+    my $ext = 'png';		# jpg isn't transparent; use png
     my $cfn = "$conf->{cache}/$f-$x-$y.$ext";
     
     unless (-f $cfn && @pic == grep { -M $_ >= -M $cfn } @pic) {
 	my($dir, $file) = Picasa::dirfile($cfn);
 	-d $dir or mkpath $dir or warn "can't mkdir $dir: $!\n";
 	my $geo = sprintf "%.0fx%.0f", $x * 2 / 3, $y * 2 / 3;
-	system 'convert', '-size', "${x}x${y}", 'xc:navy',
+	system 'convert', '-size', "${x}x${y}", 'xc:#0000',
 	'(', $pic[0], '-thumbnail', $geo, ')', qw/-gravity northwest -composite/,
 	'(', $pic[1], '-thumbnail', $geo, ')', qw/-gravity center -composite/,
 	'(', $pic[2], '-thumbnail', $geo, ')', qw/-gravity southeast -composite/,
