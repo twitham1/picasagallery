@@ -15,16 +15,19 @@ goto endofperl
 
 # picasagallery by twitham@sbcglobal.net, 2013-12
 
-# GOAL: keyboard-driven mythgallery-style browser that understands Picasa:
-#	albums, faces, stars, uploads, captions, exif, tags, location, etc.
+# keyboard-driven mythgallery-style browser that understands Picasa:
+# albums, faces, stars, uploads, captions, exif, tags, location, etc.
 
 # TODO: add filtering by flags, age
 # TODO: [random] slideshow below current point in tree w/ variable time
 # TODO: toggle option to replace face thumbnails with zoomed face crops
 # TODO: pop-up menu of all options and/or keyboard shortcut help
-# TODO: support all Picasa file formats (videos for example)
+# TODO: support all Picasa file formats (videos for example) (help ->
+#	options -> file types: jpe?g, bmp, gif, png, tga, tiff?, webp,
+#	psd, (many raw), (movies: avi, mpg, asf, wmv)
 # TODO: option to toggle full-screen mode
 # TODO: add zoom/pan to image viewer
+# TODO: add mouse/touch controls
 
 use strict;
 use warnings;
@@ -198,14 +201,28 @@ for my $w ($mw, $full) {
     }
     for (qw(<Down>)) {
 	$w->bind($_, sub {	# next row
-	    for (1 .. $tnx) { $picasa->next }
+	    $picasa->next($tnx);
 	    &newpic;
 	    &move;
 		 });
     }
     for (qw(<Up>)) {
 	$w->bind($_, sub {	# previous row
-	    for (1 .. $tnx) { $picasa->prev }
+	    $picasa->prev($tnx);
+	    &newpic;
+	    &move;
+		 });
+    }
+    for (qw(<Next>)) {
+	$w->bind($_, sub {	# next page
+	    $picasa->next($tnx * 4);
+	    &newpic;
+	    &move;
+		 });
+    }
+    for (qw(<Prior>)) {
+	$w->bind($_, sub {	# previous page
+	    $picasa->prev($tnx * 4);
 	    &newpic;
 	    &move;
 		 });
@@ -215,6 +232,15 @@ for my $w ($mw, $full) {
 	    $conf->{info} = $conf->{info} ? 0 : 1;
 	    &newpic;
 	    &move;
+		 });
+    }
+    for (qw(<Key-1>)) {
+	$w->bind($_, sub {	# information toggle
+	    warn "key 1 hit\n";
+	    $conf->{filter} =~ s/f// or
+		$conf->{filter} .= 'f';
+	    &newdir;
+	    &newpic;
 		 });
     }
 }
@@ -334,6 +360,13 @@ sub newdir {		 # replace all thumbnails in current directory
 
     # Gather all pics in this folder
     my $index = 0;
+    &move;
+    # my $f = $conf->{filter};	# save
+    # $conf->{filter} = '';	# remove filters for all pics
+    # my $all = $picasa->filter($now);
+    # warn "all: $all\n";
+    # $conf->{filter} = $f;	# restore
+    # foreach my $img (@{$all->{children}}) {
     foreach my $img (@{$picasa->{dir}{children}}) {
 	my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
 	$now =~ s@/+@/@g;
