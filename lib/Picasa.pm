@@ -11,8 +11,6 @@
 # {file} => { current virtual focused "file/?" after filtering/navigating }
 # {index} => current file index ( should this be in {dir} ? )
 
-# TODO:	add filters: stars, uploads, faces, age, [ movies, tags, geotags, captions ]
-
 package Picasa;
 use strict;
 use warnings;
@@ -24,11 +22,12 @@ use Data::Dumper;
 my $db;	    # picasa database pointer needed for File::Find's _wanted.
 
 my $conf = {			# override in first arg to new
-    reject  => 'PATTERN OF FILES TO REJECT',
-    keep    => '(?i)\.jpe?g$',	# pattern of files to keep
-    datefmt => '%Y-%m-%d.%H:%M:%S', # must be sortable order
-    update => sub {},	       # callback as each directory is scanned
-    debug => 0,		       # diagnostics to STDERR
+    reject	=> 'PATTERN OF FILES TO REJECT',
+    keep	=> '(?i)\.jpe?g$',	# pattern of files to keep
+    datefmt	=> '%Y-%m-%d.%H:%M:%S', # must be sortable order
+    update	=> sub {},	       # callback as each directory is scanned
+    debug	=> 0,		       # diagnostics to STDERR
+    filter	=> '',		       # filter flag string "sufac"
 };
 
 my $exiftool;			# exif data we are interested in:
@@ -37,13 +36,14 @@ my $exif = [qw/AllDates FileModifyDate Caption-Abstract Description/];
 # return new empty picasa database object
 sub new {
     my $class = shift;
-    my $self  = {};
+    my $self  = { done => 0 };	# data complete?
     bless ($self, $class);
-    if (ref $_[0]) {
+    if (ref $_[0]) {		# switch to user's conf + my defaults
 	my $hash = shift;
-	while (my($k, $v) = each %$hash) {
-	    $conf->{$k} = $v;
+	while (my($k, $v) = each %$conf) {
+	    $hash->{$k} = $v unless $hash->{$k};
 	}
+	$conf = $hash;
     }
     $exiftool = new Image::ExifTool;
     $exiftool->Options(FastScan => 1,
@@ -59,12 +59,8 @@ sub recursedirs {
     for (@_) {
 	readdb($self, $_);
     }
-    # return if $self->{file} and $self->{dir}
-    # $self->{dir} = $self->filter('/');
-    # unless ($self->{file} and $self->{file}{file}) {
-    # 	$self->{index} = -1;
-    # 	$self->next;
-    # }
+    $self->{done} = 1;		# data complete!
+    &{$conf->{update}};
 }
 
 # recursively add given directory or . to picasa database
@@ -92,24 +88,23 @@ sub dirfile { # similar to fileparse, but leave trailing / on directories
 
 # TODO: option to automove to next directory if at end of this one
 sub next {
-    my($self) = @_;
-    $self->{index}++;
+    my($self, $n) = @_;
+    $self->{index} += $n || 1;
     my @child = @{$self->{dir}{children}};
-    my $n = @child;
-    $self->{index} = $n - 1 if $self->{index} >= $n;
+    my $child = @child;
+    $self->{index} = $child - 1 if $self->{index} >= $child;
     $self->{index} = 0 if $self->{index} < 0;
     $self->{file} = $self->filter("$self->{dir}{dir}$self->{dir}{file}$child[$self->{index}]");
 }
 # TODO: option to automove to prev directory if at beginning of this one
 sub prev {
-    my($self) = @_;
-    $self->{index}--;
+    my($self, $n) = @_;
+    $self->{index} -= $n || 1;
     my @child = @{$self->{dir}{children}};
-    my $n = @child;
     $self->{index} = 0 if $self->{index} < 0;
     $self->{file} = $self->filter("$self->{dir}{dir}$self->{dir}{file}$child[$self->{index}]");
 }
-# back up into parent directory, with its last file selected
+# back up into parent directory, with current file selected
 sub up {
     my($self) = @_;
     my $file = $self->{dir}{file}; # current location should be selected after up
@@ -150,7 +145,14 @@ sub filter {
 	next unless 0 == index($str, $path); # match
 	next unless my $filename = $self->{root}{$str}; # physical path
 	next unless my $this = $self->{pics}{$filename}; # metadata
-# TODO: next unless matches filters
+
+	warn "filtering $str for filter '$conf->{filter}'\n" if $conf->{debug} > 1 && $conf->{filter};
+	next if $conf->{filter} =~ /f/i and !@{$this->{faces}};
+	next if $conf->{filter} =~ /a/i and !@{$this->{albums}};
+	next if $conf->{filter} =~ /s/i and !$this->{stars};
+	next if $conf->{filter} =~ /u/i and !$this->{uploads};
+	next if $conf->{filter} =~ /c/i and !$this->{caption};
+
 	warn "looking at ($path) in ($str)\n" if $conf->{debug} > 1;
 	if ($str eq $path) {	# filename
 	    map { $data->{$_} = $this->{$_} } keys %$this;
@@ -170,19 +172,19 @@ sub filter {
 	$data->{pixels} += $this->{width} * $this->{height};
 	$data->{files}++;
 
-	# TODO: directories should get several samples rather than 1:
-	$data->{physical} or $data->{physical} = $filename;
-
 	$data->{time} = $this->{time} and
 	    $data->{first} = $filename unless
 	    $data->{time} && $data->{time} lt $this->{time};
 
 	$data->{endtime} = $this->{time} and
-	    $data->{'last'} = $filename unless
+	    $data->{last} = $filename unless
 	    $data->{endtime} && $data->{endtime} gt $this->{time};
+
+	$data->{physical} and
+	    $data->{physical} ne $data->{first} and
+	    $data->{physical} ne $data->{last} or
+	    $data->{physical} = $filename;
     }
-    # $data->{first} eq $data->{physical} && delete $data->{first};
-    # $data->{'last'} eq $data->{physical} && delete $data->{'last'};
     $data->{children} = [sort keys %child]; # maybe sort later? sort by option?
     $data->{faces} or $data->{faces} = [keys %face];
     $data->{albums} or $data->{albums} = [keys %album];
