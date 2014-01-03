@@ -129,6 +129,16 @@ sub down {
     $self->next;
     return 1;
 }
+# reapply current filters, moving up if needed
+sub filtermove {
+    my($self) = @_;
+    while (($self->{dir} = $self->filter("$self->{dir}{dir}$self->{dir}{file}")
+	    and !$self->{dir}{files})) {
+	warn "goodbye: $self->{dir}{dir}$self->{dir}{file}\n";
+	$self->up;
+	last if $self->{dir}{file} eq '/';
+    }
+}
 
 # given a virtual path, return all data known about it with current filters
 sub filter {
@@ -147,10 +157,10 @@ sub filter {
 	next unless my $this = $self->{pics}{$filename}; # metadata
 
 	warn "filtering $str for filter '$conf->{filter}'\n" if $conf->{debug} > 1 && $conf->{filter};
-	next if $conf->{filter} =~ /f/i and !@{$this->{faces}};
-	next if $conf->{filter} =~ /a/i and !@{$this->{albums}};
 	next if $conf->{filter} =~ /s/i and !$this->{stars};
 	next if $conf->{filter} =~ /u/i and !$this->{uploads};
+	next if $conf->{filter} =~ /f/i and !@{$this->{faces}};
+	next if $conf->{filter} =~ /a/i and !@{$this->{albums}};
 	next if $conf->{filter} =~ /c/i and !$this->{caption};
 
 	warn "looking at ($path) in ($str)\n" if $conf->{debug} > 1;

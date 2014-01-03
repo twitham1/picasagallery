@@ -55,7 +55,7 @@ our $conf = {
     metadata	=> '.picasagallery_cache.pl', # cache of picture data
     cache	=> '.thumbcache', # where to put thumbnails
     keep	=> '(?i)\.(jpe?g|gif|x[pb]m|png|bmp|tiff?|nef)$',
-    reject	=> '(?i)\b(thumbs?(.db)?|desktop.ini)\b',
+    reject	=> '(?i)\b(thumbs?(.db)?)\b',
     datefmt	=> '%Y-%m-%d %H:%M:%S %a', # must be sortable w/year first
     update	=> \&update,		# don't change this (GUI updates)
     debug	=> 0,			# debug to STDERR?
@@ -68,7 +68,7 @@ our $conf = {
     select	=> 'green',	# current thumbnail selection color
     text	=> 'white',	# corner information text color
     title	=> 'red',	# header/footer color
-    face	=> 'magenta', # face box color (uncommon picture color)
+    face	=> 'green',  # face box color (uncommon picture color)
 };
 
 require $conf->{config} if -f $conf->{config}; # start with previous run data:
@@ -149,7 +149,7 @@ $full->bind('<Configure>' => 	# resize window
 		   &newpic;
 	    });
 for my $w ($mw, $full) {
-#    $w->bind('<KeyPress>', [\&processkey, Ev('A'), Ev('k'), Ev('K'), Ev('N')]);
+    $w->bind('<KeyPress>', [\&processkey, Ev('A'), Ev('k'), Ev('K'), Ev('N')]);
 
     for (qw(<Key-q> <Escape>)) {
 	$w->bind($_, sub {	# up or exit
@@ -234,15 +234,6 @@ for my $w ($mw, $full) {
 	    &move;
 		 });
     }
-    for (qw(<Key-1>)) {
-	$w->bind($_, sub {	# information toggle
-	    warn "key 1 hit\n";
-	    $conf->{filter} =~ s/f// or
-		$conf->{filter} .= 'f';
-	    &newdir;
-	    &newpic;
-		 });
-    }
 }
 
 warn "starting Picasa recursion\n" if $conf->{debug};
@@ -268,6 +259,18 @@ exit;				# should never get here
 sub processkey {
     my($win, $ascii, $code, $str, $num) = @_;
     warn "'$ascii $code $str $num' was pressed\n";
+    my $flags = '0sufac';	# filter flags; 0 removes all
+    if ($ascii =~ /^[${flags}12345]$/) {
+	$ascii =~ /(\d)/ and
+	    $ascii = substr $flags, $1 - 1, 1;
+	$conf->{filter} =~ s/$ascii// or
+	    $conf->{filter} .= $ascii;
+	$ascii eq '0' and $conf->{filter} = '';
+	$picasa->filtermove;
+	&newdir;
+	&newpic;
+	&move;
+    }
 }
 
 BEGIN {	# filtering for stats is expensive, so we update GUI only once a second
@@ -297,7 +300,8 @@ sub nums {			# format the counts of attributes
     scalar @{$this->{albums}},
     $this->{caption} =~ /^\d+$/ ? $this->{caption} :
 	$this->{caption} ? 1 : 0;
-    return $out =~ /[1-9]/ ? $out : '';
+    $conf->{filter} and $out =~ s/([$conf->{filter}])/\U$1\E/g;
+    return (($conf->{filter} || $out =~ /[1-9]/) ? $out : '');
 }
 
 sub stats {			# format the [average] image metrics
