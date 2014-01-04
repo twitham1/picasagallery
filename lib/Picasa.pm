@@ -89,7 +89,7 @@ sub dirfile { # similar to fileparse, but leave trailing / on directories
 # TODO: option to automove to next directory if at end of this one
 sub next {
     my($self, $n) = @_;
-    $self->{index} += $n || 1;
+    $self->{index} += defined $n ? $n : 1;
     my @child = @{$self->{dir}{children}};
     my $child = @child;
     $self->{index} = $child - 1 if $self->{index} >= $child;
@@ -99,7 +99,7 @@ sub next {
 # TODO: option to automove to prev directory if at beginning of this one
 sub prev {
     my($self, $n) = @_;
-    $self->{index} -= $n || 1;
+    $self->{index} -= defined $n ? $n : 1;
     my @child = @{$self->{dir}{children}};
     $self->{index} = 0 if $self->{index} < 0;
     $self->{file} = $self->filter("$self->{dir}{dir}$self->{dir}{file}$child[$self->{index}]");
@@ -116,8 +116,8 @@ sub up {
 	$index++;
     }
     $index = 0 if $file ne '!file found!';
-    $self->{index} = $index - 1;
-    $self->next;
+    $self->{index} = $index;
+    $self->next(0);
 }
 # step into {file} of current {dir}
 sub down {
@@ -134,15 +134,15 @@ sub filtermove {
     my($self) = @_;
     while (($self->{dir} = $self->filter("$self->{dir}{dir}$self->{dir}{file}")
 	    and !$self->{dir}{files})) {
-	warn "goodbye: $self->{dir}{dir}$self->{dir}{file}\n";
 	$self->up;
 	last if $self->{dir}{file} eq '/';
     }
+    $self->next(0);
 }
 
 # given a virtual path, return all data known about it with current filters
 sub filter {
-    my($self, $path) = @_;
+    my($self, $path, $nofilter) = @_;
     my $data = {};
     my %child;			# children of this parent
     my %face;			# faces in this path
@@ -156,12 +156,15 @@ sub filter {
 	next unless my $filename = $self->{root}{$str}; # physical path
 	next unless my $this = $self->{pics}{$filename}; # metadata
 
-	warn "filtering $str for filter '$conf->{filter}'\n" if $conf->{debug} > 1 && $conf->{filter};
-	next if $conf->{filter} =~ /s/i and !$this->{stars};
-	next if $conf->{filter} =~ /u/i and !$this->{uploads};
-	next if $conf->{filter} =~ /f/i and !@{$this->{faces}};
-	next if $conf->{filter} =~ /a/i and !@{$this->{albums}};
-	next if $conf->{filter} =~ /c/i and !$this->{caption};
+	unless ($nofilter) {
+	    warn "filtering $str for filter '$conf->{filter}'\n"
+		if $conf->{debug} > 1 && $conf->{filter};
+	    next if $conf->{filter} =~ /s/i and !$this->{stars};
+	    next if $conf->{filter} =~ /u/i and !$this->{uploads};
+	    next if $conf->{filter} =~ /f/i and !@{$this->{faces}};
+	    next if $conf->{filter} =~ /a/i and !@{$this->{albums}};
+	    next if $conf->{filter} =~ /c/i and !$this->{caption};
+	}
 
 	warn "looking at ($path) in ($str)\n" if $conf->{debug} > 1;
 	if ($str eq $path) {	# filename
@@ -434,6 +437,8 @@ sub _wanted {
 	    $db->_addpic2path("/[Albums]/Starred Photos/$year/$vname", $key);
 	for my $id (@{$this->{albums}}) {
 	    next unless my $name = $db->{album}{$id}{name};
+	    # putting year in this path would cause albums that span
+	    # year boundary to be in 2 places...
 	    $db->_addpic2path("/[Albums]/$name/$vname", $key);
 	}
 
@@ -444,7 +449,8 @@ sub _wanted {
 	    $db->_addpic2path("/[People]/$name/$year/$vname", $key);
 	}
 
-	# add folders
+	# add folders (putting year here would split folders into
+	# multiple locations (y/f or f/y); maybe this would be ok?)
 	$db->_addpic2path("/[Folders]/$key", $key);
 
     } elsif (-d $_) {

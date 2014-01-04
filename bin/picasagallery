@@ -156,6 +156,7 @@ for my $w ($mw, $full) {
 	    my $tmp = $mw->focusCurrent;
 	    if ($mw->focusCurrent eq $full) {
 		$mw->raiseFocus;
+		&move;
 	    } elsif ($picasa->{dir}{file} eq '/') {
 		$full->destroy;
 		$mw->destroy;
@@ -170,7 +171,6 @@ for my $w ($mw, $full) {
 		$picasa->up;
 		&newdir;
 	    }
-	    &move;
 		 });
     }
     for (qw(<Key-d> <Return>)) {
@@ -182,56 +182,48 @@ for my $w ($mw, $full) {
 		$full->raiseFocus;
 		&newpic;
 	    }
-	    &move;
 		 });
     }
     for (qw(<Right> <space> <Key-n>)) {
 	$w->bind($_, sub {	# next picture or subdir
 	    $picasa->next;
 	    &newpic;
-	    &move;
 		 });
     }
     for (qw(<Left> <Up> <BackSpace> <Key-p>)) {
 	$w->bind($_, sub {	# previous picture or subdir
 	    $picasa->prev;
 	    &newpic;
-	    &move;
 		 });
     }
     for (qw(<Down>)) {
 	$w->bind($_, sub {	# next row
 	    $picasa->next($tnx);
 	    &newpic;
-	    &move;
 		 });
     }
     for (qw(<Up>)) {
 	$w->bind($_, sub {	# previous row
 	    $picasa->prev($tnx);
 	    &newpic;
-	    &move;
 		 });
     }
     for (qw(<Next>)) {
 	$w->bind($_, sub {	# next page
 	    $picasa->next($tnx * 4);
 	    &newpic;
-	    &move;
 		 });
     }
     for (qw(<Prior>)) {
 	$w->bind($_, sub {	# previous page
 	    $picasa->prev($tnx * 4);
 	    &newpic;
-	    &move;
 		 });
     }
     for (qw(<Key-i>)) {
 	$w->bind($_, sub {	# information toggle
 	    $conf->{info} = $conf->{info} ? 0 : 1;
 	    &newpic;
-	    &move;
 		 });
     }
 }
@@ -262,7 +254,7 @@ sub processkey {
     my $flags = '0sufac';	# filter flags; 0 removes all
     if ($ascii =~ /^[${flags}12345]$/) {
 	$ascii =~ /(\d)/ and
-	    $ascii = substr $flags, $1 - 1, 1;
+	    $ascii = substr $flags, $1, 1;
 	$conf->{filter} =~ s/$ascii// or
 	    $conf->{filter} .= $ascii;
 	$ascii eq '0' and $conf->{filter} = '';
@@ -309,6 +301,7 @@ sub stats {			# format the [average] image metrics
     my $w = $this->{width} / $this->{files};
     my $h = $this->{height} / $this->{files};
     my $scale = $x / $w < $y / $h ? $x / $w : $y / $h;
+    $scale *= 2 / 3 if $this->{file} =~ m!/$!;
 
     return sprintf "%.0f KB (%.2f MP) %.0f x %.0f (%.3f) %.0f%%",
     $this->{bytes} / 1024 / $this->{files},
@@ -334,7 +327,7 @@ sub move {			# move to new directory or file
     }
 
     $n = $current->{file};
-    $n =~ s/$current->{time}-// unless $n =~ m!/$!;
+    $n =~ s/$current->{time}-//; # unless $n =~ m!/$!;
 
     $nw = sprintf "%.2f MB (%.2f GP) in %d files",
     $current->{bytes} / 1024 / 1024,
@@ -357,7 +350,7 @@ sub move {			# move to new directory or file
 sub newdir {		 # replace all thumbnails in current directory
     my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
     $now =~ s@/+@/@g;
-    $refreshing eq $now and return;
+#    $refreshing eq $now and return;
     warn "\n\nnewdir $now\n" if $conf->{debug};
     $refreshing = $now;
     $mw->raiseFocus;
@@ -377,7 +370,7 @@ sub newdir {		 # replace all thumbnails in current directory
 	$refreshing eq $now or return;
 
         my $child = "$now$img";
-	my $this = $picasa->filter($child) or next;
+	my $this = $picasa->filter($child, 'nofilter') or next;
 	my $pf = $this->{physical} or next;
         my $ps = -s $pf or next;
 	my $data = $picasa->{pics}{$pf} or next; # data of this picture
@@ -415,6 +408,7 @@ sub newdir {		 # replace all thumbnails in current directory
 }
 
 sub newpic {	     # replace the full picture with current selection
+    &move;
     $full->focusCurrent eq $full or return;
     my $this = $picasa->{file} or return;
     if ($this->{file} =~ m!/$!) { # raise browser to see directory option
