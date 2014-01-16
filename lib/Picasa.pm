@@ -18,6 +18,7 @@ use File::Find;
 use File::Basename;
 use Image::ExifTool qw(:Public);
 use Data::Dumper;
+use POSIX qw/strftime/;
 
 my $db;	    # picasa database pointer needed for File::Find's _wanted.
 
@@ -25,13 +26,12 @@ my $conf = {			# override in first arg to new
     reject	=> 'PATTERN OF FILES TO REJECT',
     keep	=> '(?i)\.jpe?g$',	# pattern of files to keep
     datefmt	=> '%Y-%m-%d.%H:%M:%S', # must be sortable order
-    update	=> sub {},	       # callback as each directory is scanned
-    debug	=> 0,		       # diagnostics to STDERR
-    filter	=> '',		       # filter flag string "sufac"
+    update	=> sub {},  # callback after each directory is scanned
+    debug	=> 0,	    # diagnostics to STDERR
+    filter	=> {},	    # filters
 };
 
-my $exiftool;			# exif data we are interested in:
-my $exif = [qw/AllDates FileModifyDate Caption-Abstract Description/];
+my $exiftool;	       # for collecting exif data we are interested in
 
 # return new empty picasa database object
 sub new {
@@ -76,15 +76,7 @@ sub readdb {
 	  }, $dir);
 }
 
-# twiddle location in the virtual tree and selected node (file)
-
-sub dirfile { # similar to fileparse, but leave trailing / on directories
-    my($path) = @_;
-    my $end = $path =~ s@/+$@@ ? '/' : '';
-    my($dir, $file) = ('/', '');
-    ($dir, $file) = ($1, $2) if $path =~ m!(.*/)([^/]+)$!;
-    return "$dir", "$file$end";
-}
+# twiddle location in the virtual tree and selected node (file):
 
 # TODO: option to automove to next directory if at end of this one
 sub next {
@@ -129,6 +121,7 @@ sub down {
     $self->next;
     return 1;
 }
+
 # reapply current filters, moving up if needed
 sub filtermove {
     my($self) = @_;
@@ -140,6 +133,14 @@ sub filtermove {
     $self->next(0);
 }
 
+sub dirfile { # similar to fileparse, but leave trailing / on directories
+    my($path) = @_;
+    my $end = $path =~ s@/+$@@ ? '/' : '';
+    my($dir, $file) = ('/', '');
+    ($dir, $file) = ($1, $2) if $path =~ m!(.*/)([^/]+)$!;
+    return "$dir", "$file$end";
+}
+
 # given a virtual path, return all data known about it with current filters
 sub filter {
     my($self, $path, $nofilter) = @_;
@@ -147,23 +148,28 @@ sub filter {
     my %child;			# children of this parent
     my %face;			# faces in this path
     my %album;			# albums in this path
+    my %tag;			# tags in this path
     my %done;			# files that have been processed
     $path =~ s@/+@/@g;
     ($data->{dir}, $data->{file}) = dirfile $path;
     warn "filter:$path->($data->{dir},$data->{file})\n" if $conf->{debug};
+    my $begin = $conf->{filter}{age} ? strftime $conf->{datefmt},
+    localtime time - $conf->{filter}{age} : 0;
     for my $str (keys %{$self->{root}}) { # for each picture file
 	next unless 0 == index($str, $path); # match
 	next unless my $filename = $self->{root}{$str}; # physical path
 	next unless my $this = $self->{pics}{$filename}; # metadata
 
 	unless ($nofilter) {
-	    warn "filtering $str for filter '$conf->{filter}'\n"
-		if $conf->{debug} > 1 && $conf->{filter};
-	    next if $conf->{filter} =~ /s/i and !$this->{stars};
-	    next if $conf->{filter} =~ /u/i and !$this->{uploads};
-	    next if $conf->{filter} =~ /f/i and !@{$this->{faces}};
-	    next if $conf->{filter} =~ /a/i and !@{$this->{albums}};
-	    next if $conf->{filter} =~ /c/i and !$this->{caption};
+	    warn "filtering $str for filter ", Dumper $conf->{filter}
+	    if $conf->{debug} > 1;
+	    next if $conf->{filter}{Stars}	and !$this->{stars};
+	    next if $conf->{filter}{Uploads}	and !$this->{uploads};
+	    next if $conf->{filter}{Faces}	and !@{$this->{faces}};
+	    next if $conf->{filter}{Albums}	and !@{$this->{albums}};
+	    next if $conf->{filter}{Captions}	and !$this->{caption};
+	    next if $conf->{filter}{Tags}	and !@{$this->{tags}};
+	    next if $conf->{filter}{age} and $this->{time} lt $begin;
 	}
 
 	warn "looking at ($path) in ($str)\n" if $conf->{debug} > 1;
@@ -180,6 +186,7 @@ sub filter {
 	    }
 	    map { $face{$_->[0]}++ } @{$this->{faces}};
 	    map { $album{$_}++ } @{$this->{albums}};
+	    map { $tag{$_}++ } @{$this->{tags}};
 	    $data->{caption} += $this->{caption} ? 1 : 0;
 	}
 	$data->{pixels} += $this->{width} * $this->{height};
@@ -201,6 +208,7 @@ sub filter {
     $data->{children} = [sort keys %child]; # maybe sort later? sort by option?
     $data->{faces} or $data->{faces} = [keys %face];
     $data->{albums} or $data->{albums} = [keys %album];
+    $data->{tags} or $data->{tags} = [keys %tag];
     warn "filtered $path: ", Dumper $data if $conf->{debug} > 2;
     return $data;
 }
@@ -211,29 +219,10 @@ sub _addpic2path {
     $self->{root}{$path} = $key;
 }
 
-# IDEA: given a picture, return all info about it in easy to use form
-sub picdata {
-    my($self, $dir, $pic) = @_;
-    my $out = {};
-    my $file = "$dir$pic";
-    return $out unless -s $file;
-    if (my @faces = $self->faces($dir, $pic)) {
-	warn "add face to $dir$pic @faces\n" if $conf->{debug} > 1;
-	$out->{faces} = [ @faces ];
-    }
-}
-
 # return all directories of the database
 sub dirs {
     my $self = shift;
     return keys %{$self->{dirs}};
-}
-
-# return the pictures of given directory
-sub pics {
-    my $self = shift;
-    my $dir = shift or return ();
-    return grep !/^<<\w+>>$/, keys %{$self->{dirs}{$dir}};
 }
 
 # return all contacts of the database
@@ -408,8 +397,7 @@ sub _wanted {
 	my $key = $_;
 	$key =~ s@\./@@;
 	return unless -f $key and -s $key > 100;
-	my $info = $exiftool->ImageInfo($key); #, $exif);
-#	my $info = $exiftool->ImageInfo($key, $exif);
+	my $info = $exiftool->ImageInfo($key);
 	return unless $info;
 	return unless $info->{ImageWidth} && $info->{ImageHeight};
 	my $this = $db->{pics}{$key} = {
@@ -424,6 +412,8 @@ sub _wanted {
 	    albums	=> [ $db->albums($dir, $file) ],
 	    stars	=> $db->star($dir, $file),
 	    uploads	=> $db->uploads($dir, $file),
+	    tags	=> [ split /,\s*/,
+			     $info->{Keywords} || $info->{Subject} || '' ],
 	};
 	$this->{time} =~ /0000/ and
 	    warn "bogus time in $_: $this->{time}\n";
@@ -432,10 +422,14 @@ sub _wanted {
 
 	my $vname = "$this->{time}-$file"; # unique virtual filename
 
-	# add albums (starred, named)
+	# add virtual folders of stars, tags, albums, people
 	$this->{stars} and
-	    $db->_addpic2path("/[Albums]/Starred Photos/$year/$vname", $key);
-	for my $id (@{$this->{albums}}) {
+	    $db->_addpic2path("/[Stars]/$year/$vname", $key);
+	for my $tag (@{$this->{tags}}) { # should year be here???
+	    $db->_addpic2path("/[Tags]/$tag/$vname", $key);
+	    $db->{tags}{$tag}++; # all tags with picture counts
+	}
+	for my $id (@{$this->{albums}}) { # named user albums
 	    next unless my $name = $db->{album}{$id}{name};
 	    # putting year in this path would cause albums that span
 	    # year boundary to be in 2 places...
