@@ -15,13 +15,11 @@ goto endofperl
 
 # picasagallery by twitham@sbcglobal.net, 2013-12
 
-# keyboard-driven mythgallery-style browser that understands Picasa:
+# keyboard-driven mythgallery-style browser that understands local Picasa:
 # albums, faces, stars, uploads, captions, exif, tags, location, etc.
 
-# TODO: add filtering by flags, age
 # TODO: [random] slideshow below current point in tree w/ variable time
 # TODO: toggle option to replace face thumbnails with zoomed face crops
-# TODO: pop-up menu of all options and/or keyboard shortcut help
 # TODO: support all Picasa file formats (videos for example) (help ->
 #	options -> file types: jpe?g, bmp, gif, png, tga, tiff?, webp,
 #	psd, (many raw), (movies: avi, mpg, asf, wmv)
@@ -49,7 +47,7 @@ use Picasa;			 # for groking Picasa data!
 my $picasa;			# working picasa database
 my $picasa_tmp;			# picasa database while updating
 
-# config file can override any settings here (Picasa.pm also uses some):
+# config file can override any settings here (Picasa.pm also uses a few):
 our $conf = {
     config	=> '.picasagallery_conf.pl', # config to require, if present
     metadata	=> '.picasagallery_cache.pl', # cache of picture data
@@ -69,15 +67,28 @@ our $conf = {
     text	=> 'white',	# corner information text color
     title	=> 'red',	# header/footer color
     face	=> 'green',  # face box color (uncommon picture color)
+    filtering	=> 0,	     # how many filters are in effect
+    filters	=> [qw/Stars Uploads Faces Albums Captions Tags/],
+    filter	=> {
+	age => 0,	   # show only newer than X seconds before now
+    },
 };
 
 require $conf->{config} if -f $conf->{config}; # start with previous run data:
 $picasa = require $conf->{metadata} if -f $conf->{metadata};
 
-my $refreshing = '';		# directory currently refreshing
+my $refreshing = '';	   # directory currently refreshing thumbnails
+my %rebuildthumb;	   # stale thumbnails to rebuild
 
 $Data::Dumper::Indent = 1;   # readable format for the cached metadata
 
+mkdir $conf->{cache} or die $! unless -d $conf->{cache}; # thumbnail cache
+
+my $exif = new Image::ExifTool;	# for collecting picture metadata
+$exif->Options(FastScan => 1,
+	       DateFormat => $conf->{datefmt});
+
+# main window is a thumbnail browser ----------------------------------------
 my $mw = Tk::MainWindow->new (-title => "Picasa Gallery", -bg => $conf->{bg});
 my($mx, $my) = ($conf->{width}, $conf->{height});
 if ($conf->{fullscreen}) {
@@ -86,12 +97,6 @@ if ($conf->{fullscreen}) {
     $mw->overrideredirect(1); # must be done before window is mapped
 }
 $mw->geometry(sprintf "%dx%d", $mx, $my);
-
-mkdir $conf->{cache} or die $! unless -d $conf->{cache};
-
-my $exif = new Image::ExifTool;
-$exif->Options(FastScan => 1,
-	       DateFormat => $conf->{datefmt});
 
 my(@tn);		       # thumbnails: array of labels of Photos
 my $tnx = 7;		       # columns of thumbnails to display
@@ -107,13 +112,12 @@ my $big = $mw->Font(-family => 'Helvetica',
     );
 my $med = $mw->Font(-family => 'Helvetica',
 		    -size => int($my / 50), # 15,
-#		    -weight => 'bold',
     );
 
 my @c = (-fg => $conf->{text}, -bg => $conf->{bg});
 my $top = $mw->Frame(@c)->pack(-side => "top", -fill => 'x');
-$top->Label(-textvariable => \$nw, -font => $med, @c)->pack(-side => "left");
-$top->Label(-textvariable => \$ne, -font => $med, @c)->pack(-side => "right");
+my $nww = $top->Label(-textvariable => \$nw, -font => $med, @c)->pack(-side => "left");
+my $new = $top->Label(-textvariable => \$ne, -font => $med, @c)->pack(-side => "right");
 $top->Label(-textvariable => \$n,  -font => $big, @c, -fg => $conf->{title})->pack(-side => "top");
 
 my $bot = $mw->Frame(@c)->pack(-side => "bottom", -fill => 'x');
@@ -128,7 +132,7 @@ my $tg = $mw->Table(-rows => 4,
 		    -bg => $conf->{bg},
     )->pack(-side => "top", -expand => 1, -fill => "both");
 
-# full size image viewer
+# full size image viewer --------------------------------------------------
 my $full = $mw->Toplevel(-width => $mx, -height => $my, -bg => $conf->{bg});
 $full->overrideredirect(1) if $conf->{fullscreen};
 my $canvas = $full->Canvas(-width => $mx, -height => $my, -bg => $conf->{bg},
@@ -139,7 +143,97 @@ $image->blank;
 $canvas->createImage(0, 0, -image => $image, -anchor => 'nw');
 $mw->raiseFocus;
 
-$full->bind('<Configure>' => 	# resize window
+# popup option menu is invoked with "m" key ----------------------------------------
+my $menu = $mw->Menu(-tearoff => 0,
+		     -font => $med);
+$menu->add('command', -label => 'Menu: Picasa Gallery',
+	   -accelerator => 'm', -underline => 0);
+$menu->add('checkbutton', -label => 'Info Overlay',
+	   -accelerator => 'i', -underline => 0,
+	   -variable => \$conf->{info}, -command => \&newpic);
+$menu->add('separator');
+my $i = 0;
+$menu->add('command', -label => "Clear All Filters",
+	   -accelerator => $i++, -underline => 0, -command =>
+	   sub { $mw->eventGenerate('<Key-0>') });
+my $filter = $menu->Menu(-tearoff => 0, -font => $med);
+for (@{$conf->{filters}}) {
+    $filter->add('checkbutton', -label => $_,
+		 -accelerator => $i++,
+		 -variable => \$conf->{filter}{$_},
+		 -onvalue => 1,
+		 -offvalue => 0,
+		 -underline => 0,
+		 -command => sub {
+		     $picasa->filtermove;
+		     &newdir;
+		     &newpic;
+		     &move;
+		 });
+}
+$menu->add('cascade', -label => 'Filter by Attributes', -menu => $filter,
+	   -underline => 0);
+my $age = $menu->Menu(-tearoff => 0, -font => $med);
+my $day = 24 * 60 * 60;
+my $year = 365.25 * $day;	# estimate, close enough
+my %age = my @age		# ugly menu, but any better way?
+    = (			 # maybe a slider widget, but where to put it?
+    'unlimited'	=> 0,
+    '20 years'	=> 20 * $year,
+    '15 years'	=> 15 * $year,
+    '10 years'	=> 10 * $year,
+    '7 years'	=> 7 * $year,
+    '5 years'	=> 5 * $year,
+    '3 years'	=> 3 * $year,
+    '2 years'	=> 2 * $year,
+    '1 years'	=> 1 * $year,
+    '9 months'	=> 9 / 12 * $year,
+    '7 months'	=> 7 / 12 * $year,
+    '5 months'	=> 5 / 12 * $year,
+    '3 months'	=> 3 / 12 * $year,
+    '2 months'	=> 2 / 12 * $year,
+    '7 weeks'	=> 7 * 7 * $day,
+    '5 weeks'	=> 5 * 7 * $day,
+    '3 weeks'	=> 3 * 7 * $day,
+    '2 weeks'	=> 2 * 7 * $day,
+    '7 days'	=> 7 * $day,
+    '5 days'	=> 5 * $day,
+    '3 days'	=> 3 * $day,
+    '2 days'	=> 2 * $day,
+    );
+{
+    my $last;
+    for (@age) {
+	$age{$_} = $last and next if /^\d+$/;
+	$age->add('radiobutton',
+		  -label => $_,
+		  -variable => \$conf->{filter}{age},
+		  -value => $age{$_},
+		  -command => sub {
+		      $picasa->filtermove;
+		      &newdir;
+		      &newpic;
+		      &move;
+		  });
+	$last = $_;
+    }
+}
+$menu->add('cascade', -label => 'Filter by Age', -menu => $age,
+	   -underline => 10);
+$menu->add('separator');
+$menu->add('command', -label => 'Rebuild Thumbnail',
+	   -underline => 0, -command =>
+	   sub { 	
+	       my $tmp = "$picasa->{file}{dir}$picasa->{file}{file}";
+	       $tmp =~ s@/$@@;
+	       $rebuildthumb{$tmp} = 1;
+	       &newdir;
+	   });
+$menu->add('command', -label => 'Quit', -underline => 0, -command =>
+	   sub { while(1) { $mw->eventGenerate('<Escape>'); } });
+
+# all event bindings happen here ----------------------------------------
+$full->bind('<Configure>' => # resize window resizes full-size picture
 	    sub  { my $w = shift;
 		   ($mx, $my) = ($w->Width, $w->Height);
 		   $canvas->configure(-width => $mx,
@@ -148,9 +242,15 @@ $full->bind('<Configure>' => 	# resize window
 				     -height => $my);
 		   &newpic;
 	    });
-for my $w ($mw, $full) {
+for my $w ($mw, $full) {	# both windows have same key bindings
+
     $w->bind('<KeyPress>', [\&processkey, Ev('A'), Ev('k'), Ev('K'), Ev('N')]);
 
+    for (qw(<Key-m>)) {
+	$w->bind($_, sub {	# popup options menu
+	    $menu->post($w->x + $w->width / 3, $w->y + $w->height / 3);
+		 });
+    }
     for (qw(<Key-q> <Escape>)) {
 	$w->bind($_, sub {	# up or exit
 	    my $tmp = $mw->focusCurrent;
@@ -228,6 +328,7 @@ for my $w ($mw, $full) {
     }
 }
 
+# all metadata is updated in the background ----------------------------------------
 warn "starting Picasa recursion\n" if $conf->{debug};
 $picasa_tmp = Picasa->new($conf); # rebuild all data since prior run
 $picasa or $picasa = $picasa_tmp; # keep previous run or use first run live
@@ -248,17 +349,17 @@ if ($picasa_tmp->{done} && $picasa ne $picasa_tmp) {
 MainLoop;			# never returns
 exit;				# should never get here
 
-sub processkey {
+sub processkey {  # generic key event handler if nothing more specific
     my($win, $ascii, $code, $str, $num) = @_;
     warn "'$ascii $code $str $num' was pressed\n";
-    my $flags = '0sufac';	# filter flags; 0 removes all
-    if ($ascii =~ /^[${flags}12345]$/) {
-	$ascii =~ /(\d)/ and
-	    $ascii = substr $flags, $1, 1;
-	$conf->{filter} =~ s/$ascii// or
-	    $conf->{filter} .= $ascii;
-	$ascii eq '0' and $conf->{filter} = '';
-	$picasa->filtermove;
+    if ($ascii =~ /^\d+$/) {
+	if ($ascii == 0) {	# clear all filters
+	    map { $conf->{filter}{$_} = 0 } keys %{$conf->{filter}};
+	} elsif (defined $conf->{filters}[--$ascii]) { # toggle filter
+	    $conf->{filter}{$conf->{filters}[$ascii]} = 
+		! $conf->{filter}{$conf->{filters}[$ascii]};
+	}
+	$picasa->filtermove;	# update all metadata
 	&newdir;
 	&newpic;
 	&move;
@@ -283,17 +384,22 @@ BEGIN {	# filtering for stats is expensive, so we update GUI only once a second
     }
 }
 
-sub nums {			# format the counts of attributes
+sub nums {	# format the counts of attributes; upcase if filtering
     my $this = shift;
-    my $out = sprintf "%ds %du %df %da %dc",
+    my $out = sprintf "%ds %du %df %da %dc %dt",
     $this->{stars},
     $this->{uploads},
     scalar @{$this->{faces}},
     scalar @{$this->{albums}},
-    $this->{caption} =~ /^\d+$/ ? $this->{caption} :
-	$this->{caption} ? 1 : 0;
-    $conf->{filter} and $out =~ s/([$conf->{filter}])/\U$1\E/g;
-    return (($conf->{filter} || $out =~ /[1-9]/) ? $out : '');
+    $this->{caption} =~ /^\d+$/ ? $this->{caption} : $this->{caption} ? 1 : 0,
+    scalar @{$this->{tags}};
+    $conf->{filtering} = scalar
+	grep { $conf->{filter}{$_} and /^([A-Z])/ and $out =~ s/($1)/\U$1\E/i }
+    keys %{$conf->{filter}};
+    $conf->{filter}{age} and ++$conf->{filtering} and
+	$out .= " $age{$conf->{filter}{age}}";
+    $nww->configure($conf->{filtering} ? (-fg => 'white', -bg => 'red') : @c);
+    return ($conf->{filtering} || $out =~ /[1-9]/ ? $out : '');
 }
 
 sub stats {			# format the [average] image metrics
@@ -336,7 +442,8 @@ sub move {			# move to new directory or file
     my $tmp = &nums($current);
     $nw .= " ($tmp)" if $tmp;
 
-    $ne = &stats($current, $tpx, $tpy);
+    $ne = &stats($current, $tpx, $tpy); # highlight here means update is in progress
+    $new->configure($picasa_tmp->{done} ? @c : (-fg => 'white', -bg => 'red'));
 
     my $total = @{$picasa->{dir}{children}};
     my $cur = $picasa->{index} + 1;
@@ -350,7 +457,7 @@ sub move {			# move to new directory or file
 sub newdir {		 # replace all thumbnails in current directory
     my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
     $now =~ s@/+@/@g;
-#    $refreshing eq $now and return;
+    $refreshing eq $now and return;
     warn "\n\nnewdir $now\n" if $conf->{debug};
     $refreshing = $now;
     $mw->raiseFocus;
@@ -358,15 +465,9 @@ sub newdir {		 # replace all thumbnails in current directory
     # Gather all pics in this folder
     my $index = 0;
     &move;
-    # my $f = $conf->{filter};	# save
-    # $conf->{filter} = '';	# remove filters for all pics
-    # my $all = $picasa->filter($now);
-    # warn "all: $all\n";
-    # $conf->{filter} = $f;	# restore
-    # foreach my $img (@{$all->{children}}) {
     foreach my $img (@{$picasa->{dir}{children}}) {
 	my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
-	$now =~ s@/+@/@g;
+	$now =~ s@/+@/@g;	# bail out if user moved location
 	$refreshing eq $now or return;
 
         my $child = "$now$img";
@@ -437,7 +538,8 @@ sub newpic {	     # replace the full picture with current selection
 	push @info, $info->{Model} if $info->{Model};
 	push @info, "$info->{ExposureTime}s" if $info->{ExposureTime};
 	push @info, $info->{FocalLength} if $info->{FocalLength};
-	push @info, "($info->{FocalLengthIn35mmFormat})" if $info->{FocalLengthIn35mmFormat};
+	push @info, "($info->{FocalLengthIn35mmFormat})"
+	    if $info->{FocalLengthIn35mmFormat};
 	push @info, "f/$info->{FNumber}" if $info->{FNumber};
 	push @info, "ISO: $info->{ISO}" if $info->{ISO};
 	push @info, $info->{Flash} if $info->{Flash};
@@ -461,10 +563,11 @@ sub newpic {	     # replace the full picture with current selection
     $text .= "\n$this->{endtime}" if $this->{time} ne $this->{endtime};
     my $tmp = &nums($this);
     $text .= "\n($tmp)" if $tmp;
-    $canvas->createTextBox(0, 0, $conf->{bg},
+    $text .= "\n" . join "\n", @{$this->{tags}} if @{$this->{tags}};
+    $canvas->createTextBox(0, 0, $conf->{filtering} ? 'red' : $conf->{bg},
 			   -anchor => 'nw',
 			   -font => $med,
-			   -fill => $conf->{text},
+			   -fill => $conf->{filtering} ? 'white' : $conf->{text},
 			   -text => $text,
 			   -tags => 'info');
     $text = join "\n", map { $picasa->{album}{$_}{name} } @{$this->{albums}};
@@ -494,6 +597,7 @@ sub newpic {	     # replace the full picture with current selection
 
     if ($this->{caption}) {
 	$canvas->createTextBox($mx / 2, $my, $conf->{bg},
+			       -width => $mx,
 			       -anchor => 's',
 			       -font => $med,
 			       -fill => $conf->{title},
@@ -547,7 +651,7 @@ sub Tk::PhotoXYthumb {
     $f && $x && $y or return;
     my $ext = 'jpg';		# jpg is smaller than png
     my $cfn = "$conf->{cache}/$f-$x-$y.$ext";
-    unless (-f $cfn && -M _ <= -M $f) {
+    unless (!$rebuildthumb{$f} && -f $cfn && -M _ <= -M $f) {
 	my($dir, $file) = Picasa::dirfile($cfn);
 	-d $dir or mkpath $dir or warn "can't mkdir $dir: $!\n";
 	my $geo = "${x}x${y}";
@@ -565,15 +669,15 @@ sub Tk::PhotoXYthumb {
     $w->read($cfn, -to => int(($tpx - $x) / 2), int(($tpy - $y) / 2));
 }
 
-# @pics stacked into $w image of size $x / $y, with cacheing as $f
+# 3 @pics stacked into $w image of size $x / $y, with cacheing as $f
 sub Tk::StackXYthumb {
     my ($w, $f, $x, $y, $label, @pic) = @_;
-#    warn "StackXYthumb: my ($w, $f, $x, $y, $label, @pic)\n" if $conf->{debug};
     $f && $x && $y && @pic or return;
     my $ext = 'png';		# jpg isn't transparent; use png
     my $cfn = "$conf->{cache}/$f-$x-$y.$ext";
     
-    unless (-f $cfn && @pic == grep { -M $_ >= -M $cfn } @pic) {
+    unless (!$rebuildthumb{$f} &&
+	    -f $cfn && @pic == grep { -M $_ >= -M $cfn } @pic) {
 	my($dir, $file) = Picasa::dirfile($cfn);
 	-d $dir or mkpath $dir or warn "can't mkdir $dir: $!\n";
 	my $geo = sprintf "%.0fx%.0f", $x * 2 / 3, $y * 2 / 3;
