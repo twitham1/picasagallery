@@ -749,10 +749,14 @@ sub Tk::Canvas::createTextBox {
 	    ($offx, $offy) = ($w->rootx, $w->rooty);
 	    warn "$w: $x x $y +- $offx +- $offy\n" if $conf->{debug};
 	    $w->geometry(sprintf "%dx%d+-%d+-%d", $x, $y, $offx, $offy);
+	    $w->attributes(-fullscreen => 1) # works on mythbuntu!
+		if grep /-fullscreen/, $w->attributes;
 	    $w->raiseFocus;
 	} else {		# at 0, 0 == already full screen
 	    $w->minsize(1, 1);
 	    $w->geometry($geom{"$w"});
+	    $w->attributes(-fullscreen => 0)
+		if grep /-fullscreen/, $w->attributes;
 	    $w->raiseFocus;
 	}
     }
