@@ -90,13 +90,11 @@ $exif->Options(FastScan => 1,
 
 # main window is a thumbnail browser ----------------------------------------
 my $mw = Tk::MainWindow->new (-title => "Picasa Gallery", -bg => $conf->{bg});
+my $cur = $mw;			# current window
 my($mx, $my) = ($conf->{width}, $conf->{height});
-if ($conf->{fullscreen}) {
-    ($mx, $my) = ($mw->screenwidth, $mw->screenheight);
-    warn "going fullscreen to $mx x $my\n" if $conf->{debug};
-    $mw->overrideredirect(1); # must be done before window is mapped
-}
 $mw->geometry(sprintf "%dx%d", $mx, $my);
+$mw->update;
+$conf->{fullscreen} and &togglefullscreen($mw);
 
 my(@tn);		       # thumbnails: array of labels of Photos
 my $tnx = 7;		       # columns of thumbnails to display
@@ -134,7 +132,9 @@ my $tg = $mw->Table(-rows => 4,
 
 # full size image viewer --------------------------------------------------
 my $full = $mw->Toplevel(-width => $mx, -height => $my, -bg => $conf->{bg});
-$full->overrideredirect(1) if $conf->{fullscreen};
+$full->geometry(sprintf "%dx%d", $mx, $my);
+$full->update;
+$conf->{fullscreen} and &togglefullscreen($full);
 my $canvas = $full->Canvas(-width => $mx, -height => $my, -bg => $conf->{bg},
 			   -highlightthickness=> 0, -borderwidth => 0)
     ->pack(-side => 'top', -anchor => 'nw', -expand => 1, -fill => 'both');
@@ -146,6 +146,7 @@ $mw->raiseFocus;
 # popup option menu is invoked with "m" key ----------------------------------------
 my $menu = $mw->Menu(-tearoff => 0,
 		     -font => $med);
+$menu->transient($mw);		# not needed?
 $menu->add('command', -label => 'Menu: Picasa Gallery',
 	   -accelerator => 'm', -underline => 0);
 $menu->add('checkbutton', -label => 'Info Overlay',
@@ -232,6 +233,8 @@ $menu->add('command', -label => 'Rebuild Thumbnail',
 $menu->add('command', -label => 'Quit', -underline => 0, -command =>
 	   sub { while(1) { $mw->eventGenerate('<Escape>'); } });
 
+$menu->bind('<Unmap>', sub { $cur->raiseFocus; });
+
 # all event bindings happen here ----------------------------------------
 $full->bind('<Configure>' => # resize window resizes full-size picture
 	    sub  { my $w = shift;
@@ -246,9 +249,16 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 
     $w->bind('<KeyPress>', [\&processkey, Ev('A'), Ev('k'), Ev('K'), Ev('N')]);
 
+    for (qw(<F11>)) {
+	$w->bind($_, sub {	# toggle full screen display
+	    &togglefullscreen($w);
+		 });
+    }
+
     for (qw(<Key-m>)) {
 	$w->bind($_, sub {	# popup options menu
 	    $menu->post($w->x + $w->width / 3, $w->y + $w->height / 3);
+	    $menu->raiseFocus;
 		 });
     }
     for (qw(<Key-q> <Escape>)) {
@@ -266,7 +276,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 		    close $fh and rename "$conf->{metadata}~",
 		    $conf->{metadata} or die $!;
 		}
-		exit;
+		Tk::exit;
 	    } else {
 		$picasa->up;
 		&newdir;
@@ -347,7 +357,7 @@ if ($picasa_tmp->{done} && $picasa ne $picasa_tmp) {
 }
 
 MainLoop;			# never returns
-exit;				# should never get here
+Tk::exit;			# should never get here
 
 sub processkey {  # generic key event handler if nothing more specific
     my($win, $ascii, $code, $str, $num) = @_;
@@ -723,15 +733,37 @@ sub Tk::Canvas::createTextBox {
     $w->raise($t);
 }
 
+# toggle fullscreen by hiding decorations off-screen
+{
+    my %geom;			# remember size before full screen
+    sub togglefullscreen {
+	my($w) = @_;
+	my($offx, $offy) = ($w->rootx, $w->rooty);
+	warn "$w: + $offx + $offy\n" if $conf->{debug};
+	if ($offx || $offy) {	# not at 0, 0 == not full screen
+	    $geom{"$w"} = $w->geometry; # size/location to restore
+	    my($x, $y) = ($mw->screenwidth, $mw->screenheight);
+	    $w->minsize($x, $y); $w->maxsize($x, $y);
+	    $w->geometry(sprintf "%dx%d+0+0", $x, $y);
+	    $w->update;
+	    ($offx, $offy) = ($w->rootx, $w->rooty);
+	    warn "$w: $x x $y +- $offx +- $offy\n" if $conf->{debug};
+	    $w->geometry(sprintf "%dx%d+-%d+-%d", $x, $y, $offx, $offy);
+	    $w->raiseFocus;
+	} else {		# at 0, 0 == already full screen
+	    $w->minsize(1, 1);
+	    $w->geometry($geom{"$w"});
+	    $w->raiseFocus;
+	}
+    }
+}
+
 # raise window $w and ensure it has focus
 sub Tk::raiseFocus {
     my($w) = @_;
     $w->deiconify;
-    $w->raise;
-    if ($conf->{fullscreen}) {	# force needed on Linux
-	$w->focusForce;		# with overrideredirect(1)
-	$w->grabGlobal;
-    }
+    $w->raise; $w->focus; $w->grab; $w->update;
+    $cur = $w unless $w eq $menu;
 }
 
 __END__
