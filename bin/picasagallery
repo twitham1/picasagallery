@@ -23,7 +23,6 @@ goto endofperl
 # TODO: support all Picasa file formats (videos for example) (help ->
 #	options -> file types: jpe?g, bmp, gif, png, tga, tiff?, webp,
 #	psd, (many raw), (movies: avi, mpg, asf, wmv)
-# TODO: option to toggle full-screen mode
 # TODO: add zoom/pan to image viewer
 # TODO: add mouse/touch controls
 
@@ -38,6 +37,7 @@ use Tk::Pixmap;
 use Tk::Photo;
 use Tk::Font;
 use Tk::Table;			 # for picture browser
+use Tk::ProgressBar;		 # for metadata refreshing progress bar
 use Data::Dumper;		 # for saving metadata cache
 use File::Path;			 # for creating thumbnail paths
 use Image::ExifTool qw(:Public); # for picture metadata
@@ -128,7 +128,16 @@ my $tg = $mw->Table(-rows => 4,
 		    -columns => 7,
 		    -scrollbars => 'w',
 		    -bg => $conf->{bg},
-    )->pack(-side => "top", -expand => 1, -fill => "both");
+    )->pack(-side => "left", -expand => 1, -fill => "both");
+
+# metadata refreshing progress bar
+my $sofar = 0;
+my $pg = $mw->ProgressBar(-anchor => 's', -to => $picasa->{pics} ?
+			  scalar keys %{$picasa->{pics}} : 1000,
+			  -variable => \$sofar,
+			  -gap => 0,
+			  -troughcolor => 'red',
+    )->pack(-side => "right", -expand => 0, -fill => 'y');
 
 # full size image viewer --------------------------------------------------
 my $full = $mw->Toplevel(-width => $mx, -height => $my, -bg => $conf->{bg});
@@ -141,14 +150,13 @@ my $canvas = $full->Canvas(-width => $mx, -height => $my, -bg => $conf->{bg},
 my $image = $mw->Photo(-width => $mx, -height => $my);
 $image->blank;
 $canvas->createImage(0, 0, -image => $image, -anchor => 'nw');
-$mw->raiseFocus;
 
-# popup option menu is invoked with "m" key ----------------------------------------
+# popup option menu is invoked with "m" key ----------------------------------
 my $menu = $mw->Menu(-tearoff => 0,
 		     -font => $med);
 $menu->transient($mw);		# not needed?
 $menu->add('command', -label => 'Menu: Picasa Gallery',
-	   -accelerator => 'm', -underline => 0);
+	   -accelerator => 'm', -underline => 0, -state => 'disabled');
 $menu->add('checkbutton', -label => 'Info Overlay',
 	   -accelerator => 'i', -underline => 0,
 	   -variable => \$conf->{info}, -command => \&newpic);
@@ -187,7 +195,7 @@ my %age = my @age		# ugly menu, but any better way?
     '5 years'	=> 5 * $year,
     '3 years'	=> 3 * $year,
     '2 years'	=> 2 * $year,
-    '1 years'	=> 1 * $year,
+    '1 year'	=> 1 * $year,
     '9 months'	=> 9 / 12 * $year,
     '7 months'	=> 7 / 12 * $year,
     '5 months'	=> 5 / 12 * $year,
@@ -210,6 +218,7 @@ my %age = my @age		# ugly menu, but any better way?
 		  -label => $_,
 		  -variable => \$conf->{filter}{age},
 		  -value => $age{$_},
+		  (/^\d year|unlimited/ ? (-underline => 0) : ()),
 		  -command => sub {
 		      $picasa->filtermove;
 		      &newdir;
@@ -219,8 +228,8 @@ my %age = my @age		# ugly menu, but any better way?
 	$last = $_;
     }
 }
-$menu->add('cascade', -label => 'Filter by Age', -menu => $age,
-	   -underline => 10);
+$menu->add('cascade', -label => 'Filter by Age',
+	   -menu => $age, -underline => 10);
 $menu->add('separator');
 $menu->add('command', -label => 'Rebuild Thumbnail',
 	   -underline => 0, -command =>
@@ -233,7 +242,9 @@ $menu->add('command', -label => 'Rebuild Thumbnail',
 $menu->add('command', -label => 'Quit', -underline => 0, -command =>
 	   sub { while(1) { $mw->eventGenerate('<Escape>'); } });
 
-$menu->bind('<Unmap>', sub { $cur->raiseFocus; });
+$menu->bind('<Unmap>', sub { $menu->withdraw; $cur->raiseFocus; });
+
+$mw->raiseFocus;
 
 # all event bindings happen here ----------------------------------------
 $full->bind('<Configure>' => # resize window resizes full-size picture
@@ -245,6 +256,21 @@ $full->bind('<Configure>' => # resize window resizes full-size picture
 				     -height => $my);
 		   &newpic;
 	    });
+$mw->bind('<Button-1>' => [\&click, Ev('W') ]);
+sub click {
+    my($w) = @_;
+    my($r, $c) = $tg->Posn($w);
+    return unless $r and $c;
+    $picasa->{index} = --$r * $tnx + --$c;
+    &move;
+}
+$mw->bind('<Double-Button-1>' => [\&doubleclick, Ev('W') ]);
+sub doubleclick {
+    my($w) = @_;
+    &click($w);
+    $mw->eventGenerate('<Return>')
+}
+
 for my $w ($mw, $full) {	# both windows have same key bindings
 
     $w->bind('<KeyPress>', [\&processkey, Ev('A'), Ev('k'), Ev('K'), Ev('N')]);
@@ -258,7 +284,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
     for (qw(<Key-m>)) {
 	$w->bind($_, sub {	# popup options menu
 	    $menu->post($w->x + $w->width / 3, $w->y + $w->height / 3);
-	    $menu->raiseFocus;
+	    $menu->raiseFocus;	# why is this needed???!!!
 		 });
     }
     for (qw(<Key-q> <Escape>)) {
@@ -355,6 +381,8 @@ if ($picasa_tmp->{done} && $picasa ne $picasa_tmp) {
     $picasa = $picasa_tmp;
     undef $old;			# free previous data, now stale
 }
+$pg->value($pg->cget('-to') + 10);
+&move;				# update stats one last time
 
 MainLoop;			# never returns
 Tk::exit;			# should never get here
@@ -390,6 +418,10 @@ BEGIN {	# filtering for stats is expensive, so we update GUI only once a second
 	my $loc = "$picasa_tmp->{file}{dir}$picasa_tmp->{file}{file}";
 	$picasa_tmp->{file} = $picasa_tmp->filter($loc);
 	&move;			# updates statistics on GUI
+	$sofar = keys %{$picasa_tmp->{pics}};
+	if ($sofar > $pg->cget('-to')) {
+	    $pg->configure(-to => $sofar + 1000);
+	}
 	$updated = time;
     }
 }
@@ -691,19 +723,24 @@ sub Tk::StackXYthumb {
 	my($dir, $file) = Picasa::dirfile($cfn);
 	-d $dir or mkpath $dir or warn "can't mkdir $dir: $!\n";
 	my $geo = sprintf "%.0fx%.0f", $x * 2 / 3, $y * 2 / 3;
-	system 'convert', '-size', "${x}x${y}", 'xc:#0000',
-	'(', $pic[0], '-thumbnail', $geo, ')', qw/-gravity northwest -composite/,
-	'(', $pic[1], '-thumbnail', $geo, ')', qw/-gravity center -composite/,
-	'(', $pic[2], '-thumbnail', $geo, ')', qw/-gravity southeast -composite/,
-	qw/-fill white -gravity center -background/, '#0006', '-size', 
+	my @cmd = ('convert', '-size', "${x}x${y}", 'xc:#0000');
+	push @cmd, '(', $pic[0], '-thumbnail', $geo, ')',
+	qw/-gravity northwest -composite/;
+	push @cmd, '(', $pic[1], '-thumbnail', $geo, ')',
+	qw/-gravity center -composite/
+	    unless $pic[0] eq $pic[1];
+	push @cmd, '(', $pic[2], '-thumbnail', $geo, ')',
+	qw/-gravity southeast -composite/
+	    unless $pic[2] eq $pic[1] or $pic[2] eq $pic[0];
+	push @cmd, qw/-fill white -gravity center -background/, '#0006', '-size',
 	sprintf("%.0fx%.0f", $x, $y / 5), "caption:$label", '-composite', $cfn;
+	system @cmd;
 	my($time) = sort { $b <=> $a } map { (stat $_)[9] } @pic; # latest
 	utime $time, $time, $cfn;
     }
     $w->blank;
     $w->read($cfn);
 }
-
 
 # read $f file into $w image scaled to size $x / $y
 BEGIN {
@@ -733,9 +770,10 @@ sub Tk::Canvas::createTextBox {
     $w->raise($t);
 }
 
-# toggle fullscreen by hiding decorations off-screen
+# Toggle fullscreen by hiding decorations off-screen. I prefer this to
+# overrideredirect(1) which loses focus and Alt-Tab WM controls.
 {
-    my %geom;			# remember size before full screen
+    my %geom;			# remember size/pos before full screen
     sub togglefullscreen {
 	my($w) = @_;
 	my($offx, $offy) = ($w->rootx, $w->rooty);
@@ -766,8 +804,11 @@ sub Tk::Canvas::createTextBox {
 sub Tk::raiseFocus {
     my($w) = @_;
     $w->deiconify;
-    $w->raise; $w->focus; $w->grab; $w->update;
-    $cur = $w unless $w eq $menu;
+    $w->raise unless $w eq $menu; # causes overlay @ 0,0 on Windows??!
+    $w->focus;
+    $w->grab;
+    $w->update;
+    $cur = $w unless $w eq $menu; # focus to restore after menu
 }
 
 __END__
