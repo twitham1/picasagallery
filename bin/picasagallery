@@ -155,10 +155,13 @@ my $menu = $mw->Menu(-tearoff => 0, -takefocus => 1, # takefocus doesn't work???
 		     -font => $med);
 $menu->transient($mw);		# not needed?
 $menu->add('command', -label => 'Menu: Picasa Gallery',
-	   -accelerator => 'm', -underline => 0, -state => 'disabled');
+	   -accelerator => 'm', -underline => 0, -state => 'active');
 $menu->add('checkbutton', -label => 'Info Overlay',
 	   -accelerator => 'i', -underline => 0,
 	   -variable => \$conf->{info}, -command => \&newpic);
+$menu->add('command', -label => 'Toggle Fullscreen',
+	   -accelerator => 'F11', -underline => 0,
+	   -command => sub { $mw->eventGenerate('<F11>') });
 $menu->add('separator');
 my $i = 0;
 $menu->add('command', -label => "Clear All Filters",
@@ -241,11 +244,12 @@ $menu->add('command', -label => 'Rebuild Thumbnail',
 $menu->add('command', -label => 'Quit', -underline => 0, -command =>
 	   sub { while(1) { $mw->eventGenerate('<Escape>'); } });
 
-$menu->bind('<Unmap>', sub { $menu->withdraw; $cur->raiseFocus; });
-
 $mw->raiseFocus;
 
 # all event bindings happen here ----------------------------------------
+
+$menu->bind('<Unmap>', sub { $menu->withdraw; $cur->raiseFocus; });
+
 $full->bind('<Configure>' => # resize window resizes full-size picture
 	    sub  { my $w = shift;
 		   ($mx, $my) = ($w->Width, $w->Height);
@@ -256,6 +260,8 @@ $full->bind('<Configure>' => # resize window resizes full-size picture
 		   &newpic;
 	    });
 $mw->bind('<Button-1>' => [\&click, Ev('W') ]);
+$mw->bind('<4>', sub { $tg->yview(scroll => -1, 'units')});
+$mw->bind('<5>', sub { $tg->yview(scroll =>  1, 'units')});
 sub click {			# move selection or enter selection
     my($w) = @_;
     my($r, $c) = $tg->Posn($w);
@@ -322,7 +328,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 	    &newpic;
 		 });
     }
-    for (qw(<Left> <Up> <BackSpace> <Key-p>)) {
+    for (qw(<Left> <BackSpace> <Key-p>)) {
 	$w->bind($_, sub {	# previous picture or subdir
 	    $picasa->prev;
 	    &newpic;
@@ -413,7 +419,7 @@ BEGIN {	# filtering for stats is expensive, so we update GUI only once a second
 	warn "updating $File::Find::name\n" if $conf->{debug};
 	my $loc = "$picasa_tmp->{file}{dir}$picasa_tmp->{file}{file}";
 	$picasa_tmp->{file} = $picasa_tmp->filter($loc);
-	&move;			# updates statistics on GUI
+	&move(1);		# updates statistics on GUI
 	$sofar = keys %{$picasa_tmp->{pics}};
 	if ($sofar > $pg->cget('-to')) {
 	    $pg->configure(-to => $sofar + 1000);
@@ -454,11 +460,13 @@ sub stats {			# format the [average] image metrics
 }
 
 sub move {			# move to new directory or file
+#    my($statsonly) = @_;
     return unless $picasa->{index} >= 0;
 
     $mw->title("PG: $picasa->{file}{dir}");
     $tg->see(int($picasa->{index} / $tnx + 1), # Table index begins at 1, not 0!
-	     $picasa->{index} % $tnx + 1);
+	     $picasa->{index} % $tnx + 1)
+;#	unless $statsonly;
 
     return unless my $current = $picasa->{file};
     warn "location: $picasa->{dir}{dir} $picasa->{dir}{file} - $picasa->{file}{dir} $picasa->{file}{file} ($picasa->{index})\n" if $conf->{debug};
@@ -500,9 +508,11 @@ sub newdir {		 # replace all thumbnails in current directory
     $refreshing = $now;
     $mw->raiseFocus;
 
-    # Gather all pics in this folder
-    my $index = 0;
     &move;
+    for (0 .. $#tn) {		# empty previous directory
+    	$tn[$_]->cget(-image)->blank;
+    }
+    my $index = 0;
     foreach my $img (@{$picasa->{dir}{children}}) {
 	my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
 	$now =~ s@/+@/@g;	# bail out if user moved location
@@ -528,7 +538,7 @@ sub newdir {		 # replace all thumbnails in current directory
 	if ($img =~ m!/$!) {	# directory: stack some pics
 	    $child =~ s@/$@@;
 	    $image->StackXYthumb($child, $tpx, $tpy, "$this->{files}: $img",
-				 $this->{first}, $this->{physical}, $this->{'last'});
+				 $this->{first}, $this->{physical}, $this->{last});
 	} else {
 	    my $scale = $tpy / $y < $tpx / $x ? $tpy / $y : $tpx / $x;
 	    $image->PhotoXYthumb($pf, (map { int } $scale * $x, $scale * $y),
@@ -538,9 +548,6 @@ sub newdir {		 # replace all thumbnails in current directory
 #	warn "putting $index / $tnx ($w in $tg - $t - $pf)\n" if $conf->{debug} > 1;
         $tn[$index]->update;	# Display the thumbnail
 	$index++;
-    }
-    while ($index <= $#tn) {	# blank the unused cells
-    	$tn[$index++]->cget(-image)->blank;
     }
     &move;
     $refreshing = "";
