@@ -24,7 +24,6 @@ goto endofperl
 #	options -> file types: jpe?g, bmp, gif, png, tga, tiff?, webp,
 #	psd, (many raw), (movies: avi, mpg, asf, wmv)
 # TODO: add zoom/pan to image viewer
-# TODO: add mouse/touch controls
 
 use strict;
 use warnings;
@@ -152,7 +151,7 @@ $image->blank;
 $canvas->createImage(0, 0, -image => $image, -anchor => 'nw');
 
 # popup option menu is invoked with "m" key ----------------------------------
-my $menu = $mw->Menu(-tearoff => 0,
+my $menu = $mw->Menu(-tearoff => 0, -takefocus => 1, # takefocus doesn't work???
 		     -font => $med);
 $menu->transient($mw);		# not needed?
 $menu->add('command', -label => 'Menu: Picasa Gallery',
@@ -257,18 +256,15 @@ $full->bind('<Configure>' => # resize window resizes full-size picture
 		   &newpic;
 	    });
 $mw->bind('<Button-1>' => [\&click, Ev('W') ]);
-sub click {
+sub click {			# move selection or enter selection
     my($w) = @_;
     my($r, $c) = $tg->Posn($w);
     return unless $r and $c;
+    my $cur = $picasa->{index};
     $picasa->{index} = --$r * $tnx + --$c;
+    $picasa->filtermove;
     &move;
-}
-$mw->bind('<Double-Button-1>' => [\&doubleclick, Ev('W') ]);
-sub doubleclick {
-    my($w) = @_;
-    &click($w);
-    $mw->eventGenerate('<Return>')
+    $picasa->{index} == $cur and $mw->eventGenerate('<Return>');
 }
 
 for my $w ($mw, $full) {	# both windows have same key bindings
@@ -281,13 +277,13 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 		 });
     }
 
-    for (qw(<Key-m>)) {
+    for (qw(<Key-m> <Button-3>)) {
 	$w->bind($_, sub {	# popup options menu
 	    $menu->post($w->x + $w->width / 3, $w->y + $w->height / 3);
-	    $menu->raiseFocus;	# why is this needed???!!!
+	    $menu->raiseFocus;	# -takefocus fails on mythbuntu???
 		 });
     }
-    for (qw(<Key-q> <Escape>)) {
+    for (qw(<Key-q> <Escape> <Button-2>)) {
 	$w->bind($_, sub {	# up or exit
 	    my $tmp = $mw->focusCurrent;
 	    if ($mw->focusCurrent eq $full) {
@@ -804,7 +800,7 @@ sub Tk::Canvas::createTextBox {
 sub Tk::raiseFocus {
     my($w) = @_;
     $w->deiconify;
-    $w->raise unless $w eq $menu; # causes overlay @ 0,0 on Windows??!
+    $w->raise;			# causes menu @ 0,0 on Windows??!
     $w->focus;
     $w->grab;
     $w->update;
