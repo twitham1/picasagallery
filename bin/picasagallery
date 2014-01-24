@@ -24,6 +24,7 @@ goto endofperl
 #	options -> file types: jpe?g, bmp, gif, png, tga, tiff?, webp,
 #	psd, (many raw), (movies: avi, mpg, asf, wmv)
 # TODO: add zoom/pan to image viewer
+# TODO: add mouse/touch controls
 
 use strict;
 use warnings;
@@ -71,7 +72,12 @@ our $conf = {
     filter	=> {
 	age => 0,	   # show only newer than X seconds before now
     },
+    slideshow	=> '',		# root of current automatic slide show
+    delay	=> 3,		# seconds to show each picture
 };
+my @ss;				# slide show picture list
+my $ss;				# slide show timer object
+my $ssindex = 0;		# slide show index
 
 require $conf->{config} if -f $conf->{config}; # start with previous run data:
 $picasa = require $conf->{metadata} if -f $conf->{metadata};
@@ -159,9 +165,6 @@ $menu->add('command', -label => 'Menu: Picasa Gallery',
 $menu->add('checkbutton', -label => 'Info Overlay',
 	   -accelerator => 'i', -underline => 0,
 	   -variable => \$conf->{info}, -command => \&newpic);
-$menu->add('command', -label => 'Toggle Fullscreen',
-	   -accelerator => 'F11', -underline => 0,
-	   -command => sub { $mw->eventGenerate('<F11>') });
 $menu->add('separator');
 my $i = 0;
 $menu->add('command', -label => "Clear All Filters",
@@ -179,7 +182,6 @@ for (@{$conf->{filters}}) {
 		     $picasa->filtermove;
 		     &newdir;
 		     &newpic;
-		     &move;
 		 });
 }
 $menu->add('cascade', -label => 'Filter by Attributes', -menu => $filter,
@@ -225,7 +227,6 @@ my %age = my @age		# ugly menu, but any better way?
 		      $picasa->filtermove;
 		      &newdir;
 		      &newpic;
-		      &move;
 		  });
 	$last = $_;
     }
@@ -244,12 +245,11 @@ $menu->add('command', -label => 'Rebuild Thumbnail',
 $menu->add('command', -label => 'Quit', -underline => 0, -command =>
 	   sub { while(1) { $mw->eventGenerate('<Escape>'); } });
 
+$menu->bind('<Unmap>', sub { $menu->withdraw; $cur->raiseFocus; });
+
 $mw->raiseFocus;
 
 # all event bindings happen here ----------------------------------------
-
-$menu->bind('<Unmap>', sub { $menu->withdraw; $cur->raiseFocus; });
-
 $full->bind('<Configure>' => # resize window resizes full-size picture
 	    sub  { my $w = shift;
 		   ($mx, $my) = ($w->Width, $w->Height);
@@ -260,9 +260,7 @@ $full->bind('<Configure>' => # resize window resizes full-size picture
 		   &newpic;
 	    });
 $mw->bind('<Button-1>' => [\&click, Ev('W') ]);
-$mw->bind('<4>', sub { $tg->yview(scroll => -1, 'units')});
-$mw->bind('<5>', sub { $tg->yview(scroll =>  1, 'units')});
-sub click {			# move selection or enter selection
+sub click {			# select or enter selection
     my($w) = @_;
     my($r, $c) = $tg->Posn($w);
     return unless $r and $c;
@@ -271,6 +269,21 @@ sub click {			# move selection or enter selection
     $picasa->filtermove;
     &move;
     $picasa->{index} == $cur and $mw->eventGenerate('<Return>');
+}
+
+sub show {		# slide show callback: advance to next picture
+#    warn my $n = @ss;
+    return unless @ss;
+    my $was = "$picasa->{dir}{dir}$picasa->{dir}{file}";
+    my($next, $tmp) = $picasa->ssnext(\@ss,
+				      "$picasa->{file}{dir}$picasa->{file}{file}");
+#    warn "next: $next\n";
+    return unless $next;
+    $ssindex = $tmp;
+    $picasa->goto($next);
+    my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
+    $was eq $now or &newdir;
+    &newpic;
 }
 
 for my $w ($mw, $full) {	# both windows have same key bindings
@@ -328,7 +341,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 	    &newpic;
 		 });
     }
-    for (qw(<Left> <BackSpace> <Key-p>)) {
+    for (qw(<Left> <Up> <BackSpace>)) {
 	$w->bind($_, sub {	# previous picture or subdir
 	    $picasa->prev;
 	    &newpic;
@@ -362,6 +375,33 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 	$w->bind($_, sub {	# information toggle
 	    $conf->{info} = $conf->{info} ? 0 : 1;
 	    &newpic;
+		 });
+    }
+    for (qw(<Key-p>)) {
+	$w->bind($_, sub {	# start / pause /resume slide show
+	    if ($conf->{slideshow}) { # show in progress
+		if ($ss) {	      # running -> pause
+		    $ss->cancel;
+		    $ss = undef;
+		} else {	# paused -> run
+		    $ss = $mw->repeat($conf->{delay} * 1000, \&show);
+		}
+	    } else {	   # no show -> start one at current selection
+		my $now = "$picasa->{file}{dir}$picasa->{file}{file}";
+		$now =~ m@/$@ or
+		    $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
+		$conf->{slideshow} = $now;
+		@ss = $picasa->filter($now, 'slideshow');
+		$ss = $mw->repeat($conf->{delay} * 1000, \&show);
+	    }
+		 });
+    }
+    for (qw(<Key-t>)) {
+	$w->bind($_, sub {	# stop slide show
+	    $ss->cancel;
+	    $ss = undef;
+	    $conf->{slideshow} = '';
+	    @ss = ();
 		 });
     }
 }
@@ -402,7 +442,6 @@ sub processkey {  # generic key event handler if nothing more specific
 	$picasa->filtermove;	# update all metadata
 	&newdir;
 	&newpic;
-	&move;
     }
 }
 
@@ -419,7 +458,7 @@ BEGIN {	# filtering for stats is expensive, so we update GUI only once a second
 	warn "updating $File::Find::name\n" if $conf->{debug};
 	my $loc = "$picasa_tmp->{file}{dir}$picasa_tmp->{file}{file}";
 	$picasa_tmp->{file} = $picasa_tmp->filter($loc);
-	&move(1);		# updates statistics on GUI
+	&move;			# updates statistics on GUI
 	$sofar = keys %{$picasa_tmp->{pics}};
 	if ($sofar > $pg->cget('-to')) {
 	    $pg->configure(-to => $sofar + 1000);
@@ -460,13 +499,11 @@ sub stats {			# format the [average] image metrics
 }
 
 sub move {			# move to new directory or file
-#    my($statsonly) = @_;
     return unless $picasa->{index} >= 0;
 
     $mw->title("PG: $picasa->{file}{dir}");
     $tg->see(int($picasa->{index} / $tnx + 1), # Table index begins at 1, not 0!
-	     $picasa->{index} % $tnx + 1)
-;#	unless $statsonly;
+	     $picasa->{index} % $tnx + 1);
 
     return unless my $current = $picasa->{file};
     warn "location: $picasa->{dir}{dir} $picasa->{dir}{file} - $picasa->{file}{dir} $picasa->{file}{file} ($picasa->{index})\n" if $conf->{debug};
@@ -493,11 +530,14 @@ sub move {			# move to new directory or file
 
     my $total = @{$picasa->{dir}{children}};
     my $cur = $picasa->{index} + 1;
-    $s = "$current->{dir}: $cur / $total";
+    $s = "$current->{dir} $cur / $total";
 
     $sw = $current->{time};
-    $se = $current->{time} eq $current->{endtime} ?
-	$current->{caption} || '' : $current->{endtime};
+    $se = ($conf->{slideshow} && $ss) ?
+	("$conf->{slideshow} " . ($ssindex + 1) . " / " . scalar @ss)
+	: ($current->{time} eq $current->{endtime}) ?
+	$current->{caption} || ''
+	: $current->{endtime};
 }
 
 sub newdir {		 # replace all thumbnails in current directory
@@ -506,13 +546,11 @@ sub newdir {		 # replace all thumbnails in current directory
     $refreshing eq $now and return;
     warn "\n\nnewdir $now\n" if $conf->{debug};
     $refreshing = $now;
-    $mw->raiseFocus;
+    $mw->raiseFocus unless $ss;
 
-    &move;
-    for (0 .. $#tn) {		# empty previous directory
-    	$tn[$_]->cget(-image)->blank;
-    }
     my $index = 0;
+    &move;
+    $_->cget(-image)->blank for (@tn);
     foreach my $img (@{$picasa->{dir}{children}}) {
 	my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
 	$now =~ s@/+@/@g;	# bail out if user moved location
@@ -555,7 +593,7 @@ sub newdir {		 # replace all thumbnails in current directory
 
 sub newpic {	     # replace the full picture with current selection
     &move;
-    $full->focusCurrent eq $full or return;
+    $full->focusCurrent eq $full or $ss or return;
     my $this = $picasa->{file} or return;
     if ($this->{file} =~ m!/$!) { # raise browser to see directory option
 	&newdir;
@@ -625,11 +663,13 @@ sub newpic {	     # replace the full picture with current selection
 
     my $total = @{$picasa->{dir}{children}};
     my $cur = $picasa->{index} + 1;
+    $text = "$cur / $total";
+    $ss and $text = sprintf "%d / %d : $text", $ssindex + 1, scalar @ss;
     $canvas->createTextBox($mx / 2, 0, $conf->{bg},
 			   -anchor => 'n',
 			   -font => $med,
 			   -fill => $conf->{title},
-			   -text => "$cur / $total",
+			   -text => $text,
 			   -tags => 'info');
     my $bar = $mx / $total;	# disappearing "progress" bar!
     $bar = 5 if $bar < 5;	# TODO: all info could disappear...
@@ -682,7 +722,7 @@ sub newpic {	     # replace the full picture with current selection
 	    $canvas->createText($X + $r * $x * $scale - 2, $Y + $b * $y * $scale,
 				-justify => 'right',
 				-anchor => 'se',
-				-font => $big,
+				-font => $med,
 				-fill => $conf->{face},
 				-text => $age,
 				-tags => 'faces');

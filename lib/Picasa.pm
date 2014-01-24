@@ -22,7 +22,7 @@ use POSIX qw/strftime/;
 
 my $db;	    # picasa database pointer needed for File::Find's _wanted.
 
-my $conf = {			# override in first arg to new
+my $conf = {		       # override any keys in first arg to new
     reject	=> 'PATTERN OF FILES TO REJECT',
     keep	=> '(?i)\.jpe?g$',	# pattern of files to keep
     datefmt	=> '%Y-%m-%d.%H:%M:%S', # must be sortable order
@@ -141,26 +141,48 @@ sub dirfile { # similar to fileparse, but leave trailing / on directories
     return "$dir", "$file$end";
 }
 
+# move to the virtual location of given picture
+sub goto {
+    my($self, $pic) = @_;
+    $pic =~ s@/+@/@g;
+    ($self->{dir}{dir}, $self->{dir}{file}) = dirfile $pic;
+    $self->up;
+}
+
+# move to next picture in slide show
+sub ssnext {
+    my($self, $ss, $pic) = @_;
+    my $i = 0;		 # a search is inefficient,
+    for my $n (@$ss) {	 # but user may have navigated to another file
+#	warn "$pic eq $n\n";
+	$i++;
+	last if $pic eq $n;	# found!
+    }
+    $ss->[$i] or $i = 0;
+    return $ss->[$i], $i;
+}
+
 # given a virtual path, return all data known about it with current filters
 sub filter {
-    my($self, $path, $nofilter) = @_;
+    my($self, $path, $opt) = @_;
     my $data = {};
     my %child;			# children of this parent
     my %face;			# faces in this path
     my %album;			# albums in this path
     my %tag;			# tags in this path
     my %done;			# files that have been processed
+    my @ss;			# slide show pictures
     $path =~ s@/+@/@g;
     ($data->{dir}, $data->{file}) = dirfile $path;
     warn "filter:$path->($data->{dir},$data->{file})\n" if $conf->{debug};
     my $begin = $conf->{filter}{age} ? strftime $conf->{datefmt},
     localtime time - $conf->{filter}{age} : 0;
-    for my $str (keys %{$self->{root}}) { # for each picture file
+    for my $str (sort keys %{$self->{root}}) { # for each picture file
 	next unless 0 == index($str, $path); # match
 	next unless my $filename = $self->{root}{$str}; # physical path
 	next unless my $this = $self->{pics}{$filename}; # metadata
 
-	unless ($nofilter) {
+	unless ($opt and $opt eq 'nofilter') {
 	    warn "filtering $str for filter ", Dumper $conf->{filter}
 	    if $conf->{debug} > 1;
 	    next if $conf->{filter}{Stars}	and !$this->{stars};
@@ -172,10 +194,15 @@ sub filter {
 	    next if $conf->{filter}{age} and $this->{time} lt $begin;
 	}
 
+	if ($opt and $opt eq 'slideshow') {
+	    push @ss, $str;
+	    next;
+	}
+
 	warn "looking at ($path) in ($str)\n" if $conf->{debug} > 1;
-	if ($str eq $path) {	# filename
+	if ($str eq $path) {	# filename: copy metadata
 	    map { $data->{$_} = $this->{$_} } keys %$this;
-	} else { 		# directory
+	} else { 		# directory: sum metadata
 	    my $rest = substr $str, length $path;
 	    $rest =~ s!/.*!/!;
 	    $rest and $child{$rest}++; # entries in this directory
@@ -204,6 +231,9 @@ sub filter {
 	    $data->{physical} ne $data->{first} and
 	    $data->{physical} ne $data->{last} or
 	    $data->{physical} = $filename;
+    }
+    if ($opt and $opt eq 'slideshow') {
+	return @ss;
     }
     $data->{children} = [sort keys %child]; # maybe sort later? sort by option?
     $data->{faces} or $data->{faces} = [keys %face];
