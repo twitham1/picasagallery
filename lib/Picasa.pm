@@ -149,19 +149,6 @@ sub goto {
     $self->up;
 }
 
-# move to next picture in slide show
-sub ssnext {
-    my($self, $ss, $pic) = @_;
-    my $i = 0;		 # a search is inefficient,
-    for my $n (@$ss) {	 # but user may have navigated to another file
-#	warn "$pic eq $n\n";
-	$i++;
-	last if $pic eq $n;	# found!
-    }
-    $ss->[$i] or $i = 0;
-    return $ss->[$i], $i;
-}
-
 # given a virtual path, return all data known about it with current filters
 sub filter {
     my($self, $path, $opt) = @_;

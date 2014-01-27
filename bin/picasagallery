@@ -272,18 +272,32 @@ sub click {			# select or enter selection
 }
 
 sub show {		# slide show callback: advance to next picture
-#    warn my $n = @ss;
     return unless @ss;
     my $was = "$picasa->{dir}{dir}$picasa->{dir}{file}";
-    my($next, $tmp) = $picasa->ssnext(\@ss,
-				      "$picasa->{file}{dir}$picasa->{file}{file}");
-#    warn "next: $next\n";
-    return unless $next;
-    $ssindex = $tmp;
-    $picasa->goto($next);
+    my $pic = "$picasa->{file}{dir}$picasa->{file}{file}";
+
+    # we search since user may have moved to new location
+    while ($ssindex <= $#ss) {	# start at last known location
+#    	warn "checking 1 $ssindex: $ss[$ssindex] $pic\n";
+    	last if 0 == index($ss[$ssindex], $pic); # found!
+	$ssindex++;
+    }
+    unless ($ss[$ssindex]) {	# look earlier if not yet found
+    	$ssindex = 0;
+    	while ($ssindex <= $#ss) {
+#    	    warn "checking 2 $ssindex: $ss[$ssindex] $pic\n";
+    	    last if 0 == index($ss[$ssindex], $pic); # found!
+	    $ssindex++;
+    	}
+    }
+    $ssindex > $#ss and # user navigated above slide show; cancel it
+	do { $mw->eventGenerate('<Key-t>'); return; };
+    $ssindex++ if $ss[$ssindex] eq $pic;
+    $ss[$ssindex] or $ssindex = 0;
+    $picasa->goto($ss[$ssindex]);
     my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
-    $was eq $now or &newdir;
     &newpic;
+    $was eq $now or &newdir;
 }
 
 for my $w ($mw, $full) {	# both windows have same key bindings
@@ -384,6 +398,8 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 		    $ss->cancel;
 		    $ss = undef;
 		} else {	# paused -> run
+		    &show;
+		    $full->raiseFocus;
 		    $ss = $mw->repeat($conf->{delay} * 1000, \&show);
 		}
 	    } else {	   # no show -> start one at current selection
@@ -392,6 +408,8 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 		    $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
 		$conf->{slideshow} = $now;
 		@ss = $picasa->filter($now, 'slideshow');
+		&show;
+		$full->raiseFocus;
 		$ss = $mw->repeat($conf->{delay} * 1000, \&show);
 	    }
 		 });
@@ -402,6 +420,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 	    $ss = undef;
 	    $conf->{slideshow} = '';
 	    @ss = ();
+	    $ssindex = 0;
 		 });
     }
 }
@@ -533,10 +552,8 @@ sub move {			# move to new directory or file
     $s = "$current->{dir} $cur / $total";
 
     $sw = $current->{time};
-    $se = ($conf->{slideshow} && $ss) ?
-	("$conf->{slideshow} " . ($ssindex + 1) . " / " . scalar @ss)
-	: ($current->{time} eq $current->{endtime}) ?
-	$current->{caption} || ''
+    $se = @ss ? ("$conf->{slideshow} " . ($ssindex + 1) . " / " . scalar @ss)
+	: ($current->{time} eq $current->{endtime}) ? $current->{caption} || ''
 	: $current->{endtime};
 }
 
@@ -664,7 +681,7 @@ sub newpic {	     # replace the full picture with current selection
     my $total = @{$picasa->{dir}{children}};
     my $cur = $picasa->{index} + 1;
     $text = "$cur / $total";
-    $ss and $text = sprintf "%d / %d : $text", $ssindex + 1, scalar @ss;
+    @ss and $text = sprintf "%d / %d : $text", $ssindex + 1, scalar @ss;
     $canvas->createTextBox($mx / 2, 0, $conf->{bg},
 			   -anchor => 'n',
 			   -font => $med,
