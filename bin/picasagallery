@@ -18,13 +18,11 @@ goto endofperl
 # keyboard-driven mythgallery-style browser that understands local Picasa:
 # albums, faces, stars, uploads, captions, exif, tags, location, etc.
 
-# TODO: [random] slideshow below current point in tree w/ variable time
 # TODO: toggle option to replace face thumbnails with zoomed face crops
 # TODO: support all Picasa file formats (videos for example) (help ->
 #	options -> file types: jpe?g, bmp, gif, png, tga, tiff?, webp,
 #	psd, (many raw), (movies: avi, mpg, asf, wmv)
 # TODO: add zoom/pan to image viewer
-# TODO: add mouse/touch controls
 
 use strict;
 use warnings;
@@ -67,6 +65,7 @@ our $conf = {
     text	=> 'white',	# corner information text color
     title	=> 'red',	# header/footer color
     face	=> 'green',  # face box color (uncommon picture color)
+    ssc		=> 'green',  # slide show color
     filtering	=> 0,	     # how many filters are in effect
     filters	=> [qw/Stars Uploads Faces Albums Captions Tags/],
     filter	=> {
@@ -74,6 +73,7 @@ our $conf = {
     },
     slideshow	=> '',		# root of current automatic slide show
     delay	=> 3,		# seconds to show each picture
+    random	=> 0,		# 0 = sequential, 1 == random show
 };
 my @ss;				# slide show picture list
 my $ss;				# slide show timer object
@@ -178,17 +178,13 @@ for (@{$conf->{filters}}) {
 		 -onvalue => 1,
 		 -offvalue => 0,
 		 -underline => 0,
-		 -command => sub {
-		     $picasa->filtermove;
-		     &newdir;
-		     &newpic;
-		 });
+		 -command => \&refilter);
 }
 $menu->add('cascade', -label => 'Filter by Attributes', -menu => $filter,
 	   -underline => 0);
 my $age = $menu->Menu(-tearoff => 0, -font => $med);
 my $day = 24 * 60 * 60;
-my $year = 365.25 * $day;	# estimate, close enough
+my $year = 365.25 * $day;	# approximate, close enough
 my %age = my @age		# ugly menu, but any better way?
     = (			 # maybe a slider widget, but where to put it?
     'unlimited'	=> 0,
@@ -223,17 +219,24 @@ my %age = my @age		# ugly menu, but any better way?
 		  -variable => \$conf->{filter}{age},
 		  -value => $age{$_},
 		  (/^\d year|unlimited/ ? (-underline => 0) : ()),
-		  -command => sub {
-		      $picasa->filtermove;
-		      &newdir;
-		      &newpic;
-		  });
+		  -command => \&refilter);
 	$last = $_;
     }
 }
 $menu->add('cascade', -label => 'Filter by Age',
 	   -menu => $age, -underline => 10);
 $menu->add('separator');
+my $ssmenu = $menu->Menu(-tearoff => 0, -font => $med);
+$ssmenu->add('command', -label => 'Play / Pause',
+	   -accelerator => 'p', -underline => 0, -command => sub {
+	       $mw->eventGenerate('<Key-p>'); });
+$ssmenu->add('command', -label => 'Stop / Reset',
+	   -accelerator => 't', -underline => 0, -command => sub {
+	       $mw->eventGenerate('<Key-t>'); });
+$ssmenu->add('checkbutton', -label => 'Random', -underline => 0,
+	   -variable => \$conf->{random}, -command => \&refilter);
+$menu->add('cascade', -label => 'Slide Show',
+	   -menu => $ssmenu, -underline => 0);
 $menu->add('command', -label => 'Rebuild Thumbnail',
 	   -underline => 0, -command =>
 	   sub { 	
@@ -276,7 +279,7 @@ sub show {		# slide show callback: advance to next picture
     my $was = "$picasa->{dir}{dir}$picasa->{dir}{file}";
     my $pic = "$picasa->{file}{dir}$picasa->{file}{file}";
 
-    # we search since user may have moved to new location
+    # search for current location since user may have moved it
     while ($ssindex <= $#ss) {	# start at last known location
 #    	warn "checking 1 $ssindex: $ss[$ssindex] $pic\n";
     	last if 0 == index($ss[$ssindex], $pic); # found!
@@ -297,6 +300,7 @@ sub show {		# slide show callback: advance to next picture
     $picasa->goto($ss[$ssindex]);
     my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
     &newpic;
+    return if $conf->{random};
     $was eq $now or &newdir;
 }
 
@@ -309,7 +313,6 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 	    &togglefullscreen($w);
 		 });
     }
-
     for (qw(<Key-m> <Button-3>)) {
 	$w->bind($_, sub {	# popup options menu
 	    $menu->post($w->x + $w->width / 3, $w->y + $w->height / 3);
@@ -407,7 +410,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 		$now =~ m@/$@ or
 		    $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
 		$conf->{slideshow} = $now;
-		@ss = $picasa->filter($now, 'slideshow');
+		&refilter;
 		&show;
 		$full->raiseFocus;
 		$ss = $mw->repeat($conf->{delay} * 1000, \&show);
@@ -458,10 +461,19 @@ sub processkey {  # generic key event handler if nothing more specific
 	    $conf->{filter}{$conf->{filters}[$ascii]} = 
 		! $conf->{filter}{$conf->{filters}[$ascii]};
 	}
-	$picasa->filtermove;	# update all metadata
-	&newdir;
-	&newpic;
+	&refilter;
     }
+}
+
+sub refilter {	       # reapply filters, updating dir, pic, slideshow
+    $picasa->filtermove;	# update all metadata
+    if ($conf->{slideshow}) {
+	@ss = $picasa->filter($conf->{slideshow}, 'slideshow');
+	$conf->{random} and
+	    @ss = sort { rand(1) < 0.5 ? -1 : 1 } @ss;
+    }
+    &newdir;
+    &newpic;
 }
 
 BEGIN {	# filtering for stats is expensive, so we update GUI only once a second
@@ -610,7 +622,7 @@ sub newdir {		 # replace all thumbnails in current directory
 
 sub newpic {	     # replace the full picture with current selection
     &move;
-    $full->focusCurrent eq $full or $ss or return;
+    $ss or $full->focusCurrent eq $full or return;
     my $this = $picasa->{file} or return;
     if ($this->{file} =~ m!/$!) { # raise browser to see directory option
 	&newdir;
@@ -680,22 +692,39 @@ sub newpic {	     # replace the full picture with current selection
 
     my $total = @{$picasa->{dir}{children}};
     my $cur = $picasa->{index} + 1;
-    $text = "$cur / $total";
-    @ss and $text = sprintf "%d / %d : $text", $ssindex + 1, scalar @ss;
+    $text = " $cur / $total ";
     $canvas->createTextBox($mx / 2, 0, $conf->{bg},
-			   -anchor => 'n',
+			   -anchor => @ss ? 'nw' : 'n',
 			   -font => $med,
 			   -fill => $conf->{title},
 			   -text => $text,
 			   -tags => 'info');
-    my $bar = $mx / $total;	# disappearing "progress" bar!
-    $bar = 5 if $bar < 5;	# TODO: all info could disappear...
-    my $id = $canvas->createLine($bar * $picasa->{index}, 2,
-    				 $bar * $picasa->{index} + $bar, 2,
-    				 -fill => $conf->{title},
-    				 -width => 5,
-    				 -tags => 'info');
+    my $bar = $mx / $total;	# progress bar
+    # my $id =
+	$canvas->createLine($bar * $picasa->{index}, 2,
+			    $bar * $picasa->{index} +
+			    ($bar > 5 ? $bar : 5), 2,
+			    -fill => $conf->{title},
+			    -width => 5,
+			    -tags => 'info');
 #    $full->after(3000, sub { $canvas->delete($id) });
+    if (@ss) {
+	$text = sprintf " %d / %d ", $ssindex + 1, scalar @ss;
+	$canvas->createTextBox($mx / 2, 0, $conf->{bg},
+			       -anchor => 'ne',
+			       -font => $med,
+			       -fill => $conf->{ssc},
+			       -text => $text,
+			       -tags => 'info');
+	my $bar = $mx / @ss;
+	$canvas->createLine($bar * $ssindex, 2,
+			    $bar * $ssindex +
+			    ($bar > 5 ? $bar : 5), 2,
+			    -fill => $conf->{ssc},
+			    -width => 5,
+			    -tags => 'info');
+
+    }
 
     if ($this->{caption}) {
 	$canvas->createTextBox($mx / 2, $my, $conf->{bg},
