@@ -125,7 +125,7 @@ $top->Label(-textvariable => \$n,  -font => $big, @c, -fg => $conf->{title})->pa
 
 my $bot = $mw->Frame(@c)->pack(-side => "bottom", -fill => 'x');
 $bot->Label(-textvariable => \$sw, -font => $med, @c)->pack(-side => "left");
-$bot->Label(-textvariable => \$se, -font => $med, @c)->pack(-side => "right");
+my $sew = $bot->Label(-textvariable => \$se, -font => $med, @c)->pack(-side => "right");
 $bot->Label(-textvariable => \$s,  -font => $med, @c, -fg => $conf->{title})->pack(-side => "bottom");
 
 # thumbnail table grid
@@ -235,6 +235,17 @@ $ssmenu->add('command', -label => 'Stop / Reset',
 	       $mw->eventGenerate('<Key-t>'); });
 $ssmenu->add('checkbutton', -label => 'Random', -underline => 0,
 	   -variable => \$conf->{random}, -command => \&refilter);
+my $delay = $ssmenu->Menu(-tearoff => 0, -font => $med);
+for (1 .. 20) {
+    $delay->add('radiobutton',
+		-label => "$_ seconds",
+		-variable => \$conf->{delay},
+		-value => $_,
+		($_ < 10 ? (-underline => 0) : ()),
+		-command => \&showgo);
+}
+$ssmenu->add('cascade', -label => 'Delay',
+	     -menu => $delay, -underline => 0);
 $menu->add('cascade', -label => 'Slide Show',
 	   -menu => $ssmenu, -underline => 0);
 $menu->add('command', -label => 'Rebuild Thumbnail',
@@ -272,6 +283,14 @@ sub click {			# select or enter selection
     $picasa->filtermove;
     &move;
     $picasa->{index} == $cur and $mw->eventGenerate('<Return>');
+}
+
+sub showgo {
+    return unless $conf->{slideshow};
+    &show;
+    $ss and $ss->cancel;
+    $full->raiseFocus;
+    $ss = $mw->repeat($conf->{delay} * 1000, \&show);
 }
 
 sub show {		# slide show callback: advance to next picture
@@ -401,9 +420,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 		    $ss->cancel;
 		    $ss = undef;
 		} else {	# paused -> run
-		    &show;
-		    $full->raiseFocus;
-		    $ss = $mw->repeat($conf->{delay} * 1000, \&show);
+		    &showgo;
 		}
 	    } else {	   # no show -> start one at current selection
 		my $now = "$picasa->{file}{dir}$picasa->{file}{file}";
@@ -411,9 +428,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 		    $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
 		$conf->{slideshow} = $now;
 		&refilter;
-		&show;
-		$full->raiseFocus;
-		$ss = $mw->repeat($conf->{delay} * 1000, \&show);
+		&showgo;
 	    }
 		 });
     }
@@ -567,6 +582,7 @@ sub move {			# move to new directory or file
     $se = @ss ? ("$conf->{slideshow} " . ($ssindex + 1) . " / " . scalar @ss)
 	: ($current->{time} eq $current->{endtime}) ? $current->{caption} || ''
 	: $current->{endtime};
+    $sew->configure(@ss ? (-fg => $conf->{ssc}) : @c);
 }
 
 sub newdir {		 # replace all thumbnails in current directory
@@ -699,6 +715,15 @@ sub newpic {	     # replace the full picture with current selection
 			   -fill => $conf->{title},
 			   -text => $text,
 			   -tags => 'info');
+    if (@ss) {
+	$text = sprintf " %d / %d ", $ssindex + 1, scalar @ss;
+	$canvas->createTextBox($mx / 2, 0, $conf->{bg},
+			       -anchor => 'ne',
+			       -font => $med,
+			       -fill => $conf->{ssc},
+			       -text => $text,
+			       -tags => 'info');
+    }
     my $bar = $mx / $total;	# progress bar
     # my $id =
 	$canvas->createLine($bar * $picasa->{index}, 2,
@@ -709,13 +734,6 @@ sub newpic {	     # replace the full picture with current selection
 			    -tags => 'info');
 #    $full->after(3000, sub { $canvas->delete($id) });
     if (@ss) {
-	$text = sprintf " %d / %d ", $ssindex + 1, scalar @ss;
-	$canvas->createTextBox($mx / 2, 0, $conf->{bg},
-			       -anchor => 'ne',
-			       -font => $med,
-			       -fill => $conf->{ssc},
-			       -text => $text,
-			       -tags => 'info');
 	my $bar = $mx / @ss;
 	$canvas->createLine($bar * $ssindex, 2,
 			    $bar * $ssindex +
