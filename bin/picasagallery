@@ -76,7 +76,6 @@ our $conf = {
     random	=> 0,		# 0 = sequential, 1 == random show
 };
 my @ss;				# slide show picture list
-my $ss;				# slide show timer object
 my $ssindex = 0;		# slide show index
 
 require $conf->{config} if -f $conf->{config}; # start with previous run data:
@@ -100,6 +99,9 @@ my($mx, $my) = ($conf->{width}, $conf->{height});
 $mw->geometry(sprintf "%dx%d", $mx, $my);
 $mw->update;
 $conf->{fullscreen} and &togglefullscreen($mw);
+
+my $ss = $mw->repeat(1000, \&show); # slideshow timer
+$ss->time(0);			    # but not yet running
 
 my(@tn);		       # thumbnails: array of labels of Photos
 my $tnx = 7;		       # columns of thumbnails to display
@@ -226,6 +228,7 @@ my %age = my @age		# ugly menu, but any better way?
 $menu->add('cascade', -label => 'Filter by Age',
 	   -menu => $age, -underline => 10);
 $menu->add('separator');
+
 my $ssmenu = $menu->Menu(-tearoff => 0, -font => $med);
 $ssmenu->add('command', -label => 'Play / Pause',
 	   -accelerator => 'p', -underline => 0, -command => sub {
@@ -285,11 +288,13 @@ sub click {			# select or enter selection
     $picasa->{index} == $cur and $mw->eventGenerate('<Return>');
 }
 
-sub showgo {
+sub showgo {			# start show or adjust time delay
+#    warn "showgo: $conf->{slideshow};\n";
     return unless $conf->{slideshow};
     &show;
-    $ss and $ss->cancel;
     $full->raiseFocus;
+#    warn $mw->afterInfo($ss);
+    $ss->time(0);
     $ss = $mw->repeat($conf->{delay} * 1000, \&show);
 }
 
@@ -319,7 +324,6 @@ sub show {		# slide show callback: advance to next picture
     $picasa->goto($ss[$ssindex]);
     my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
     &newpic;
-    return if $conf->{random};
     $was eq $now or &newdir;
 }
 
@@ -360,7 +364,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 	    }
 		 });
     }
-    for (qw(<Key-d> <Return>)) {
+    for (qw(<Return>)) {
 	$w->bind($_, sub {	# enter subdirectory or full picture
 	    if ($picasa->down) {
 		$mw->raiseFocus;
@@ -377,7 +381,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 	    &newpic;
 		 });
     }
-    for (qw(<Left> <Up> <BackSpace>)) {
+    for (qw(<Left> <BackSpace>)) {
 	$w->bind($_, sub {	# previous picture or subdir
 	    $picasa->prev;
 	    &newpic;
@@ -407,18 +411,33 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 	    &newpic;
 		 });
     }
-    for (qw(<Key-i>)) {
-	$w->bind($_, sub {	# information toggle
-	    $conf->{info} = $conf->{info} ? 0 : 1;
-	    &newpic;
+    for (qw(<Key-f>)) {
+	$w->bind($_, sub {	# faster slideshow
+	    $conf->{delay}--;
+	    $conf->{delay} >= 1 or $conf->{delay} = 1;
+	    &showgo;
+		 });
+    }
+    for (qw(<Key-b>)) {
+	$w->bind($_, sub {	# slower slideshow
+	    $conf->{delay}++;
+	    $conf->{delay} <= 20 or $conf->{delay} = 20;
+	    &showgo;
+		 });
+    }
+    for (qw(<Key-r>)) {
+	$w->bind($_, sub {	# random toggle
+	    $conf->{random} = $conf->{random} ? 0 : 1;
+	    &refilter;
+	    &showgo;
 		 });
     }
     for (qw(<Key-p>)) {
 	$w->bind($_, sub {	# start / pause /resume slide show
 	    if ($conf->{slideshow}) { # show in progress
-		if ($ss) {	      # running -> pause
-		    $ss->cancel;
-		    $ss = undef;
+		if ($ss->time) {      # running -> pause
+		    $ss->time(0);
+		    &newdir;
 		} else {	# paused -> run
 		    &showgo;
 		}
@@ -434,11 +453,16 @@ for my $w ($mw, $full) {	# both windows have same key bindings
     }
     for (qw(<Key-t>)) {
 	$w->bind($_, sub {	# stop slide show
-	    $ss->cancel;
-	    $ss = undef;
+	    $ss->time(0);
 	    $conf->{slideshow} = '';
 	    @ss = ();
 	    $ssindex = 0;
+		 });
+    }
+    for (qw(<Key-i>)) {
+	$w->bind($_, sub {	# information toggle
+	    $conf->{info} = $conf->{info} ? 0 : 1;
+	    &newpic;
 		 });
     }
 }
@@ -590,12 +614,13 @@ sub newdir {		 # replace all thumbnails in current directory
     $now =~ s@/+@/@g;
     $refreshing eq $now and return;
     warn "\n\nnewdir $now\n" if $conf->{debug};
-    $refreshing = $now;
-    $mw->raiseFocus unless $ss;
+    $mw->raiseFocus unless $conf->{slideshow};
 
     my $index = 0;
     &move;
     $_->cget(-image)->blank for (@tn);
+    $ss->time and $conf->{random} and return; # too expensive to cd often
+    $refreshing = $now;
     foreach my $img (@{$picasa->{dir}{children}}) {
 	my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
 	$now =~ s@/+@/@g;	# bail out if user moved location
@@ -638,7 +663,7 @@ sub newdir {		 # replace all thumbnails in current directory
 
 sub newpic {	     # replace the full picture with current selection
     &move;
-    $ss or $full->focusCurrent eq $full or return;
+    $ss->time or $full->focusCurrent eq $full or return;
     my $this = $picasa->{file} or return;
     if ($this->{file} =~ m!/$!) { # raise browser to see directory option
 	&newdir;
@@ -716,7 +741,8 @@ sub newpic {	     # replace the full picture with current selection
 			   -text => $text,
 			   -tags => 'info');
     if (@ss) {
-	$text = sprintf " %d / %d ", $ssindex + 1, scalar @ss;
+	$text = sprintf " %d / %d (%d%s) ", $ssindex + 1, scalar @ss,
+	$conf->{delay}, $conf->{random} ? 'r' : '';
 	$canvas->createTextBox($mx / 2, 0, $conf->{bg},
 			       -anchor => 'ne',
 			       -font => $med,
