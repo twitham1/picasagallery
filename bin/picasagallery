@@ -42,9 +42,6 @@ use Image::ExifTool qw(:Public); # for picture metadata
 use Date::Calc qw/Delta_YMD Delta_Days/; # for age calculations
 use Picasa;			 # for groking Picasa data!
 
-my $picasa;			# working picasa database
-my $picasa_tmp;			# picasa database while updating
-
 # config file can override any settings here (Picasa.pm also uses a few):
 our $conf = {
     config	=> '.picasagallery_conf.pl', # config to require, if present
@@ -75,12 +72,16 @@ our $conf = {
     delay	=> 3,		# seconds to show each picture
     random	=> 0,		# 0 = sequential, 1 == random show
 };
-my @ss;				# slide show picture list
-my $ssindex = 0;		# slide show index
 
-require $conf->{config} if -f $conf->{config}; # start with previous run data:
-$picasa = require $conf->{metadata} if -f $conf->{metadata};
+# configuration file can override any of the above options:
+require $conf->{config} if -f $conf->{config};
 
+#  rebuild all data since prior run, using previous cache until finished
+my $picasa_tmp = Picasa->new($conf);
+my $picasa = -f $conf->{metadata} ? require $conf->{metadata} : $picasa_tmp;
+
+my @ss;			   # slide show picture list
+my $ssindex = 0;	   # slide show index
 my $refreshing = '';	   # directory currently refreshing thumbnails
 my %rebuildthumb;	   # stale thumbnails to rebuild
 
@@ -411,14 +412,14 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 	    &newpic;
 		 });
     }
-    for (qw(<Key-f>)) {
+    for (qw(<Key-F> <Key-f>)) {
 	$w->bind($_, sub {	# faster slideshow
 	    $conf->{delay}--;
 	    $conf->{delay} >= 1 or $conf->{delay} = 1;
 	    &showgo;
 		 });
     }
-    for (qw(<Key-b>)) {
+    for (qw(<Key-B> <Key-b>)) {
 	$w->bind($_, sub {	# slower slideshow
 	    $conf->{delay}++;
 	    $conf->{delay} <= 20 or $conf->{delay} = 20;
@@ -457,6 +458,8 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 	    $conf->{slideshow} = '';
 	    @ss = ();
 	    $ssindex = 0;
+	    &newpic;
+	    &move;
 		 });
     }
     for (qw(<Key-i>)) {
@@ -469,9 +472,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 
 # all metadata is updated in the background ----------------------------------------
 warn "starting Picasa recursion\n" if $conf->{debug};
-$picasa_tmp = Picasa->new($conf); # rebuild all data since prior run
-$picasa or $picasa = $picasa_tmp; # keep previous run or use first run live
-$mw->after(500, \&newdir);	# show browser after we have some data
+$mw->after(1500, \&newdir);	# show browser after we have some data
 $picasa_tmp->recursedirs('.');	# updates GUI via $conf->{update}
 warn "Picasa recursion done!\n" if $conf->{debug};
 
@@ -595,7 +596,7 @@ sub move {			# move to new directory or file
     my $tmp = &nums($current);
     $nw .= " ($tmp)" if $tmp;
 
-    $ne = &stats($current, $tpx, $tpy); # highlight here means update is in progress
+    $ne = &stats($current, $tpx, $tpy); # highlight means update is in progress
     $new->configure($picasa_tmp->{done} ? @c : (-fg => 'white', -bg => 'red'));
 
     my $total = @{$picasa->{dir}{children}};
@@ -603,7 +604,9 @@ sub move {			# move to new directory or file
     $s = "$current->{dir} $cur / $total";
 
     $sw = $current->{time};
-    $se = @ss ? ("$conf->{slideshow} " . ($ssindex + 1) . " / " . scalar @ss)
+    $se = @ss ? sprintf("$conf->{slideshow} %d / %d (%d%s) ",
+			$ssindex + 1, scalar @ss,
+			$conf->{delay}, $conf->{random} ? 'r' : '')
 	: ($current->{time} eq $current->{endtime}) ? $current->{caption} || ''
 	: $current->{endtime};
     $sew->configure(@ss ? (-fg => $conf->{ssc}) : @c);
