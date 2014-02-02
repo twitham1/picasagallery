@@ -242,6 +242,13 @@ sub dirs {
     return keys %{$self->{dirs}};
 }
 
+# return the pictures of given directory
+sub pics {
+    my $self = shift;
+    my $dir = shift or return ();
+    return grep !/^\[/, keys %{$self->{dirs}{$dir}};
+}
+
 # return all contacts of the database
 sub contacts {
     my $self = shift;
