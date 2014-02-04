@@ -23,6 +23,7 @@ goto endofperl
 #	options -> file types: jpe?g, bmp, gif, png, tga, tiff?, webp,
 #	psd, (many raw), (movies: avi, mpg, asf, wmv)
 # TODO: add zoom/pan to image viewer
+# TODO: option to sort in reverse chronological order
 
 use strict;
 use warnings;
@@ -48,7 +49,7 @@ our $conf = {
     metadata	=> '.picasagallery_cache.pl', # cache of picture data
     cache	=> '.thumbcache', # where to put thumbnails
     keep	=> '(?i)\.(jpe?g|gif|x[pb]m|png|bmp|tiff?|nef)$',
-    reject	=> '(?i)\b(thumbs?(.db)?)\b',
+    reject	=> '(?i)\b(\.?thumb(nail)?s?(.db)?)\b',
     datefmt	=> '%Y-%m-%d %H:%M:%S %a', # must be sortable w/year first
     update	=> \&update,		# don't change this (GUI updates)
     debug	=> 0,			# debug to STDERR?
@@ -106,7 +107,7 @@ $ss->time(0);			    # but not yet running
 
 my(@tn);		       # thumbnails: array of labels of Photos
 my $tnx = 7;		       # columns of thumbnails to display
-my $tpx = int(($mx - 4 * $tnx - 50) / $tnx); # 50 should be actual scroll bar width intead
+my $tpx = int(($mx - 4 * $tnx - 50) / $tnx); # 50 = scroll + progress bar width
 my $tpy = int($tpx / 1.1);	# "average" aspect ratio for most pics
 
 # text metadata in corners of browser
@@ -122,14 +123,20 @@ my $med = $mw->Font(-family => 'Helvetica',
 
 my @c = (-fg => $conf->{text}, -bg => $conf->{bg});
 my $top = $mw->Frame(@c)->pack(-side => "top", -fill => 'x');
-my $nww = $top->Label(-textvariable => \$nw, -font => $med, @c)->pack(-side => "left");
-my $new = $top->Label(-textvariable => \$ne, -font => $med, @c)->pack(-side => "right");
-$top->Label(-textvariable => \$n,  -font => $big, @c, -fg => $conf->{title})->pack(-side => "top");
+my $nww = $top->Label(-textvariable => \$nw, -font => $med, @c)
+    ->pack(-side => "left");
+my $new = $top->Label(-textvariable => \$ne, -font => $med, @c)
+    ->pack(-side => "right");
+$top->Label(-textvariable => \$n,  -font => $big, @c, -fg => $conf->{title})
+    ->pack(-side => "top");
 
 my $bot = $mw->Frame(@c)->pack(-side => "bottom", -fill => 'x');
-$bot->Label(-textvariable => \$sw, -font => $med, @c)->pack(-side => "left");
-my $sew = $bot->Label(-textvariable => \$se, -font => $med, @c)->pack(-side => "right");
-$bot->Label(-textvariable => \$s,  -font => $med, @c, -fg => $conf->{title})->pack(-side => "bottom");
+$bot->Label(-textvariable => \$sw, -font => $med, @c)
+    ->pack(-side => "left");
+my $sew = $bot->Label(-textvariable => \$se, -font => $med, @c)
+    ->pack(-side => "right");
+$bot->Label(-textvariable => \$s, -font => $med, @c, -fg => $conf->{title})
+    ->pack(-side => "bottom");
 
 # thumbnail table grid
 my $tg = $mw->Table(-rows => 4,
@@ -257,7 +264,8 @@ $menu->add('command', -label => 'Rebuild Thumbnail',
 	   sub { 	
 	       my $tmp = "$picasa->{file}{dir}$picasa->{file}{file}";
 	       $tmp =~ s@/$@@;
-	       $rebuildthumb{$tmp} = 1;
+	       $rebuildthumb{$tmp} =
+		   $rebuildthumb{$picasa->{file}{physical}} = 1;
 	       &newdir;
 	   });
 $menu->add('command', -label => 'Quit', -underline => 0, -command =>
@@ -352,12 +360,6 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 	    } elsif ($picasa->{dir}{file} eq '/') {
 		$full->destroy;
 		$mw->destroy;
-		if ($picasa->{done} and
-		    open my $fh, '>', "$conf->{metadata}~") {
-		    print $fh Dumper $picasa or die $!;
-		    close $fh and rename "$conf->{metadata}~",
-		    $conf->{metadata} or die $!;
-		}
 		Tk::exit;
 	    } else {
 		$picasa->up;
@@ -470,7 +472,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
     }
 }
 
-# all metadata is updated in the background ----------------------------------------
+# all metadata is updated in the background -----------------------------------
 warn "starting Picasa recursion\n" if $conf->{debug};
 $mw->after(1500, \&newdir);	# show browser after we have some data
 $picasa_tmp->recursedirs('.');	# updates GUI via $conf->{update}
@@ -484,6 +486,13 @@ if ($picasa_tmp->{done} && $picasa ne $picasa_tmp) {
     $picasa_tmp->{file} = $picasa->{file};
     $picasa = $picasa_tmp;
     undef $old;			# free previous data, now stale
+    if (open my $fh, '>', "$conf->{metadata}~") {
+	print $fh Dumper $picasa or warn $!;
+	close $fh and rename "$conf->{metadata}~",
+	$conf->{metadata} or warn $!;
+    } else {
+	warn "can't write $conf->{metadata}~: $!\n";
+    }
 }
 $pg->value($pg->cget('-to') + 10);
 &move;				# update stats one last time
@@ -604,12 +613,12 @@ sub move {			# move to new directory or file
     $s = "$current->{dir} $cur / $total";
 
     $sw = $current->{time};
-    $se = @ss ? sprintf("$conf->{slideshow} %d / %d (%d%s) ",
-			$ssindex + 1, scalar @ss,
-			$conf->{delay}, $conf->{random} ? 'r' : '')
+    $se = $ss->time ? sprintf("$conf->{slideshow} %d / %d (%d%s) ",
+			      $ssindex + 1, scalar @ss,
+			      $conf->{delay}, $conf->{random} ? 'r' : '')
 	: ($current->{time} eq $current->{endtime}) ? $current->{caption} || ''
 	: $current->{endtime};
-    $sew->configure(@ss ? (-fg => $conf->{ssc}) : @c);
+    $sew->configure($ss->time ? (-fg => $conf->{ssc}) : @c);
 }
 
 sub newdir {		 # replace all thumbnails in current directory
@@ -638,9 +647,10 @@ sub newdir {		 # replace all thumbnails in current directory
 	my $y = $data->{height} or next;
 
 	unless ($tn[$index]) { # connect 1 photo to each cell only once
-	    $tn[$index] = $tg->Label(-width => $tpx, -height => $tpy, -image =>
-				     $mw->Photo(-width => $tpx, -height => $tpy),
-				     -bg => $conf->{bg});
+	    $tn[$index] =
+		$tg->Label(-width => $tpx, -height => $tpy, -image =>
+			   $mw->Photo(-width => $tpx, -height => $tpy),
+			   -bg => $conf->{bg});
 	    $tg->put(int($index / $tnx) + 1, # Table index begins at 1, not 0!
 		     $index % $tnx + 1,
 		     $tn[$index]);
@@ -648,15 +658,14 @@ sub newdir {		 # replace all thumbnails in current directory
 	my $image = $tn[$index]->cget(-image); # replace cell's photo
 	if ($img =~ m!/$!) {	# directory: stack some pics
 	    $child =~ s@/$@@;
-	    $image->StackXYthumb($child, $tpx, $tpy, "$this->{files}: $img",
-				 $this->{first}, $this->{physical}, $this->{last});
+	    $image->StackXYthumb($child, $tpx, $tpy, "$img ($this->{files})",
+				 $this->{first}, $this->{physical},
+				 $this->{last});
 	} else {
 	    my $scale = $tpy / $y < $tpx / $x ? $tpy / $y : $tpx / $x;
 	    $image->PhotoXYthumb($pf, (map { int } $scale * $x, $scale * $y),
 				 $data->{caption} || 0);
 	}
-
-#	warn "putting $index / $tnx ($w in $tg - $t - $pf)\n" if $conf->{debug} > 1;
         $tn[$index]->update;	# Display the thumbnail
 	$index++;
     }
@@ -723,7 +732,8 @@ sub newpic {	     # replace the full picture with current selection
     $canvas->createTextBox(0, 0, $conf->{filtering} ? 'red' : $conf->{bg},
 			   -anchor => 'nw',
 			   -font => $med,
-			   -fill => $conf->{filtering} ? 'white' : $conf->{text},
+			   -fill =>
+			   $conf->{filtering} ? 'white' : $conf->{text},
 			   -text => $text,
 			   -tags => 'info');
     $text = join "\n", map { $picasa->{album}{$_}{name} } @{$this->{albums}};
@@ -749,18 +759,18 @@ sub newpic {	     # replace the full picture with current selection
 	$canvas->createTextBox($mx / 2, 0, $conf->{bg},
 			       -anchor => 'ne',
 			       -font => $med,
-			       -fill => $conf->{ssc},
+			       -fill => ($ss->time ? $conf->{ssc} : 'white'),
 			       -text => $text,
 			       -tags => 'info');
     }
     my $bar = $mx / $total;	# progress bar
     # my $id =
-	$canvas->createLine($bar * $picasa->{index}, 2,
-			    $bar * $picasa->{index} +
-			    ($bar > 5 ? $bar : 5), 2,
-			    -fill => $conf->{title},
-			    -width => 5,
-			    -tags => 'info');
+    $canvas->createLine($bar * $picasa->{index}, 2,
+			$bar * $picasa->{index} +
+			($bar > 5 ? $bar : 5), 2,
+			-fill => $conf->{title},
+			-width => 5,
+			-tags => 'info');
 #    $full->after(3000, sub { $canvas->delete($id) });
     if (@ss) {
 	my $bar = $mx / @ss;
@@ -812,7 +822,8 @@ sub newpic {	     # replace the full picture with current selection
 	    } else {
 		$age = sprintf "%d", int($year + $mon / 12 + $day / 365);
 	    }
-	    $canvas->createText($X + $r * $x * $scale - 2, $Y + $b * $y * $scale,
+	    $canvas->createText($X + $r * $x * $scale - 2,
+				$Y + $b * $y * $scale,
 				-justify => 'right',
 				-anchor => 'se',
 				-font => $med,
@@ -830,6 +841,8 @@ sub Tk::PhotoXYthumb {
     my $ext = 'jpg';		# jpg is smaller than png
     my $cfn = "$conf->{cache}/$f-$x-$y.$ext";
     unless (!$rebuildthumb{$f} && -f $cfn && -M _ <= -M $f) {
+	delete $rebuildthumb{$f};
+	-f $cfn and unlink $cfn;
 	my($dir, $file) = Picasa::dirfile($cfn);
 	-d $dir or mkpath $dir or warn "can't mkdir $dir: $!\n";
 	my $geo = "${x}x${y}";
@@ -839,6 +852,13 @@ sub Tk::PhotoXYthumb {
 	    '-thumbnail', $geo, qw/+swap -gravity south -composite/, $cfn;
 	} else {
 	    system qw/convert -thumbnail/, $geo, $f, $cfn;
+	}
+	unless (-f $cfn) {
+	    (my $l = $f) =~ s@.*/@@;
+	    system 'convert', '-size', "${x}x${y}", 'xc:#F000',
+	    qw/-fill white -gravity center -background/, '#F006',
+	    '-size', sprintf("%.0fx%.0f", $x, $y / 5),
+	    "caption:$l", '-composite', $cfn;
 	}
 	my($time) = (stat $f)[9]; # timestamp same as source file
 	utime $time, $time, $cfn;
@@ -856,6 +876,8 @@ sub Tk::StackXYthumb {
     
     unless (!$rebuildthumb{$f} &&
 	    -f $cfn && @pic == grep { -M $_ >= -M $cfn } @pic) {
+	delete $rebuildthumb{$f};
+	-f $cfn and unlink $cfn;
 	my($dir, $file) = Picasa::dirfile($cfn);
 	-d $dir or mkpath $dir or warn "can't mkdir $dir: $!\n";
 	my $geo = sprintf "%.0fx%.0f", $x * 2 / 3, $y * 2 / 3;
@@ -868,9 +890,16 @@ sub Tk::StackXYthumb {
 	push @cmd, '(', $pic[2], '-thumbnail', $geo, ')',
 	qw/-gravity southeast -composite/
 	    unless $pic[2] eq $pic[1] or $pic[2] eq $pic[0];
-	push @cmd, qw/-fill white -gravity center -background/, '#0006', '-size',
-	sprintf("%.0fx%.0f", $x, $y / 5), "caption:$label", '-composite', $cfn;
+	push @cmd, qw/-fill white -gravity center -background/, '#0006',
+	'-size', sprintf("%.0fx%.0f", $x, $y / 5),
+	"caption:$label", '-composite', $cfn;
 	system @cmd;
+	unless (-f $cfn) {
+	    system 'convert', '-size', "${x}x${y}", 'xc:#0000',
+	    qw/-fill white -gravity center -background/, '#F006', '-size',
+	    sprintf("%.0fx%.0f", $x, $y / 5), "caption:$label", '-composite',
+	    $cfn;
+	}
 	my($time) = sort { $b <=> $a } map { (stat $_)[9] } @pic; # latest
 	utime $time, $time, $cfn;
     }
@@ -888,10 +917,17 @@ BEGIN {
 	my $cfn = "$conf->{cache}/tmp-$$-" . $id++ . ".$ext";
 	my $geo = "${x}x${y}";
 	system "convert", "-resize", $geo, $f, $cfn;
+	unless (-f $cfn) {
+	    system 'convert', '-size', $geo, 'xc:#0000',
+	    qw/-fill white -gravity center -background/, '#F006', '-size',
+	    $geo, "caption:ERROR: failed to convert $f", '-composite',
+	    $cfn;
+	}
 	my($l, $t) = (int(($mx - $x) / 2), int(($my - $y) / 2));
 	$w->blank;
 	$w->read($cfn, -to => $l, $t);
-	unlink $cfn;
+	$cfn =~ s/.$ext/*.$ext/;
+	unlink glob $cfn;
 	return $l, $t;
     }
 }
