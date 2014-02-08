@@ -1,17 +1,4 @@
-@rem = '--*-Perl-*--
-@echo off
-if "%OS%" == "Windows_NT" goto WinNT
-perl -x -S "%0" %1 %2 %3 %4 %5 %6 %7 %8 %9
-goto endofperl
-:WinNT
-perl -x -S %0 %*
-if NOT "%COMSPEC%" == "%SystemRoot%\system32\cmd.exe" goto endofperl
-if %errorlevel% == 9009 echo You do not have Perl in your PATH.
-if errorlevel 1 goto script_failed_so_exit_with_non_zero_val 2>nul
-goto endofperl
-@rem ';
 #!/usr/bin/perl
-#line 15
 
 # picasagallery by twitham@sbcglobal.net, 2013-12
 
@@ -23,7 +10,8 @@ goto endofperl
 #	options -> file types: jpe?g, bmp, gif, png, tga, tiff?, webp,
 #	psd, (many raw), (movies: avi, mpg, asf, wmv)
 # TODO: add zoom/pan to image viewer
-# TODO: option to sort in reverse chronological order
+# TODO: directory/file sort options: name, date, reverse
+# TODO: replace external `convert` with internal Image::Magick PerlMagick
 
 use strict;
 use warnings;
@@ -478,20 +466,22 @@ $mw->after(1500, \&newdir);	# show browser after we have some data
 $picasa_tmp->recursedirs('.');	# updates GUI via $conf->{update}
 warn "Picasa recursion done!\n" if $conf->{debug};
 
-if ($picasa_tmp->{done} && $picasa ne $picasa_tmp) {
-    warn "replacing $picasa with $picasa_tmp\n" if $conf->{debug};
-    my $old = $picasa;
-    $picasa_tmp->{index} = $picasa->{index}; # retain current location
-    $picasa_tmp->{dir} = $picasa->{dir};
-    $picasa_tmp->{file} = $picasa->{file};
-    $picasa = $picasa_tmp;
-    undef $old;			# free previous data, now stale
+if ($picasa_tmp->{done}) {
     if (open my $fh, '>', "$conf->{metadata}~") {
-	print $fh Dumper $picasa or warn $!;
+	print $fh Dumper $picasa_tmp or warn $!;
 	close $fh and rename "$conf->{metadata}~",
 	$conf->{metadata} or warn $!;
     } else {
 	warn "can't write $conf->{metadata}~: $!\n";
+    }
+    if ($picasa ne $picasa_tmp) {
+	warn "replacing $picasa with $picasa_tmp\n" if $conf->{debug};
+	my $old = $picasa;
+	$picasa_tmp->{index} = $picasa->{index}; # retain current location
+	$picasa_tmp->{dir} = $picasa->{dir};
+	$picasa_tmp->{file} = $picasa->{file};
+	$picasa = $picasa_tmp;
+	undef $old;		# free previous data, now stale
     }
 }
 $pg->value($pg->cget('-to') + 10);
@@ -639,12 +629,11 @@ sub newdir {		 # replace all thumbnails in current directory
 	$refreshing eq $now or return;
 
         my $child = "$now$img";
-	my $this = $picasa->filter($child, 'nofilter') or next;
-	my $pf = $this->{physical} or next;
-        my $ps = -s $pf or next;
-	my $data = $picasa->{pics}{$pf} or next; # data of this picture
-	my $x = $data->{width} or next;
-	my $y = $data->{height} or next;
+	my $this = $picasa->filter($child, 'nofilter');
+	my $pf = $this->{physical};
+	my $data = $picasa->{pics}{$pf};
+	my $x = $data->{width};
+	my $y = $data->{height};
 
 	unless ($tn[$index]) { # connect 1 photo to each cell only once
 	    $tn[$index] =
@@ -932,14 +921,33 @@ BEGIN {
     }
 }
 
-# createText on a box of given color $c
+# createText on a box of given color $c (since we have no transparency)
+# sub Tk::Canvas::createTextBox {
+#     my($w, $x, $y, $c, %opt) = @_;
+#     my $t = $w->createText($x, $y, %opt);
+#     my @opt;
+#     push @opt, (-tags => $opt{'-tags'}) if $opt{'-tags'};
+#     $w->createRectangle($w->bbox($t), -fill => $c, @opt);
+#     $w->raise($t);
+# }
+# createText with background of given color $c (since we have no transparency)
 sub Tk::Canvas::createTextBox {
     my($w, $x, $y, $c, %opt) = @_;
-    my $t = $w->createText($x, $y, %opt);
-    my @opt;
-    push @opt, (-tags => $opt{'-tags'}) if $opt{'-tags'};
-    $w->createRectangle($w->bbox($t), -fill => $c, @opt);
-    $w->raise($t);
+    my @text = split "\n", $opt{-text}; # we will draw 1 line at a time
+    my $dir = 1;
+    if ($opt{-anchor} && $opt{-anchor} =~ /s/i) {
+	@text = reverse @text;	# south anchors must work bottom-up
+	$dir = -1;
+    }
+    for my $text (@text) {     # lines, top to bottom or bottom to top
+	$opt{-text} = $text;
+	my $txt = $w->createText($x, $y, %opt);
+	my($l, $t, $r, $b) = $w->bbox($txt);
+	my @opt = $opt{-tags} ? (-tags => $opt{-tags}) : ();
+	$w->createRectangle($l, $t, $r, $b, -fill => $c, @opt);
+	$y += $dir * ($b - $t);	# location of next line
+	$w->raise($txt);	# text in front of box
+    }
 }
 
 # Toggle fullscreen by hiding decorations off-screen. I prefer this to
@@ -982,6 +990,3 @@ sub Tk::raiseFocus {
     $w->update;
     $cur = $w unless $w eq $menu; # focus to restore after menu
 }
-
-__END__
-:endofperl
