@@ -12,6 +12,7 @@
 # TODO: add zoom/pan to image viewer
 # TODO: directory/file sort options: name, date, reverse
 # TODO: replace external `convert` with internal Image::Magick PerlMagick
+# TODO: config file should be able to auto-start a {slideshow} = /root/path
 
 use strict;
 use warnings;
@@ -39,12 +40,12 @@ our $conf = {
     keep	=> '(?i)\.(jpe?g|gif|x[pb]m|png|bmp|tiff?|nef)$',
     reject	=> '(?i)\b(\.?thumb(nail)?s?(.db)?)\b',
     datefmt	=> '%Y-%m-%d %H:%M:%S %a', # must be sortable w/year first
-    update	=> \&update,		# don't change this (GUI updates)
-    debug	=> 0,			# debug to STDERR?
-    info	=> 0,			# overlay metadata on images?
-    width	=> 1280,		# initial size
+    update	=> \&update,	# don't change this (GUI updates)
+    debug	=> 0,		# debug to STDERR?
+    info	=> 0,		# overlay metadata on images?
+    width	=> 1280,	# initial size
     height	=> 720,
-    fullscreen	=> 0, # go full-screen with no borders (ignore width/height)?
+    fullscreen	=> 0, # go full-screen with no borders (ignore width/height)
     birthday	=> {}, # optional contact(id|name) => 'yyyy/mm/dd' birthdays
     bg		=> 'black',	# background color for the application
     select	=> 'green',	# current thumbnail selection color
@@ -279,7 +280,7 @@ sub click {			# select or enter selection
     my($r, $c) = $tg->Posn($w);
     return unless $r and $c;
     my $cur = $picasa->{index};
-    $picasa->{index} = --$r * $tnx + --$c;
+    $picasa->{index} = --$r * $tnx + --$c; # index 1 -> index 0
     $picasa->filtermove;
     &move;
     $picasa->{index} == $cur and $mw->eventGenerate('<Return>');
@@ -366,7 +367,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 	    }
 		 });
     }
-    for (qw(<Right> <space> <Key-n>)) {
+    for (qw(<Right> <space>)) {
 	$w->bind($_, sub {	# next picture or subdir
 	    $picasa->next;
 	    &newpic;
@@ -461,10 +462,10 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 }
 
 # all metadata is updated in the background -----------------------------------
-warn "starting Picasa recursion\n" if $conf->{debug};
+# warn "starting Picasa recursion\n" if $conf->{debug};
 $mw->after(1500, \&newdir);	# show browser after we have some data
 $picasa_tmp->recursedirs('.');	# updates GUI via $conf->{update}
-warn "Picasa recursion done!\n" if $conf->{debug};
+# warn "Picasa recursion done!\n" if $conf->{debug};
 
 if ($picasa_tmp->{done}) {
     if (open my $fh, '>', "$conf->{metadata}~") {
@@ -475,7 +476,7 @@ if ($picasa_tmp->{done}) {
 	warn "can't write $conf->{metadata}~: $!\n";
     }
     if ($picasa ne $picasa_tmp) {
-	warn "replacing $picasa with $picasa_tmp\n" if $conf->{debug};
+	# warn "replacing $picasa with $picasa_tmp\n" if $conf->{debug};
 	my $old = $picasa;
 	$picasa_tmp->{index} = $picasa->{index}; # retain current location
 	$picasa_tmp->{dir} = $picasa->{dir};
@@ -492,7 +493,7 @@ Tk::exit;			# should never get here
 
 sub processkey {  # generic key event handler if nothing more specific
     my($win, $ascii, $code, $str, $num) = @_;
-    warn "'$ascii $code $str $num' was pressed\n";
+#    warn "'$ascii $code $str $num' was pressed\n";
     if ($ascii =~ /^\d+$/) {
 	if ($ascii == 0) {	# clear all filters
 	    map { $conf->{filter}{$_} = 0 } keys %{$conf->{filter}};
@@ -525,7 +526,7 @@ BEGIN {	# filtering for stats is expensive, so we update GUI only once a second
 	return unless $picasa_tmp->{file}{dir};
 	return unless $picasa_tmp->{file}{file};
 
-	warn "updating $File::Find::name\n" if $conf->{debug};
+	# warn "updating $File::Find::name\n" if $conf->{debug};
 	my $loc = "$picasa_tmp->{file}{dir}$picasa_tmp->{file}{file}";
 	$picasa_tmp->{file} = $picasa_tmp->filter($loc);
 	&move;			# updates statistics on GUI
@@ -568,7 +569,7 @@ sub stats {			# format the [average] image metrics
     $w, $h, $w / $h, 100 * $scale;
 }
 
-sub move {			# move to new directory or file
+sub move {		       # move browser to new directory or file
     return unless $picasa->{index} >= 0;
 
     $mw->title("PG: $picasa->{file}{dir}");
@@ -576,7 +577,7 @@ sub move {			# move to new directory or file
 	     $picasa->{index} % $tnx + 1);
 
     return unless my $current = $picasa->{file};
-    warn "location: $picasa->{dir}{dir} $picasa->{dir}{file} - $picasa->{file}{dir} $picasa->{file}{file} ($picasa->{index})\n" if $conf->{debug};
+    # warn "location: $picasa->{dir}{dir} $picasa->{dir}{file} - $picasa->{file}{dir} $picasa->{file}{file} ($picasa->{index})\n" if $conf->{debug};
     return unless $current->{files};
 
     for my $i (0 .. $#tn) {
@@ -615,19 +616,22 @@ sub newdir {		 # replace all thumbnails in current directory
     my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
     $now =~ s@/+@/@g;
     $refreshing eq $now and return;
-    warn "\n\nnewdir $now\n" if $conf->{debug};
+    # warn "\n\nnewdir $now\n" if $conf->{debug};
     $mw->raiseFocus unless $conf->{slideshow};
 
-    my $index = 0;
     &move;
     $_->cget(-image)->blank for (@tn);
     $ss->time and $conf->{random} and return; # too expensive to cd often
     $refreshing = $now;
-    foreach my $img (@{$picasa->{dir}{children}}) {
+    # sort by distance from current selection to update visible ones first
+    for my $index (sort { abs($picasa->{index} - $a) <=>
+			      abs($picasa->{index} - $b) }
+		   0 .. @{$picasa->{dir}{children}} - 1) {
 	my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
 	$now =~ s@/+@/@g;	# bail out if user moved location
 	$refreshing eq $now or return;
 
+	my $img = $picasa->{dir}{children}[$index];
         my $child = "$now$img";
 	my $this = $picasa->filter($child, 'nofilter');
 	my $pf = $this->{physical};
@@ -656,7 +660,6 @@ sub newdir {		 # replace all thumbnails in current directory
 				 $data->{caption} || 0);
 	}
         $tn[$index]->update;	# Display the thumbnail
-	$index++;
     }
     &move;
     $refreshing = "";
@@ -801,8 +804,8 @@ sub newpic {	     # replace the full picture with current selection
 	    my($yr, $m, $d) = split '/', $birth;
 	    my($Yr, $M, $D) = split /\D+/, $this->{time};
 	    my($year, $mon, $day) = Delta_YMD($yr, $m, $d, $Yr, $M, $D);
-	    warn "age $id/$name: $Yr, $M, $D - $yr, $m, $d = $year, $mon, $day\n"
-		if $conf->{debug};
+	    # warn "age $id/$name: $Yr, $M, $D - $yr, $m, $d = $year, $mon, $day\n"
+	    # 	if $conf->{debug};
 	    my $age;
 	    if ($year < 1 && $mon < 3) {
 		$age = sprintf "%dd", Delta_Days($yr, $m, $d, $Yr, $M, $D);
@@ -957,7 +960,7 @@ sub Tk::Canvas::createTextBox {
     sub togglefullscreen {
 	my($w) = @_;
 	my($offx, $offy) = ($w->rootx, $w->rooty);
-	warn "$w: + $offx + $offy\n" if $conf->{debug};
+	# warn "$w: + $offx + $offy\n" if $conf->{debug};
 	if ($offx || $offy) {	# not at 0, 0 == not full screen
 	    $geom{"$w"} = $w->geometry; # size/location to restore
 	    my($x, $y) = ($mw->screenwidth, $mw->screenheight);
@@ -965,7 +968,7 @@ sub Tk::Canvas::createTextBox {
 	    $w->geometry(sprintf "%dx%d+0+0", $x, $y);
 	    $w->update;
 	    ($offx, $offy) = ($w->rootx, $w->rooty);
-	    warn "$w: $x x $y +- $offx +- $offy\n" if $conf->{debug};
+	    # warn "$w: $x x $y +- $offx +- $offy\n" if $conf->{debug};
 	    $w->geometry(sprintf "%dx%d+-%d+-%d", $x, $y, $offx, $offy);
 	    $w->attributes(-fullscreen => 1) # works on mythbuntu!
 		if grep /-fullscreen/, $w->attributes;
