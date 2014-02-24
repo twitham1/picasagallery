@@ -148,8 +148,7 @@ my $full = $mw->Toplevel(-width => $mx, -height => $my, -bg => $conf->{bg});
 $full->geometry(sprintf "%dx%d", $mx, $my);
 $full->update;
 $conf->{fullscreen} and &togglefullscreen($full);
-my $canvas = $full->Canvas(#-width => $mx, -height => $my,
-			   -bg => $conf->{bg},
+my $canvas = $full->Canvas(-bg => $conf->{bg},
 			   -highlightthickness=> 0, -borderwidth => 0)
     ->pack(-side => 'top', -anchor => 'nw', -expand => 1, -fill => 'both');
 my $image = $mw->Photo;
@@ -267,7 +266,9 @@ $mw->raiseFocus;
 
 # all event bindings happen here ----------------------------------------
 $full->bind('<Configure>' => # resize window resizes full-size picture
-	    sub  { &newpic;
+	    sub  { my $w = shift;
+		   ($mx, $my) = ($w->Width, $w->Height);
+		   &newpic;
 	    });
 $mw->bind('<Button-1>' => [\&click, Ev('W') ]);
 
@@ -457,7 +458,7 @@ $pg->value($pg->cget('-to') + 10);
 MainLoop;			# never returns
 Tk::exit;			# should never get here
 
-sub picmove {			# move picture with view indicators
+sub picmove {			# pan picture with view indicators
     my($dx, $dy) = @_;
     $canvas->move('image||faces', $dx, $dy);
     my($x, $y) = $canvas->coords('image');
@@ -466,10 +467,18 @@ sub picmove {			# move picture with view indicators
     my $data = $picasa->{pics}{$pf} or return; # data of this picture
     my $w = $data->{width} or return;
     my $h = $data->{height} or return;
-    my $left = 0 - $x;
+    my $left = 0 - $x;		# pixels off-screen, negative == none
     my $right = $x + $w - $mx;
     my $above = 0 - $y;
     my $below = $y + $h - $my;
+    if ($left < $mx / -3 or $right < $mx / -3) { # pan stops
+	$canvas->move('image||faces', -$dx, 0);
+	$left -= $dx; $right -= $dx;
+    }
+    if ($above < $my / -3 or $below < $my / -3) {
+	$canvas->move('image||faces', 0, -$dy);
+	$above -= $dy; $below -= $dy;
+    }
 #    warn "picmove: $w x $h @ $x, $y: l=$left, r=$right\n";
     $canvas->delete('view');
     $canvas->createLine($left / $w * $mx, $my - 5,
