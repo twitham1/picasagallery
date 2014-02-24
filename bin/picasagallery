@@ -9,7 +9,6 @@
 # TODO: support all Picasa file formats (videos for example) (help ->
 #	options -> file types: jpe?g, bmp, gif, png, tga, tiff?, webp,
 #	psd, (many raw), (movies: avi, mpg, asf, wmv)
-# TODO: add zoom/pan to image viewer
 # TODO: directory/file sort options: name, date, reverse
 # TODO: replace external `convert` with internal Image::Magick PerlMagick
 # TODO: config file should be able to auto-start a {slideshow} = /root/path
@@ -29,7 +28,7 @@ use Tk::ProgressBar;		 # for metadata refreshing progress bar
 use Data::Dumper;		 # for saving metadata cache
 use File::Path;			 # for creating thumbnail paths
 use Image::ExifTool qw(:Public); # for picture metadata
-use Date::Calc qw/Delta_YMD Delta_Days/; # for age calculations
+use Time::Local;		 # for age calculations
 use Picasa;			 # for groking Picasa data!
 
 # config file can override any settings here (Picasa.pm also uses a few):
@@ -61,6 +60,7 @@ our $conf = {
     slideshow	=> '',		# root of current automatic slide show
     delay	=> 3,		# seconds to show each picture
     random	=> 0,		# 0 = sequential, 1 == random show
+    pan		=> 0,		# 1 = pan image mode
 };
 
 # configuration file can override any of the above options:
@@ -148,12 +148,13 @@ my $full = $mw->Toplevel(-width => $mx, -height => $my, -bg => $conf->{bg});
 $full->geometry(sprintf "%dx%d", $mx, $my);
 $full->update;
 $conf->{fullscreen} and &togglefullscreen($full);
-my $canvas = $full->Canvas(-width => $mx, -height => $my, -bg => $conf->{bg},
+my $canvas = $full->Canvas(#-width => $mx, -height => $my,
+			   -bg => $conf->{bg},
 			   -highlightthickness=> 0, -borderwidth => 0)
     ->pack(-side => 'top', -anchor => 'nw', -expand => 1, -fill => 'both');
-my $image = $mw->Photo(-width => $mx, -height => $my);
+my $image = $mw->Photo;
 $image->blank;
-$canvas->createImage(0, 0, -image => $image, -anchor => 'nw');
+$canvas->createImage(0, 0, -image => $image, -anchor => 'nw', -tags => 'image');
 
 # popup option menu is invoked with "m" key ----------------------------------
 my $menu = $mw->Menu(-tearoff => 0, -takefocus => 1, # takefocus doesn't work???
@@ -266,64 +267,9 @@ $mw->raiseFocus;
 
 # all event bindings happen here ----------------------------------------
 $full->bind('<Configure>' => # resize window resizes full-size picture
-	    sub  { my $w = shift;
-		   ($mx, $my) = ($w->Width, $w->Height);
-		   $canvas->configure(-width => $mx,
-				      -height => $my);
-		   $image->configure(-width => $mx,
-				     -height => $my);
-		   &newpic;
+	    sub  { &newpic;
 	    });
 $mw->bind('<Button-1>' => [\&click, Ev('W') ]);
-sub click {			# select or enter selection
-    my($w) = @_;
-    my($r, $c) = $tg->Posn($w);
-    return unless $r and $c;
-    my $cur = $picasa->{index};
-    $picasa->{index} = --$r * $tnx + --$c; # index 1 -> index 0
-    $picasa->filtermove;
-    &move;
-    $picasa->{index} == $cur and $mw->eventGenerate('<Return>');
-}
-
-sub showgo {			# start show or adjust time delay
-#    warn "showgo: $conf->{slideshow};\n";
-    return unless $conf->{slideshow};
-    &show;
-    $full->raiseFocus;
-#    warn $mw->afterInfo($ss);
-    $ss->time(0);
-    $ss = $mw->repeat($conf->{delay} * 1000, \&show);
-}
-
-sub show {		# slide show callback: advance to next picture
-    return unless @ss;
-    my $was = "$picasa->{dir}{dir}$picasa->{dir}{file}";
-    my $pic = "$picasa->{file}{dir}$picasa->{file}{file}";
-
-    # search for current location since user may have moved it
-    while ($ssindex <= $#ss) {	# start at last known location
-#    	warn "checking 1 $ssindex: $ss[$ssindex] $pic\n";
-    	last if 0 == index($ss[$ssindex], $pic); # found!
-	$ssindex++;
-    }
-    unless ($ss[$ssindex]) {	# look earlier if not yet found
-    	$ssindex = 0;
-    	while ($ssindex <= $#ss) {
-#    	    warn "checking 2 $ssindex: $ss[$ssindex] $pic\n";
-    	    last if 0 == index($ss[$ssindex], $pic); # found!
-	    $ssindex++;
-    	}
-    }
-    $ssindex > $#ss and # user navigated above slide show; cancel it
-	do { $mw->eventGenerate('<Key-t>'); return; };
-    $ssindex++ if $ss[$ssindex] eq $pic;
-    $ss[$ssindex] or $ssindex = 0;
-    $picasa->goto($ss[$ssindex]);
-    my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
-    &newpic;
-    $was eq $now or &newdir;
-}
 
 for my $w ($mw, $full) {	# both windows have same key bindings
 
@@ -358,7 +304,11 @@ for my $w ($mw, $full) {	# both windows have same key bindings
     }
     for (qw(<Return>)) {
 	$w->bind($_, sub {	# enter subdirectory or full picture
-	    if ($picasa->down) {
+	    if ($mw->focusCurrent eq $full) { # pan/zoom toggle
+		$conf->{pan} = $conf->{pan} ? 0 : 1;
+		&newpic;			 # load at new size
+		$conf->{pan} and &picmove(0, 0); # add view indicators
+	    } elsif ($picasa->down) {
 		$mw->raiseFocus;
 		&newdir;
 	    } else {
@@ -369,26 +319,42 @@ for my $w ($mw, $full) {	# both windows have same key bindings
     }
     for (qw(<Right> <space>)) {
 	$w->bind($_, sub {	# next picture or subdir
-	    $picasa->next;
-	    &newpic;
+	    if ($conf->{pan} and $mw->focusCurrent eq $full) {
+		&picmove($mx / -10, 0);
+	    } else {
+		$picasa->next;
+		&newpic;
+	    }
 		 });
     }
     for (qw(<Left> <BackSpace>)) {
 	$w->bind($_, sub {	# previous picture or subdir
-	    $picasa->prev;
-	    &newpic;
+	    if ($conf->{pan} and $mw->focusCurrent eq $full) {
+		&picmove($mx / 10, 0);
+	    } else {
+		$picasa->prev;
+		&newpic;
+	    }
 		 });
     }
     for (qw(<Down>)) {
 	$w->bind($_, sub {	# next row
-	    $picasa->next($tnx);
-	    &newpic;
+	    if ($conf->{pan} and $mw->focusCurrent eq $full) {
+		&picmove(0, $my / -10);
+	    } else {
+		$picasa->next($tnx);
+		&newpic;
+	    }
 		 });
     }
     for (qw(<Up>)) {
 	$w->bind($_, sub {	# previous row
-	    $picasa->prev($tnx);
-	    &newpic;
+	    if ($conf->{pan} and $mw->focusCurrent eq $full) {
+		&picmove(0, $my / 10);
+	    } else {
+		$picasa->prev($tnx);
+		&newpic;
+	    }
 		 });
     }
     for (qw(<Next>)) {
@@ -491,6 +457,83 @@ $pg->value($pg->cget('-to') + 10);
 MainLoop;			# never returns
 Tk::exit;			# should never get here
 
+sub picmove {			# move picture with view indicators
+    my($dx, $dy) = @_;
+    $canvas->move('image||faces', $dx, $dy);
+    my($x, $y) = $canvas->coords('image');
+    my $this = $picasa->{file} or return;
+    my $pf = $this->{physical} or return;
+    my $data = $picasa->{pics}{$pf} or return; # data of this picture
+    my $w = $data->{width} or return;
+    my $h = $data->{height} or return;
+    my $left = 0 - $x;
+    my $right = $x + $w - $mx;
+    my $above = 0 - $y;
+    my $below = $y + $h - $my;
+#    warn "picmove: $w x $h @ $x, $y: l=$left, r=$right\n";
+    $canvas->delete('view');
+    $canvas->createLine($left / $w * $mx, $my - 5,
+			$mx - ($right / $w * $mx), $my - 5,
+			-fill => $conf->{title},
+			-width => 5,
+			-tags => 'view');
+    $canvas->createLine(5, $above / $h * $my,
+			5, $my - ($below / $h * $my),
+			-fill => $conf->{title},
+			-width => 5,
+			-tags => 'view');
+}
+
+sub click {			# select or enter selection
+    my($w) = @_;
+    my($r, $c) = $tg->Posn($w);
+    return unless $r and $c;
+    my $cur = $picasa->{index};
+    $picasa->{index} = --$r * $tnx + --$c; # index 1 -> index 0
+    $picasa->filtermove;
+    &move;
+    $picasa->{index} == $cur and $mw->eventGenerate('<Return>');
+}
+
+sub showgo {			# start show or adjust time delay
+#    warn "showgo: $conf->{slideshow};\n";
+    return unless $conf->{slideshow};
+    &show;
+    $full->raiseFocus;
+#    warn $mw->afterInfo($ss);
+    $ss->time(0);
+    $ss = $mw->repeat($conf->{delay} * 1000, \&show);
+}
+
+sub show {		# slide show callback: advance to next picture
+    return unless @ss;
+    my $was = "$picasa->{dir}{dir}$picasa->{dir}{file}";
+    my $pic = "$picasa->{file}{dir}$picasa->{file}{file}";
+
+    # search for current location since user may have moved it
+    while ($ssindex <= $#ss) {	# start at last known location
+#    	warn "checking 1 $ssindex: $ss[$ssindex] $pic\n";
+    	last if 0 == index($ss[$ssindex], $pic); # found!
+	$ssindex++;
+    }
+    unless ($ss[$ssindex]) {	# look earlier if not yet found
+    	$ssindex = 0;
+    	while ($ssindex <= $#ss) {
+#    	    warn "checking 2 $ssindex: $ss[$ssindex] $pic\n";
+    	    last if 0 == index($ss[$ssindex], $pic); # found!
+	    $ssindex++;
+    	}
+    }
+    $ssindex > $#ss and # user navigated above slide show; cancel it
+	do { $mw->eventGenerate('<Key-t>'); return; };
+    $ssindex++ if $ss[$ssindex] eq $pic;
+    $ss[$ssindex] or $ssindex = 0;
+    $picasa->goto($ss[$ssindex]);
+    my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
+    &newpic;
+    $was eq $now or &newdir;
+}
+
 sub processkey {  # generic key event handler if nothing more specific
     my($win, $ascii, $code, $str, $num) = @_;
 #    warn "'$ascii $code $str $num' was pressed\n";
@@ -557,11 +600,12 @@ sub nums {	# format the counts of attributes; upcase if filtering
 }
 
 sub stats {			# format the [average] image metrics
-    my($this, $x, $y) = @_;
+    my($this, $x, $y, $one) = @_;
     my $w = $this->{width} / $this->{files};
     my $h = $this->{height} / $this->{files};
     my $scale = $x / $w < $y / $h ? $x / $w : $y / $h;
     $scale *= 2 / 3 if $this->{file} =~ m!/$!;
+    $one and $scale = 1;
 
     return sprintf "%.0f KB (%.2f MP) %.0f x %.0f (%.3f) %.0f%%",
     $this->{bytes} / 1024 / $this->{files},
@@ -621,7 +665,7 @@ sub newdir {		 # replace all thumbnails in current directory
 
     &move;
     $_->cget(-image)->blank for (@tn);
-    $ss->time and $conf->{random} and return; # too expensive to cd often
+#    $ss->time and $conf->{random} and return; # too expensive to cd often
     $refreshing = $now;
     # sort by distance from current selection to update visible ones first
     for my $index (sort { abs($picasa->{index} - $a) <=>
@@ -679,14 +723,18 @@ sub newpic {	     # replace the full picture with current selection
     my $x = $data->{width} or return;
     my $y = $data->{height} or return;
     my $scale = $mx / $x < $my / $y ? $mx / $x : $my / $y;
-    my($X, $Y) = $image->PhotoXYfull($pf, map { int } $scale * $x, $scale * $y)
+    $conf->{pan} and $scale = 1;
+    $image->PhotoXYfull($pf, map { int } $scale * $x, $scale * $y)
 	or return;
+    my($X, $Y) = ($mx/2 - ($scale * $x)/2, $my/2 - ($scale * $y)/2);
+    $canvas->coords('image', $X, $Y);
     $full->title("PG: $picasa->{file}{file}");
 
     $canvas->delete('exif');
     $canvas->delete('caption');
     $canvas->delete('info');
     $canvas->delete('faces');
+    $canvas->delete('view');
     return unless $conf->{info};
 
     if (my $info = $exif->ImageInfo($pf)) {
@@ -713,7 +761,7 @@ sub newpic {	     # replace the full picture with current selection
 			   -anchor => 'ne',
 			   -font => $med,
 			   -fill => $conf->{text},
-			   -text => &stats($this, $mx, $my),
+			   -text => &stats($this, $mx, $my, $conf->{pan}),
 			   -tags => 'info');
     (my $file = $this->{file}) =~ s/$this->{time}-//;
     my $text = "$this->{dir}\n$file\n$this->{time}";
@@ -803,16 +851,17 @@ sub newpic {	     # replace the full picture with current selection
 	    || $conf->{birthday}{$name}) {
 	    my($yr, $m, $d) = split '/', $birth;
 	    my($Yr, $M, $D) = split /\D+/, $this->{time};
-	    my($year, $mon, $day) = Delta_YMD($yr, $m, $d, $Yr, $M, $D);
+	    my($year, $mon, $day) = delta_ymd($yr, $m, $d, $Yr, $M, $D);
 	    # warn "age $id/$name: $Yr, $M, $D - $yr, $m, $d = $year, $mon, $day\n"
 	    # 	if $conf->{debug};
 	    my $age;
-	    if ($year < 1 && $mon < 3) {
-		$age = sprintf "%dd", Delta_Days($yr, $m, $d, $Yr, $M, $D);
-	    } elsif ($year < 3) {
-		$age = sprintf "%dm", int($year * 12 + $mon);
+	    my $days = delta_days($yr, $m, $d, $Yr, $M, $D);
+	    if ($days < 92) {	# 31 + 31 + 30 will always get to thrid month
+		$age = sprintf "%dd", $days;
+	    } elsif ($days < 366 * 3) { # show months below age 3 years
+		$age = sprintf "%dm", int($year * 12 + $mon + $day/365.25/12);
 	    } else {
-		$age = sprintf "%d", int($year + $mon / 12 + $day / 365);
+		$age = sprintf "%d", int($year + $mon / 12 + $day / 365.25);
 	    }
 	    $canvas->createText($X + $r * $x * $scale - 2,
 				$Y + $b * $y * $scale,
@@ -824,6 +873,18 @@ sub newpic {	     # replace the full picture with current selection
 				-tags => 'faces');
 	}
     }
+}
+
+# Time::Local is more likely to be installed than Date::Calc
+sub delta_ymd {
+    my($y, $m, $d, $Y, $M, $D) = @_;
+    return $Y - $y, $M - $m, $D - $d;
+}
+sub delta_days {
+    my($y, $m, $d, $Y, $M, $D) = @_;
+    my $begin = timegm(0, 0, 12, $d, $m - 1, $y);
+    my $end = timegm(0, 0, 12, $D, $M - 1, $Y);
+    return int(($end - $begin) / 24 / 60 / 60 + 0.5);
 }
 
 # read $f file into $w image scaled to size $x / $y, with cacheing
@@ -915,12 +976,11 @@ BEGIN {
 	    $geo, "caption:ERROR: failed to convert $f", '-composite',
 	    $cfn;
 	}
-	my($l, $t) = (int(($mx - $x) / 2), int(($my - $y) / 2));
 	$w->blank;
-	$w->read($cfn, -to => $l, $t);
+	$w->read($cfn);
 	$cfn =~ s/.$ext/*.$ext/;
 	unlink glob $cfn;
-	return $l, $t;
+	return 1;
     }
 }
 
@@ -989,7 +1049,7 @@ sub Tk::raiseFocus {
     $w->deiconify;
     $w->raise;			# causes menu @ 0,0 on Windows??!
     $w->focus;
-    $w->grab;
+    $w->grab unless $^O =~ /MSWin/;
     $w->update;
     $cur = $w unless $w eq $menu; # focus to restore after menu
 }
