@@ -12,6 +12,7 @@
 # TODO: directory/file sort options: name, date, reverse
 # TODO: replace external `convert` with internal Image::Magick PerlMagick
 # TODO: config file should be able to auto-start a {slideshow} = /root/path
+# TODO: documentation?
 
 use strict;
 use warnings;
@@ -52,7 +53,8 @@ our $conf = {
     title	=> 'red',	# header/footer color
     face	=> 'green',  # face box color (uncommon picture color)
     ssc		=> 'green',  # slide show color
-    filtering	=> 0,	     # how many filters are in effect
+    scroll	=> 'magenta',	# pan mode scroll bar color
+    filtering	=> 0,		# how many filters are in effect
     filters	=> [qw/Stars Uploads Faces Albums Captions Tags/],
     filter	=> {
 	age => 0,	   # show only newer than X seconds before now
@@ -472,8 +474,10 @@ sub picmove {			# pan picture with view indicators
     my $above = 0 - $y;
     my $below = $y + $h - $my;
     if ($left < $mx / -3 or $right < $mx / -3) { # pan stops
-	$canvas->move('image||faces', -$dx, 0);
-	$left -= $dx; $right -= $dx;
+	$left < $mx / -3 and $picasa->prev;
+	$right < $mx / -3 and $picasa->next;
+	&newpic;
+	return;
     }
     if ($above < $my / -3 or $below < $my / -3) {
 	$canvas->move('image||faces', 0, -$dy);
@@ -481,16 +485,20 @@ sub picmove {			# pan picture with view indicators
     }
 #    warn "picmove: $w x $h @ $x, $y: l=$left, r=$right\n";
     $canvas->delete('view');
-    $canvas->createLine($left / $w * $mx, $my - 5,
-			$mx - ($right / $w * $mx), $my - 5,
-			-fill => $conf->{title},
+    $canvas->createLine($left / $w * $mx, $my - 6,
+			$mx - ($right / $w * $mx), $my - 6,
+			-fill => $conf->{scroll},
 			-width => 5,
+			-arrow => 'both',
 			-tags => 'view');
-    $canvas->createLine(5, $above / $h * $my,
-			5, $my - ($below / $h * $my),
-			-fill => $conf->{title},
+    $canvas->createLine(6, $above / $h * $my,
+			6, $my - ($below / $h * $my),
+			-fill => $conf->{scroll},
 			-width => 5,
+			-arrow => 'both',
 			-tags => 'view');
+    $canvas->raise('view', 'image||bg');
+    $conf->{info} and $canvas->raise('fg', 'view');
 }
 
 sub click {			# select or enter selection
@@ -739,12 +747,12 @@ sub newpic {	     # replace the full picture with current selection
     $canvas->coords('image', $X, $Y);
     $full->title("PG: $picasa->{file}{file}");
 
-    $canvas->delete('exif');
-    $canvas->delete('caption');
-    $canvas->delete('info');
+    $canvas->delete('bg');
+    $canvas->delete('fg');
     $canvas->delete('faces');
     $canvas->delete('view');
-    return unless $conf->{info};
+    
+    $conf->{info} or do { $conf->{pan} and &picmove(0, 0); return; };
 
     if (my $info = $exif->ImageInfo($pf)) {
 	my @info;
@@ -763,7 +771,7 @@ sub newpic {	     # replace the full picture with current selection
 			       -font => $med,
 			       -fill => $conf->{text},
 			       -text => (join " \n", @info),
-			       -tags => 'exif');
+			       -tags => 'fg');
     }
     $canvas->createTextBox($mx, 0, $conf->{bg},
 			   -justify => 'right',
@@ -771,7 +779,7 @@ sub newpic {	     # replace the full picture with current selection
 			   -font => $med,
 			   -fill => $conf->{text},
 			   -text => &stats($this, $mx, $my, $conf->{pan}),
-			   -tags => 'info');
+			   -tags => 'fg');
     (my $file = $this->{file}) =~ s/$this->{time}-//;
     my $text = "$this->{dir}\n$file\n$this->{time}";
     $text .= "\n$this->{endtime}" if $this->{time} ne $this->{endtime};
@@ -784,14 +792,14 @@ sub newpic {	     # replace the full picture with current selection
 			   -fill =>
 			   $conf->{filtering} ? 'white' : $conf->{text},
 			   -text => $text,
-			   -tags => 'info');
+			   -tags => 'fg');
     $text = join "\n", map { $picasa->{album}{$_}{name} } @{$this->{albums}};
     $canvas->createTextBox(0, $my, $conf->{bg},
 			   -anchor => 'sw',
 			   -font => $med,
 			   -fill => $conf->{text},
 			   -text => $text,
-			   -tags => 'info');
+			   -tags => 'fg');
 
     my $total = @{$picasa->{dir}{children}};
     my $cur = $picasa->{index} + 1;
@@ -801,7 +809,7 @@ sub newpic {	     # replace the full picture with current selection
 			   -font => $med,
 			   -fill => $conf->{title},
 			   -text => $text,
-			   -tags => 'info');
+			   -tags => 'fg');
     if (@ss) {
 	$text = sprintf " %d / %d (%d%s) ", $ssindex + 1, scalar @ss,
 	$conf->{delay}, $conf->{random} ? 'r' : '';
@@ -810,7 +818,7 @@ sub newpic {	     # replace the full picture with current selection
 			       -font => $med,
 			       -fill => ($ss->time ? $conf->{ssc} : 'white'),
 			       -text => $text,
-			       -tags => 'info');
+			       -tags => 'fg');
     }
     my $bar = $mx / $total;	# progress bar
     # my $id =
@@ -819,7 +827,7 @@ sub newpic {	     # replace the full picture with current selection
 			($bar > 5 ? $bar : 5), 2,
 			-fill => $conf->{title},
 			-width => 5,
-			-tags => 'info');
+			-tags => 'fg');
 #    $full->after(3000, sub { $canvas->delete($id) });
     if (@ss) {
 	my $bar = $mx / @ss;
@@ -828,7 +836,7 @@ sub newpic {	     # replace the full picture with current selection
 			    ($bar > 5 ? $bar : 5), 2,
 			    -fill => $conf->{ssc},
 			    -width => 5,
-			    -tags => 'info');
+			    -tags => 'fg');
 
     }
 
@@ -839,7 +847,7 @@ sub newpic {	     # replace the full picture with current selection
 			       -font => $med,
 			       -fill => $conf->{title},
 			       -text => $this->{caption},
-			       -tags => 'caption');
+			       -tags => 'fg');
     }
 
     for my $f (@{$this->{faces}}) { # named rectangles around faces!
@@ -882,6 +890,7 @@ sub newpic {	     # replace the full picture with current selection
 				-tags => 'faces');
 	}
     }
+    $conf->{pan} and &picmove(0, 0);
 }
 
 # Time::Local is more likely to be installed than Date::Calc
@@ -1015,8 +1024,7 @@ sub Tk::Canvas::createTextBox {
 	$opt{-text} = $text;
 	my $txt = $w->createText($x, $y, %opt);
 	my($l, $t, $r, $b) = $w->bbox($txt);
-	my @opt = $opt{-tags} ? (-tags => $opt{-tags}) : ();
-	$w->createRectangle($l, $t, $r, $b, -fill => $c, @opt);
+	$w->createRectangle($l, $t, $r, $b, -fill => $c, -tags => 'bg');
 	$y += $dir * ($b - $t);	# location of next line
 	$w->raise($txt);	# text in front of box
     }
