@@ -473,13 +473,13 @@ sub picmove {			# pan picture with view indicators
     my $right = $x + $w - $mx;
     my $above = 0 - $y;
     my $below = $y + $h - $my;
-    if ($left < $mx / -3 or $right < $mx / -3) { # pan stops
-	$left < $mx / -3 and $picasa->prev;
-	$right < $mx / -3 and $picasa->next;
+    if ($dx and ($left < $mx / -4 or $right < $mx / -4)) { # pan stops
+	$dx > 0 and $left < $mx / -4 and $picasa->prev;
+	$dx < 0 and $right < $mx / -4 and $picasa->next;
 	&newpic;
 	return;
     }
-    if ($above < $my / -3 or $below < $my / -3) {
+    if ($above < $my / -4 or $below < $my / -4) {
 	$canvas->move('image||faces', 0, -$dy);
 	$above -= $dy; $below -= $dy;
     }
