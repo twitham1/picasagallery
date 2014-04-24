@@ -174,10 +174,10 @@ sub filter {
 	    if $conf->{debug} > 1;
 	    next if $conf->{filter}{Stars}	and !$this->{stars};
 	    next if $conf->{filter}{Uploads}	and !$this->{uploads};
-	    next if $conf->{filter}{Faces}	and !@{$this->{faces}};
-	    next if $conf->{filter}{Albums}	and !@{$this->{albums}};
+	    next if $conf->{filter}{Faces}	and !$this->{faces};
+	    next if $conf->{filter}{Albums}	and !$this->{albums};
 	    next if $conf->{filter}{Captions}	and !$this->{caption};
-	    next if $conf->{filter}{Tags}	and !@{$this->{tags}};
+	    next if $conf->{filter}{Tags}	and !$this->{tags};
 	    next if $conf->{filter}{age} and $this->{time} lt $begin;
 	}
 
@@ -195,12 +195,12 @@ sub filter {
 	    $rest and $child{$rest}++; # entries in this directory
 	    next if $done{$filename}++;
 	    warn "$path: $str ($rest)\n" if $conf->{debug} > 1;
-	    for my $num (qw/bytes stars uploads width height/) {
+	    for my $num (qw/bytes stars uploads faces albums tags width height/) {
 		$data->{$num} += $this->{$num};
 	    }
-	    map { $face{$_->[0]}++ } @{$this->{faces}};
-	    map { $album{$_}++ } @{$this->{albums}};
-	    map { $tag{$_}++ } @{$this->{tags}};
+	    map { $face{$_}++ }  keys %{$this->{face}};
+	    map { $album{$_}++ } keys %{$this->{album}};
+	    map { $tag{$_}++ }   keys %{$this->{tag}};
 	    $data->{caption} += $this->{caption} ? 1 : 0;
 	}
 	$data->{pixels} += $this->{width} * $this->{height};
@@ -208,7 +208,7 @@ sub filter {
 
 	$data->{time} = $this->{time} and
 	    $data->{first} = $filename unless
-	    $data->{time} && $data->{time} lt $this->{time};
+	    $data->{time} && $data->{time} le $this->{time};
 
 	$data->{endtime} = $this->{time} and
 	    $data->{last} = $filename unless
@@ -223,17 +223,17 @@ sub filter {
 	return @ss;
     }
     $data->{children} = [sort keys %child]; # maybe sort later? sort by option?
-    $data->{faces} or $data->{faces} = [keys %face];
-    $data->{albums} or $data->{albums} = [keys %album];
-    $data->{tags} or $data->{tags} = [keys %tag];
+    $data->{face}  or $data->{face}  = \%face;
+    $data->{album} or $data->{album} = \%album;
+    $data->{tag}   or $data->{tag}   = \%tag;
     warn "filtered $path: ", Dumper $data if $conf->{debug} > 2;
     return $data;
 }
 
 # add picture to virtual path
 sub _addpic2path {
-    my($self, $path, $key) = @_;
-    $self->{root}{$path} = $key;
+    my($self, $virt, $file) = @_;
+    $self->{root}{$virt} = $file;
 }
 
 # return all directories of the database
@@ -274,27 +274,29 @@ sub picasa {
     return $self->{dirs}{$dir}{$pic} || {};
 }
 
-# return array of [id, NW, SE] of faces in given $dir $pic
+# return hash of { id => [ NW, SE] } of faces in given $dir $pic
 sub faces {
     my($self, $dir, $pic) = @_;
-    my @ret;
-    return @ret unless $dir and $pic;
+    my $ret = {};
+    return $ret unless $dir and $pic;
     my $this = $self->{dirs}{$dir}{$pic};
-    return @ret unless $this and $this->{faces};
+    return $ret unless $this and $this->{faces};
     for my $string (split ';', $this->{faces}) {
 	my($rect, $id) = split ',', $string;
-	push @ret, [$id, $self->rect($rect)];
+	$ret->{$id} = [$self->rect($rect)];
     }
-    return @ret;
+    return $ret;
 }
 
-# return array of album ids in $pic
+# return hash of {album ids} in $pic
 sub albums {
     my($self, $dir, $pic) = @_;
-    return () unless $dir and $pic;
+    my $ret = {};
+    return $ret unless $dir and $pic;
     my $this = $self->{dirs}{$dir}{$pic};
-    return () unless $this and $this->{albums};
-    return split ',', $this->{albums};
+    return $ret unless $this and $this->{albums};
+    map { $ret->{$_}++ } split ',', $this->{albums};
+    return $ret;
 }
 
 sub star {
@@ -424,6 +426,8 @@ sub _wanted {
 	my $info = $exiftool->ImageInfo($key);
 	return unless $info;
 	return unless $info->{ImageWidth} && $info->{ImageHeight};
+	my %tags; map { $tags{$_}++ } split /,\s*/,
+	$info->{Keywords} || $info->{Subject} || '';
 	my $this = $db->{pics}{$key} = {
 	    bytes	=> -s $key,
 	    width	=> $info->{ImageWidth},
@@ -432,13 +436,15 @@ sub _wanted {
 	    || $info->{ModifyDate} || $info->{FileModifyDate} || 0,
 	    caption	=> $info->{'Caption-Abstract'}
 	    || $info->{'Description'} || '',
-	    faces	=> [ $db->faces($dir, $file) ],
-	    albums	=> [ $db->albums($dir, $file) ],
+	    face	=> $db->faces($dir, $file),
+	    album	=> $db->albums($dir, $file),
 	    stars	=> $db->star($dir, $file),
 	    uploads	=> $db->uploads($dir, $file),
-	    tags	=> [ split /,\s*/,
-			     $info->{Keywords} || $info->{Subject} || '' ],
+	    tag		=> \%tags,
 	};
+	$this->{faces} = keys %{$this->{face}} ? 1 : 0; # files that have attributes
+	$this->{albums} = keys %{$this->{album}} ? 1 : 0;
+	$this->{tags} = keys %{$this->{tag}} ? 1 : 0;
 	$this->{time} =~ /0000/ and
 	    warn "bogus time in $_: $this->{time}\n";
 	my $year = 0;
@@ -449,11 +455,12 @@ sub _wanted {
 	# add virtual folders of stars, tags, albums, people
 	$this->{stars} and
 	    $db->_addpic2path("/[Stars]/$year/$vname", $key);
-	for my $tag (@{$this->{tags}}) { # should year be here???
+
+	for my $tag (keys %{$this->{tag}}) { # should year be here???
 	    $db->_addpic2path("/[Tags]/$tag/$vname", $key);
 	    $db->{tags}{$tag}++; # all tags with picture counts
 	}
-	for my $id (@{$this->{albums}}) { # named user albums
+	for my $id (keys %{$this->{album}}) { # named user albums
 	    next unless my $name = $db->{album}{$id}{name};
 	    # putting year in this path would cause albums that span
 	    # year boundary to be in 2 places...
@@ -461,8 +468,7 @@ sub _wanted {
 	}
 
 	# add faces / people
-	for my $face ($db->faces($dir, $file)) {
-	    my($id) = @$face;
+	for my $id (keys %{$this->{face}}) {
 	    next unless my $name = $db->contact2person($id);
 	    $db->_addpic2path("/[People]/$name/$year/$vname", $key);
 	}
