@@ -5,7 +5,6 @@
 # keyboard-driven mythgallery-style browser that understands local Picasa:
 # albums, faces, stars, uploads, captions, exif, tags, location, etc.
 
-# TODO: toggle option to replace face thumbnails with zoomed face crops
 # TODO: support all Picasa file formats (videos for example) (help ->
 #	options -> file types: jpe?g, bmp, gif, png, tga, tiff?, webp,
 #	psd, (many raw), (movies: avi, mpg, asf, wmv)
@@ -63,6 +62,7 @@ our $conf = {
     delay	=> 3,		# seconds to show each picture
     random	=> 0,		# 0 = sequential, 1 == random show
     pan		=> 0,		# 1 = pan image mode
+    facecrops	=> 1,		# 1 = face thumnails in [People] paths
 };
 
 # configuration file can override any of the above options:
@@ -166,6 +166,9 @@ $menu->add('command', -label => 'Menu: Picasa Gallery',
 $menu->add('checkbutton', -label => 'Info Overlay',
 	   -accelerator => 'i', -underline => 0,
 	   -variable => \$conf->{info}, -command => \&newpic);
+$menu->add('checkbutton', -label => 'Face Thumbnails',
+	   -accelerator => 't', -underline => 5,
+	   -variable => \$conf->{facecrops}, -command => \&refilter);
 $menu->add('separator');
 my $i = 0;
 $menu->add('command', -label => "Clear All Filters",
@@ -603,10 +606,10 @@ sub nums {	# format the counts of attributes; upcase if filtering
     my $out = sprintf "%ds %du %df %da %dc %dt",
     $this->{stars},
     $this->{uploads},
-    scalar @{$this->{faces}},
-    scalar @{$this->{albums}},
+    $this->{faces},
+    $this->{albums},
     $this->{caption} =~ /^\d+$/ ? $this->{caption} : $this->{caption} ? 1 : 0,
-    scalar @{$this->{tags}};
+    $this->{tags};
     $conf->{filtering} = scalar
 	grep { $conf->{filter}{$_} and /^([A-Z])/ and $out =~ s/($1)/\U$1\E/i }
     keys %{$conf->{filter}};
@@ -712,13 +715,13 @@ sub newdir {		 # replace all thumbnails in current directory
 	my $image = $tn[$index]->cget(-image); # replace cell's photo
 	if ($img =~ m!/$!) {	# directory: stack some pics
 	    $child =~ s@/$@@;
-	    $image->StackXYthumb($child, $tpx, $tpy, "$img ($this->{files})",
-				 $this->{first}, $this->{physical},
-				 $this->{last});
+	    &StackXYthumb($image, $child, (map { int } $tpx, $tpy),
+			  "$img ($this->{files})",
+			  $this->{first}, $this->{physical},
+			  $this->{last});
 	} else {
-	    my $scale = $tpy / $y < $tpx / $x ? $tpy / $y : $tpx / $x;
-	    $image->PhotoXYthumb($pf, (map { int } $scale * $x, $scale * $y),
-				 $data->{caption} || 0);
+	    &PhotoXYthumb($image, $pf, (map { int } $tpx, $tpy),
+			  $data->{caption} || 0, $child);
 	}
         $tn[$index]->update;	# Display the thumbnail
     }
@@ -785,7 +788,7 @@ sub newpic {	     # replace the full picture with current selection
     $text .= "\n$this->{endtime}" if $this->{time} ne $this->{endtime};
     my $tmp = &nums($this);
     $text .= "\n($tmp)" if $tmp;
-    $text .= "\n" . join "\n", @{$this->{tags}} if @{$this->{tags}};
+    $text .= "\n" . join "\n", keys %{$this->{tag}} if keys %{$this->{tag}};
     $canvas->createTextBox(0, 0, $conf->{filtering} ? 'red' : $conf->{bg},
 			   -anchor => 'nw',
 			   -font => $med,
@@ -793,7 +796,8 @@ sub newpic {	     # replace the full picture with current selection
 			   $conf->{filtering} ? 'white' : $conf->{text},
 			   -text => $text,
 			   -tags => 'fg');
-    $text = join "\n", map { $picasa->{album}{$_}{name} } @{$this->{albums}};
+    $text = join "\n", map { $picasa->{album}{$_}{name} }
+    keys %{$this->{album}};
     $canvas->createTextBox(0, $my, $conf->{bg},
 			   -anchor => 'sw',
 			   -font => $med,
@@ -850,9 +854,8 @@ sub newpic {	     # replace the full picture with current selection
 			       -tags => 'fg');
     }
 
-    for my $f (@{$this->{faces}}) { # named rectangles around faces!
-	next unless ref $f;
-	my($id, $l, $t, $r, $b) = @$f;
+    for my $id (keys %{$this->{face}}) { # named rectangles around faces!
+	my($l, $t, $r, $b) = @{$this->{face}{$id}};
 	my $name = $picasa->contact2person($id);
 	$canvas->createRectangle($X + $l * $x * $scale, $Y + $t * $y * $scale,
 				 $X + $r * $x * $scale, $Y + $b * $y * $scale,
@@ -905,24 +908,60 @@ sub delta_days {
     return int(($end - $begin) / 24 / 60 / 60 + 0.5);
 }
 
+{
+    my %cache;			# {file}{name} => [id, geometry]
+# return the geometry of $path's face in $file, storing ID in $idref
+sub cropface {
+    my($file, $path, $idref) = @_;
+    $conf->{facecrops} or return '';
+    $path =~ m@\[People\]/([^/]+)@ or return '';
+    my $face = $1;
+    my $this = $picasa->{pics}{$file} or return '';
+    unless ($cache{$file}{$face}) {
+	$cache{$file}{$face} = [0, ''];
+#	warn "cropface: $file for $path ($face)\n";
+	for my $id (keys %{$this->{face}}) {
+	    if ($picasa->contact2person($id) eq $face) {
+		my($l, $t, $r, $b) = @{$this->{face}{$id}};
+#		warn "\t$id: $l, $t, $r, $b\n";
+		$cache{$file}{$face} = [
+		    $id, sprintf "[%dx%d+%d+%d]",
+		    ($r - $l) * $this->{width}, ($b - $t) * $this->{height},
+		    $l * $this->{width}, $t * $this->{height} ];
+		last;
+	    }
+	}
+    }
+    my($id, $geo) = @{$cache{$file}{$face}};
+    warn "cropface: $id, $geo\n";
+    $idref and $$idref = $id;
+    return $geo;
+}
+}
+
 # read $f file into $w image scaled to size $x / $y, with cacheing
-sub Tk::PhotoXYthumb {
-    my ($w, $f, $x, $y, $c) = @_;
+sub PhotoXYthumb {
+    my ($w, $f, $x, $y, $c, $v) = @_;
     $f && $x && $y or return;
     my $ext = 'jpg';		# jpg is smaller than png
-    my $cfn = "$conf->{cache}/$f-$x-$y.$ext";
+    my $cfn = "$conf->{cache}/$f";
+    my $id = 0;
+    my $crop = &cropface($f, $v, \$id);
+    $cfn .= "-$id" if $id;
+    $cfn .= "-$x-$y.$ext";
     unless (!$rebuildthumb{$f} && -f $cfn && -M _ <= -M $f) {
 	delete $rebuildthumb{$f};
 	-f $cfn and unlink $cfn;
 	my($dir, $file) = Picasa::dirfile($cfn);
 	-d $dir or mkpath $dir or warn "can't mkdir $dir: $!\n";
 	my $geo = "${x}x${y}";
-	if ($c) {
-	    system qw/convert -fill white -gravity center -background/,
-	    '#0006', '-size', $tpx . 'x' . int($tpy / 6), "caption:$c", $f,
-	    '-thumbnail', $geo, qw/+swap -gravity south -composite/, $cfn;
+	if ($c) {		# fix caption on faces
+	    system qw/convert/, '-size', "${x}x${y}", 'xc:#0000',
+	    "$f$crop", '-thumbnail', $geo, qw/-gravity northwest -composite/,
+	    qw/-fill white -gravity south -background/, '#0006', '-size',
+	    $tpx . 'x' . int($tpy / 6), "caption:$c", '-composite', $cfn;
 	} else {
-	    system qw/convert -thumbnail/, $geo, $f, $cfn;
+	    system 'convert', "$f$crop", '-thumbnail', $geo, $cfn;
 	}
 	unless (-f $cfn) {
 	    (my $l = $f) =~ s@.*/@@;
@@ -939,12 +978,15 @@ sub Tk::PhotoXYthumb {
 }
 
 # 3 @pics stacked into $w image of size $x / $y, with cacheing as $f
-sub Tk::StackXYthumb {
+sub StackXYthumb {
     my ($w, $f, $x, $y, $label, @pic) = @_;
     $f && $x && $y && @pic or return;
     my $ext = 'png';		# jpg isn't transparent; use png
-    my $cfn = "$conf->{cache}/$f-$x-$y.$ext";
-    
+    my $cfn = "$conf->{cache}/$f";
+    my $id = 0;
+    &cropface($pic[0], $f, \$id);
+    $cfn .= "-$id" if $id;
+    $cfn .= "-$x-$y.$ext";
     unless (!$rebuildthumb{$f} &&
 	    -f $cfn && @pic == grep { -M $_ >= -M $cfn } @pic) {
 	delete $rebuildthumb{$f};
@@ -953,13 +995,13 @@ sub Tk::StackXYthumb {
 	-d $dir or mkpath $dir or warn "can't mkdir $dir: $!\n";
 	my $geo = sprintf "%.0fx%.0f", $x * 2 / 3, $y * 2 / 3;
 	my @cmd = ('convert', '-size', "${x}x${y}", 'xc:#0000');
-	push @cmd, '(', $pic[0], '-thumbnail', $geo, ')',
-	qw/-gravity northwest -composite/;
-	push @cmd, '(', $pic[1], '-thumbnail', $geo, ')',
-	qw/-gravity center -composite/
-	    unless $pic[0] eq $pic[1];
-	push @cmd, '(', $pic[2], '-thumbnail', $geo, ')',
-	qw/-gravity southeast -composite/
+	push @cmd, '(', $pic[0] . &cropface($pic[0], $f),
+	'-thumbnail', $geo, qw/) -gravity northwest -composite/;
+	push @cmd, '(', $pic[1] . &cropface($pic[1], $f),
+	'-thumbnail', $geo, qw/) -gravity center -composite/
+	    unless $pic[1] eq $pic[0];
+	push @cmd, '(', $pic[2] . &cropface($pic[2], $f),
+	'-thumbnail', $geo, qw/) -gravity southeast -composite/
 	    unless $pic[2] eq $pic[1] or $pic[2] eq $pic[0];
 	push @cmd, qw/-fill white -gravity center -background/, '#0006',
 	'-size', sprintf("%.0fx%.0f", $x, $y / 5),
