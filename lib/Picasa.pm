@@ -516,9 +516,8 @@ sub _understand {
 	    }
 	} elsif ($k =~ /^\.album:(\w+)$/) {
 	    $pic->{dirs}{$ini->{dir}}{"[$k]"} =
-		($pic->{album}{$1}
-		 ? &_identical($pic->{album}{$1}, $ini->{$k})
-		 : ($pic->{album}{$1} = $ini->{$k}));
+		$pic->{album}{$1} =
+		&_merge(undef, $pic->{album}{$1}, $ini->{$k});
 	    next;
 	} elsif ($k eq 'dir') {
 	    next;
@@ -526,17 +525,6 @@ sub _understand {
 	$pic->{dirs}{$ini->{dir}}{
 	    -f "$ini->{dir}/$k" ? $k : "[$k]"} = $ini->{$k};
     }
-}
-
-# compare two hashes and warn any different content
-sub _identical {
-    my($a, $b) = @_;
-    for my $k (keys %$a, keys %$b) {
-	$a->{$k} eq $b->{$k} or
-	    $conf->{debug} and
-	    warn "$k: (keep:) $a->{$k} (lose:) $b->{$k} ($File::Find::name)\n";
-    }
-    return $a;
 }
 
 1;				# return true
