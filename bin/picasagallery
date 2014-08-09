@@ -494,15 +494,20 @@ sub picmove {			# pan picture with view indicators
 			-fill => $conf->{scroll},
 			-width => 5,
 			-arrow => 'both',
-			-tags => 'view');
+			-tags => 'view')
+	if $left > 0 or $right > 0;
     $canvas->createLine(6, $above / $h * $my,
 			6, $my - ($below / $h * $my),
 			-fill => $conf->{scroll},
 			-width => 5,
 			-arrow => 'both',
-			-tags => 'view');
-    $canvas->raise('view', 'image||bg');
-    $conf->{info} and $canvas->raise('fg', 'view');
+			-tags => 'view')
+	if $above > 0 or $below > 0;
+    if ($left > 0 or $right > 0
+	or $above > 0 or $below > 0) {
+	$canvas->raise('view', 'image||bg');
+	$conf->{info} and $canvas->raise('fg', 'view');
+    }
 }
 
 sub click {			# select or enter selection
