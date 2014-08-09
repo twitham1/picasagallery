@@ -150,6 +150,7 @@ my $full = $mw->Toplevel(-width => $mx, -height => $my, -bg => $conf->{bg});
 $full->geometry(sprintf "%dx%d", $mx, $my);
 $full->update;
 $conf->{fullscreen} and &togglefullscreen($full);
+my $scale = 1;			# scale of current picture
 my $canvas = $full->Canvas(-bg => $conf->{bg},
 			   -highlightthickness=> 0, -borderwidth => 0)
     ->pack(-side => 'top', -anchor => 'nw', -expand => 1, -fill => 'both');
@@ -167,7 +168,7 @@ $menu->add('checkbutton', -label => 'Info Overlay',
 	   -accelerator => 'i', -underline => 0,
 	   -variable => \$conf->{info}, -command => \&newpic);
 $menu->add('checkbutton', -label => 'Face Thumbnails',
-	   -accelerator => 't', -underline => 5,
+	   -accelerator => 'e', -underline => 5,
 	   -variable => \$conf->{facecrops}, -command => \&refilter);
 $menu->add('separator');
 my $i = 0;
@@ -310,8 +311,8 @@ for my $w ($mw, $full) {	# both windows have same key bindings
     }
     for (qw(<Return>)) {
 	$w->bind($_, sub {	# enter subdirectory or full picture
-	    if ($mw->focusCurrent eq $full) { # pan/zoom toggle
-		$conf->{pan} = $conf->{pan} ? 0 : 1;
+	    if ($mw->focusCurrent eq $full) { # pan/zoom cycle
+		$conf->{pan}++; $conf->{pan} = 0 if $conf->{pan} > 2;
 		&newpic;			 # load at new size
 		$conf->{pan} and &picmove(0, 0); # add view indicators
 	    } elsif ($picasa->down) {
@@ -470,8 +471,8 @@ sub picmove {			# pan picture with view indicators
     my $this = $picasa->{file} or return;
     my $pf = $this->{physical} or return;
     my $data = $picasa->{pics}{$pf} or return; # data of this picture
-    my $w = $data->{width} or return;
-    my $h = $data->{height} or return;
+    my $w = $data->{width} * $scale or return;
+    my $h = $data->{height} * $scale or return;
     my $left = 0 - $x;		# pixels off-screen, negative == none
     my $right = $x + $w - $mx;
     my $above = 0 - $y;
@@ -620,12 +621,12 @@ sub nums {	# format the counts of attributes; upcase if filtering
 }
 
 sub stats {			# format the [average] image metrics
-    my($this, $x, $y, $one) = @_;
+    my($this, $x, $y, $scale) = @_;
     my $w = $this->{width} / $this->{files};
     my $h = $this->{height} / $this->{files};
-    my $scale = $x / $w < $y / $h ? $x / $w : $y / $h;
+    $scale = $x / $w < $y / $h ? $x / $w : $y / $h
+	unless $scale;
     $scale *= 2 / 3 if $this->{file} =~ m!/$!;
-    $one and $scale = 1;
 
     return sprintf "%.0f KB (%.2f MP) %.0f x %.0f (%.3f) %.0f%%",
     $this->{bytes} / 1024 / $this->{files},
@@ -729,6 +730,13 @@ sub newdir {		 # replace all thumbnails in current directory
     $refreshing = "";
 }
 
+sub min {
+    return (sort { $a <=> $b } @_)[0];
+}
+sub max {
+    return (sort { $b <=> $a } @_)[0];
+}
+
 sub newpic {	     # replace the full picture with current selection
     &move;
     $ss->time or $full->focusCurrent eq $full or return;
@@ -738,13 +746,14 @@ sub newpic {	     # replace the full picture with current selection
 	return;
     }
     my $pf = $this->{physical} or return;
-    my $ps = -s $pf or return;
     my $data = $picasa->{pics}{$pf} or return; # data of this picture
     my $x = $data->{width} or return;
     my $y = $data->{height} or return;
-    my $scale = $mx / $x < $my / $y ? $mx / $x : $my / $y;
-    $conf->{pan} and $scale = 1;
-    $image->PhotoXYfull($pf, map { int } $scale * $x, $scale * $y)
+    $scale = $conf->{pan} ?
+	&max($mx / $x, $my / $y) :
+	&min($mx / $x, $my / $y);
+    $conf->{pan} == 2 and $scale = 1;
+    &PhotoXYfull($image, $pf, map { int } $scale * $x, $scale * $y)
 	or return;
     my($X, $Y) = ($mx/2 - ($scale * $x)/2, $my/2 - ($scale * $y)/2);
     $canvas->coords('image', $X, $Y);
@@ -781,7 +790,7 @@ sub newpic {	     # replace the full picture with current selection
 			   -anchor => 'ne',
 			   -font => $med,
 			   -fill => $conf->{text},
-			   -text => &stats($this, $mx, $my, $conf->{pan}),
+			   -text => &stats($this, $mx, $my, $scale),
 			   -tags => 'fg');
     (my $file = $this->{file}) =~ s/$this->{time}-//;
     my $text = "$this->{dir}\n$file\n$this->{time}";
@@ -1024,7 +1033,7 @@ sub StackXYthumb {
 BEGIN {
     my $id = 10000;
     my $ext = 'jpg';		# full format
-    sub Tk::PhotoXYfull {
+    sub PhotoXYfull {
 	my ($w, $f, $x, $y) = @_;
 	$f && $x && $y or return;
 	my $cfn = "$conf->{cache}/tmp-$$-" . $id++ . ".$ext";
