@@ -118,16 +118,16 @@ my $nww = $top->Label(-textvariable => \$nw, -font => $med, @c)
     ->pack(-side => "left");
 my $new = $top->Label(-textvariable => \$ne, -font => $med, @c)
     ->pack(-side => "right");
-$top->Label(-textvariable => \$n,  -font => $big, @c, -fg => $conf->{title})
-    ->pack(-side => "top");
+my $nnw = $top->Label(-textvariable => \$n,  -font => $big, @c,
+		      -fg => $conf->{title})->pack(-side => "top");
 
 my $bot = $mw->Frame(@c)->pack(-side => "bottom", -fill => 'x');
-$bot->Label(-textvariable => \$sw, -font => $med, @c)
+my $sww = $bot->Label(-textvariable => \$sw, -font => $med, @c)
     ->pack(-side => "left");
 my $sew = $bot->Label(-textvariable => \$se, -font => $med, @c)
     ->pack(-side => "right");
-$bot->Label(-textvariable => \$s, -font => $med, @c, -fg => $conf->{title})
-    ->pack(-side => "bottom");
+my $ssw = $bot->Label(-textvariable => \$s, -font => $med, @c,
+		      -fg => $conf->{title})->pack(-side => "bottom");
 
 # thumbnail table grid
 my $tg = $mw->Table(-rows => 4,
@@ -286,6 +286,13 @@ $full->bind('<Button-1>' => [sub { # 3x3 "touch" control zones
     my $hitkey = int($x / $mx * 3) + 3 * int($y / $my * 3);
     $key[$hitkey] and $full->eventGenerate($key[$hitkey]);
 			     }, Ev('x'), Ev('y')]);
+# similar "touch" control zones for main window
+$nww->bind('<Button-1>' => [sub { $mw->eventGenerate('<Escape>') }]);
+$nnw->bind('<Button-1>' => [sub { $mw->eventGenerate('<Up>') }]);
+$new->bind('<Button-1>' => [sub { $mw->eventGenerate('<Key-p>') }]);
+$sww->bind('<Button-1>' => [sub { $mw->eventGenerate('<Key-i>') }]);
+$ssw->bind('<Button-1>' => [sub { $mw->eventGenerate('<Down>') }]);
+$sew->bind('<Button-1>' => [sub { $mw->eventGenerate('<Key-m>') }]);
 
 $mw->bind('<Button-1>' => [\&click, Ev('W')]);
 $mw->bind('<MouseWheel>' => [sub { # scroll window up/down
@@ -962,7 +969,7 @@ sub cropface {
 	}
     }
     my($id, $geo) = @{$cache{$file}{$face}};
-    warn "cropface: $id, $geo\n";
+#    warn "cropface: $id, $geo\n";
     $idref and $$idref = $id;
     return $geo;
 }
