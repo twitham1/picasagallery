@@ -271,12 +271,27 @@ $menu->bind('<Unmap>', sub { $menu->withdraw; $cur->raiseFocus; });
 $mw->raiseFocus;
 
 # all event bindings happen here ----------------------------------------
+
 $full->bind('<Configure>' => # resize window resizes full-size picture
 	    sub  { my $w = shift;
 		   ($mx, $my) = ($w->Width, $w->Height);
 		   &newpic;
 	    });
-$mw->bind('<Button-1>' => [\&click, Ev('W') ]);
+$full->bind('<Button-1>' => [sub { # 3x3 "touch" control zones
+    my($w, $x, $y) = @_;
+    my @key = qw(
+		<Escape>	<Up>		<Key-p>
+		<Left>		<Return>	<Right>
+		<Key-i>		<Down>		<Key-m>);
+    my $hitkey = int($x / $mx * 3) + 3 * int($y / $my * 3);
+    $key[$hitkey] and $full->eventGenerate($key[$hitkey]);
+			     }, Ev('x'), Ev('y')]);
+
+$mw->bind('<Button-1>' => [\&click, Ev('W')]);
+$mw->bind('<MouseWheel>' => [sub { # scroll window up/down
+    my($w, $d) = @_;
+    $mw->eventGenerate($d < 0 ? '<Down>' : '<Up>');
+			     }, Ev('D')]);
 
 for my $w ($mw, $full) {	# both windows have same key bindings
 
@@ -313,8 +328,8 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 	$w->bind($_, sub {	# enter subdirectory or full picture
 	    if ($mw->focusCurrent eq $full) { # pan/zoom cycle
 		$conf->{pan}++; $conf->{pan} = 0 if $conf->{pan} > 2;
-		&newpic;			 # load at new size
-		$conf->{pan} and &picmove(0, 0); # add view indicators
+		&newpic;			 # reload at new size
+		$conf->{pan} and &picmove(0, 0); # add scroll indicators
 	    } elsif ($picasa->down) {
 		$mw->raiseFocus;
 		&newdir;
