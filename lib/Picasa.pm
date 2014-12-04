@@ -10,6 +10,9 @@
 # {dir} => { current virtual "directory/" after filtering/navigating }
 # {file} => { current virtual focused "file/?" after filtering/navigating }
 # {index} => current file index ( should this be in {dir} ? )
+# {album}{<id>} => { field => value } is album information
+# {contact}{<id>} => { 'name;email;id' => count } is contact data
+# {tags}{name} => count
 
 package Picasa;
 use strict;
@@ -32,14 +35,13 @@ my $conf = {		       # override any keys in first arg to new
 };
 
 my $exiftool;	       # for collecting exif data we are interested in
+my $modified;	       # mtime of current file
 
 # return new empty picasa database object
 sub new {
     my $class = shift;
     my $self  = { done => 0 };	# data complete?
-    bless ($self, $class);
-    if (ref $_[0]) {		# switch to user's conf + my defaults
-	my $hash = shift;
+    if (ref(my $hash = shift)) {	# switch to user's conf + my defaults
 	while (my($k, $v) = each %$conf) {
 	    $hash->{$k} = $v unless $hash->{$k};
 	}
@@ -48,9 +50,27 @@ sub new {
     $exiftool = new Image::ExifTool;
     $exiftool->Options(FastScan => 1,
 		       DateFormat => $conf->{datefmt});
-    $self->{dir} = $self->{file} = $self->filter('/');
+    if (($conf->{metadata} and -f $conf->{metadata})) {
+	$self = &loadperl($conf->{metadata});
+	$self->{dir} = $self->{file} = $self->filter('/');
+	map { delete $self->{$_} } qw/contact tags root/;
+    }
     $self->{index} = 0;
+    $self->{done} = $self->{sofar} = 0;
+    bless ($self, $class);
+#    warn Dumper $self;
     return $self;
+}
+
+# load up a perl Data::Dumper file, with error checking to stderr
+sub loadperl {
+    my($file) = @_;
+    our $VAR1;
+    my $ret = do $file;
+    warn "couldn't parse $file: $@" if $@;
+    warn "couldn't do $file: $!"    unless defined $ret;
+    warn "couldn't run $file"       unless $ret;
+    return $VAR1;
 }
 
 # find pictures and picasa data in given directories
@@ -72,7 +92,7 @@ sub readdb {
     find ({ no_chdir => 1,
 	    preprocess => sub { sort @_ },
 	    wanted => \&_wanted,
-	    postprocess => $conf->{update},
+#	    postprocess => $conf->{update},
 	  }, $dir);
 }
 
@@ -407,9 +427,24 @@ sub _merge {
 # add a file or directory to the database
 sub _wanted {
     my($file, $dir) = fileparse $_;
+    $modified = (stat $_)[9]; 
 #    $dir = '' if $dir eq '.';
     if ($file eq '.picasa.ini' or $file eq 'Picasa.ini') {
+	warn "$_: cache $db->{dirs}{$dir}{'<<updated>>'}, mtime $modified\n"
+	    if $conf->{debug};
 	&_understand($db, _readfile($_));
+	# update possibly affected pictures later via updated=-1
+	unless ($db->{dirs}{$dir}{'<<updated>>'} and
+		$db->{dirs}{$dir}{'<<updated>>'} >= $modified) {
+	    for my $pic (keys %{$db->{dirs}{$dir}}) {
+		next if $pic =~ m@^[\[<]|/$@;
+		next unless keys %{$db->{dirs}{$dir}{$pic}};
+		my $key = "$dir$pic";
+		$key =~ s@\./@@;
+		$db->{pics}{$key}{updated} = -1
+	    }
+	}
+	$db->{dirs}{$dir}{'<<updated>>'} = $modified;
 	return;
     } elsif ($file =~ /^\..+/ or $file eq 'Originals') { # ignore hidden files
 	$File::Find::prune = 1;
@@ -422,31 +457,39 @@ sub _wanted {
 	unless $db->{dirs}{$dir}{$file};
 	my $key = $_;
 	$key =~ s@\./@@;
-	return unless -f $key and -s $key > 100;
-	my $info = $exiftool->ImageInfo($key);
-	return unless $info;
-	return unless $info->{ImageWidth} && $info->{ImageHeight};
-	my %tags; map { $tags{$_}++ } split /,\s*/,
-	$info->{Keywords} || $info->{Subject} || '';
-	my $this = $db->{pics}{$key} = {
-	    bytes	=> -s $key,
-	    width	=> $info->{ImageWidth},
-	    height	=> $info->{ImageHeight},
-	    time	=> $info->{DateTimeOriginal} || $info->{CreateDate}
-	    || $info->{ModifyDate} || $info->{FileModifyDate} || 0,
-	    caption	=> $info->{'Caption-Abstract'}
-	    || $info->{'Description'} || '',
-	    face	=> $db->faces($dir, $file),
-	    album	=> $db->albums($dir, $file),
-	    stars	=> $db->star($dir, $file),
-	    uploads	=> $db->uploads($dir, $file),
-	    tag		=> \%tags,
-	};
-	$this->{faces} = keys %{$this->{face}} ? 1 : 0; # files that have attributes
-	$this->{albums} = keys %{$this->{album}} ? 1 : 0;
-	$this->{tags} = keys %{$this->{tag}} ? 1 : 0;
-	$this->{time} =~ /0000/ and
-	    warn "bogus time in $_: $this->{time}\n";
+	my $this;		# metadata for this picture
+	if ($db->{pics}{$key}{updated} and
+	    $db->{pics}{$key}{updated} >= $modified) {
+	    $this = $db->{pics}{$key};
+	} else {		# update from exif & .picasa.ini data
+	    warn "reading $dir$file\n" if $conf->{debug};
+	    return unless -f $key and -s $key > 100;
+	    my $info = $exiftool->ImageInfo($key);
+	    return unless $info;
+	    return unless $info->{ImageWidth} && $info->{ImageHeight};
+	    my %tags; map { $tags{$_}++ } split /,\s*/,
+	    $info->{Keywords} || $info->{Subject} || '';
+	    $this = $db->{pics}{$key} = {
+		updated	=> $modified,
+		tag		=> \%tags,
+		bytes	=> -s $key,
+		width	=> $info->{ImageWidth},
+		height	=> $info->{ImageHeight},
+		time	=> $info->{DateTimeOriginal} || $info->{CreateDate}
+		|| $info->{ModifyDate} || $info->{FileModifyDate} || 0,
+		caption	=> $info->{'Caption-Abstract'}
+		|| $info->{'Description'} || '',
+		face	=> $db->faces($dir, $file), # picasa data for this pic
+		album	=> $db->albums($dir, $file),
+		stars	=> $db->star($dir, $file),
+		uploads	=> $db->uploads($dir, $file),
+	    };
+	    $this->{faces} = keys %{$this->{face}} ? 1 : 0; # files that have attributes
+	    $this->{albums} = keys %{$this->{album}} ? 1 : 0;
+	    $this->{tags} = keys %{$this->{tag}} ? 1 : 0;
+	    $this->{time} =~ /0000/ and
+		warn "bogus time in $_: $this->{time}\n";
+	}
 	my $year = 0;
 	$year = $1 if $this->{time} =~ /(\d{4})/; # year must be first
 
@@ -477,10 +520,13 @@ sub _wanted {
 	# multiple locations (y/f or f/y); maybe this would be ok?)
 	$db->_addpic2path("/[Folders]/$key", $key);
 
+	$db->{sofar}++;		# count of pics read so far
+
     } elsif (-d $_) {
 	$db->{dirs}{$dir}{"$file/"} = {}
 	unless $db->{dirs}{$dir}{"$file/"};
     }
+    &{$conf->{update}};
 }
 
 # return given .picasa.ini file as a hash

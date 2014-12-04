@@ -68,16 +68,16 @@ our $conf = {
 # configuration file can override any of the above options:
 require $conf->{config} if -f $conf->{config};
 
+$Data::Dumper::Indent = 1;   # readable format for the cached metadata
+$Data::Dumper::Purity = 1;   # evalable on next run
+
 #  rebuild all data since prior run, using previous cache until finished
-my $picasa_tmp = Picasa->new($conf);
-my $picasa = -f $conf->{metadata} ? require $conf->{metadata} : $picasa_tmp;
+my $picasa = Picasa->new($conf);
 
 my @ss;			   # slide show picture list
 my $ssindex = 0;	   # slide show index
 my $refreshing = '';	   # directory currently refreshing thumbnails
 my %rebuildthumb;	   # stale thumbnails to rebuild
-
-$Data::Dumper::Indent = 1;   # readable format for the cached metadata
 
 mkdir $conf->{cache} or die $! unless -d $conf->{cache}; # thumbnail cache
 
@@ -275,6 +275,13 @@ $mw->raiseFocus;
 $full->bind('<Configure>' => # resize window resizes full-size picture
 	    sub  { my $w = shift;
 		   ($mx, $my) = ($w->Width, $w->Height);
+		   my($x, $y) = ($w->rootx, $w->rooty);
+		   my($vx, $vy) = ($w->vrootx, $w->vrooty);
+		   my($W, $H) = ($w->screenwidth, $w->screenheight);
+		   my($vw, $vh) = ($w->vrootwidth, $w->vrootheight);
+		   my $s = $w->screen;
+		   my($maxw, $maxh) = $w->maxsize;
+		   warn "$mx x $my @ $x,$y ($vw, $vy) in $W x $H ($vw x $vh) $s => $maxw x $maxh\n";
 		   &newpic;
 	    });
 $full->bind('<Button-1>' => [sub { # 3x3 "touch" control zones
@@ -286,7 +293,7 @@ $full->bind('<Button-1>' => [sub { # 3x3 "touch" control zones
     my $hitkey = int($x / $mx * 3) + 3 * int($y / $my * 3);
     $key[$hitkey] and $full->eventGenerate($key[$hitkey]);
 			     }, Ev('x'), Ev('y')]);
-# similar "touch" control zones for main window
+# similar "touch" control zones for main window via corner labels
 $nww->bind('<Button-1>' => [sub { $mw->eventGenerate('<Escape>') }]);
 $nnw->bind('<Button-1>' => [sub { $mw->eventGenerate('<Up>') }]);
 $new->bind('<Button-1>' => [sub { $mw->eventGenerate('<Key-p>') }]);
@@ -322,6 +329,16 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 		$mw->raiseFocus;
 		&move;
 	    } elsif ($picasa->{dir}{file} eq '/') {
+		if ($picasa->{done}) { # save recently updated cache
+		    if (open my $fh, '>', "$conf->{metadata}~") {
+			print $fh Dumper $picasa or warn $!;
+			close $fh and rename "$conf->{metadata}~",
+			$conf->{metadata} or warn $!;
+			warn "$conf->{metadata} saved\n" if $conf->{debug};
+		    } else {
+			warn "can't write $conf->{metadata}~: $!\n";
+		    }
+		}
 		$full->destroy;
 		$mw->destroy;
 		Tk::exit;
@@ -457,31 +474,13 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 }
 
 # all metadata is updated in the background -----------------------------------
-# warn "starting Picasa recursion\n" if $conf->{debug};
-$mw->after(1500, \&newdir);	# show browser after we have some data
-$picasa_tmp->recursedirs('.');	# updates GUI via $conf->{update}
-# warn "Picasa recursion done!\n" if $conf->{debug};
-
-if ($picasa_tmp->{done}) {
-    if (open my $fh, '>', "$conf->{metadata}~") {
-	print $fh Dumper $picasa_tmp or warn $!;
-	close $fh and rename "$conf->{metadata}~",
-	$conf->{metadata} or warn $!;
-    } else {
-	warn "can't write $conf->{metadata}~: $!\n";
-    }
-    if ($picasa ne $picasa_tmp) {
-	# warn "replacing $picasa with $picasa_tmp\n" if $conf->{debug};
-	my $old = $picasa;
-	$picasa_tmp->{index} = $picasa->{index}; # retain current location
-	$picasa_tmp->{dir} = $picasa->{dir};
-	$picasa_tmp->{file} = $picasa->{file};
-	$picasa = $picasa_tmp;
-	undef $old;		# free previous data, now stale
-    }
-}
-$pg->value($pg->cget('-to') + 10);
-&move;				# update stats one last time
+warn "starting Picasa recursion\n" if $conf->{debug};
+#$mw->after(1500, \&newdir);	# show browser after we have some data
+$mw->after(1500, sub { $mw->eventGenerate('<Return>') });
+$picasa->recursedirs('.');	# updates GUI via $conf->{update}
+&update(1);			# update stats one last time
+$pg->value($pg->cget('-to') + 10); # empty the progress bar
+warn "Picasa recursion done!\n" if $conf->{debug};
 
 MainLoop;			# never returns
 Tk::exit;			# should never get here
@@ -610,18 +609,19 @@ sub refilter {	       # reapply filters, updating dir, pic, slideshow
 BEGIN {	# filtering for stats is expensive, so we update GUI only once a second
     my $updated = 0;
     sub update {
+	my($force) = @_;
+	$force and $updated = 1;
 	$mw->update;		# let GUI work while we are busy
 	return unless time > $updated;
-	return unless $picasa_tmp->{root};
-	return unless $picasa_tmp->{file};
-	return unless $picasa_tmp->{file}{dir};
-	return unless $picasa_tmp->{file}{file};
+	return unless $picasa->{root};
 
 	# warn "updating $File::Find::name\n" if $conf->{debug};
-	my $loc = "$picasa_tmp->{file}{dir}$picasa_tmp->{file}{file}";
-	$picasa_tmp->{file} = $picasa_tmp->filter($loc);
+	my $loc = $picasa->{file} && $picasa->{file}{dir} && $picasa->{file}{file}
+	? "$picasa->{file}{dir}$picasa->{file}{file}" : "/";
+	$picasa->{file} = $picasa->filter($loc);
+	$picasa->{dir} or $picasa->{dir} = $picasa->{file};
 	&move;			# updates statistics on GUI
-	$sofar = keys %{$picasa_tmp->{pics}};
+	$sofar = $picasa->{sofar};
 	if ($sofar > $pg->cget('-to')) {
 	    $pg->configure(-to => $sofar + 1000);
 	}
@@ -689,7 +689,7 @@ sub move {		       # move browser to new directory or file
     $nw .= " ($tmp)" if $tmp;
 
     $ne = &stats($current, $tpx, $tpy); # highlight means update is in progress
-    $new->configure($picasa_tmp->{done} ? @c : (-fg => 'white', -bg => 'red'));
+    $new->configure($picasa->{done} ? @c : (-fg => 'white', -bg => 'red'));
 
     my $total = @{$picasa->{dir}{children}};
     my $cur = $picasa->{index} + 1;
@@ -1115,7 +1115,7 @@ sub Tk::Canvas::createTextBox {
     sub togglefullscreen {
 	my($w) = @_;
 	my($offx, $offy) = ($w->rootx, $w->rooty);
-	# warn "$w: + $offx + $offy\n" if $conf->{debug};
+#	warn "$w: + $offx + $offy\n" if $conf->{debug};
 	if ($offx || $offy) {	# not at 0, 0 == not full screen
 	    $geom{"$w"} = $w->geometry; # size/location to restore
 	    my($x, $y) = ($mw->screenwidth, $mw->screenheight);
