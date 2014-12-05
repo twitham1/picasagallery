@@ -53,7 +53,7 @@ sub new {
     if (($conf->{metadata} and -f $conf->{metadata})) {
 	$self = &loadperl($conf->{metadata});
 	$self->{dir} = $self->{file} = $self->filter('/');
-	map { delete $self->{$_} } qw/contact tags root/;
+	map { delete $self->{$_} } qw/contact tags root exists/;
     }
     $self->{index} = 0;
     $self->{done} = $self->{sofar} = 0;
@@ -78,6 +78,14 @@ sub recursedirs {
     my $self = shift;
     for (@_) {
 	readdb($self, $_);
+    }
+    for (keys %{$self->{dirs}}) {
+	$self->{exists}{$_} ? delete $self->{exists}{$_} :
+	    delete $self->{dirs}{$_};
+    }
+    for (keys %{$self->{pics}}) {
+	$self->{exists}{$_} ? delete $self->{exists}{$_} :
+	    delete $self->{pics}{$_};
     }
     $self->{done} = 1;		# data complete!
     &{$conf->{update}};
@@ -181,7 +189,7 @@ sub filter {
     my @ss;			# slide show pictures
     $path =~ s@/+@/@g;
     ($data->{dir}, $data->{file}) = dirfile $path;
-    warn "filter:$path->($data->{dir},$data->{file})\n" if $conf->{debug};
+    warn "filter:$path\n" if $conf->{debug};
     my $begin = $conf->{filter}{age} ? strftime $conf->{datefmt},
     localtime time - $conf->{filter}{age} : 0;
     for my $str (sort keys %{$self->{root}}) { # for each picture file
@@ -266,7 +274,7 @@ sub dirs {
 sub pics {
     my $self = shift;
     my $dir = shift or return ();
-    return grep !/^\[/, keys %{$self->{dirs}{$dir}};
+    return grep !/^[\[<]/, keys %{$self->{dirs}{$dir}};
 }
 
 # return all contacts of the database
@@ -457,6 +465,7 @@ sub _wanted {
 	unless $db->{dirs}{$dir}{$file};
 	my $key = $_;
 	$key =~ s@\./@@;
+	$db->{exists}{$dir} = $db->{exists}{$key} = 1;
 	my $this;		# metadata for this picture
 	if ($db->{pics}{$key}{updated} and
 	    $db->{pics}{$key}{updated} >= $modified) {
