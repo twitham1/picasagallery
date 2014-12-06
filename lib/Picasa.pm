@@ -50,13 +50,16 @@ sub new {
     $exiftool = new Image::ExifTool;
     $exiftool->Options(FastScan => 1,
 		       DateFormat => $conf->{datefmt});
-    if (($conf->{metadata} and -f $conf->{metadata})) {
+    if (($conf->{metadata} and -f $conf->{metadata})) { # use previous data
 	$self = &loadperl($conf->{metadata});
 	$self->{dir} = $self->{file} = $self->filter('/');
-	map { delete $self->{$_} } qw/contact tags root exists/;
+    } else {			# use currently scanning data
+	for (qw/contact tags root album/) { # data always rebuilt from .ini
+	    $self->{$_} = $self->{new}{$_} = {};
+	}
     }
-    $self->{index} = 0;
-    $self->{done} = $self->{sofar} = 0;
+    $self->{exists} = {};
+    $self->{index} = $self->{done} = $self->{sofar} = 0;
     bless ($self, $class);
 #    warn Dumper $self;
     return $self;
@@ -80,13 +83,19 @@ sub recursedirs {
 	readdb($self, $_);
     }
     for (keys %{$self->{dirs}}) {
-	$self->{exists}{$_} ? delete $self->{exists}{$_} :
-	    delete $self->{dirs}{$_};
+    	$self->{exists}{$_} ? delete $self->{exists}{$_} :
+    	    delete $self->{dirs}{$_};
     }
     for (keys %{$self->{pics}}) {
-	$self->{exists}{$_} ? delete $self->{exists}{$_} :
-	    delete $self->{pics}{$_};
+    	$self->{exists}{$_} ? delete $self->{exists}{$_} :
+    	    delete $self->{pics}{$_};
     }
+    for (qw/contact tags root album/) { # use new data now
+	$self->{$_} eq $self->{new}{$_} or
+	    $self->{$_} = $self->{new}{$_} and
+	    delete $self->{new}{$_};
+    }
+    delete $self->{new};
     $self->{done} = 1;		# data complete!
     &{$conf->{update}};
 }
@@ -261,7 +270,7 @@ sub filter {
 # add picture to virtual path
 sub _addpic2path {
     my($self, $virt, $file) = @_;
-    $self->{root}{$virt} = $file;
+    $self->{new}{root}{$virt} = $file;
 }
 
 # return all directories of the database
@@ -461,8 +470,7 @@ sub _wanted {
     $File::Find::prune = 1, return if $file =~ /$conf->{reject}/;
     if (-f $_) {
 	return unless $file =~ /$conf->{keep}/;
-	$db->{dirs}{$dir}{$file} = {}
-	unless $db->{dirs}{$dir}{$file};
+	$db->{dirs}{$dir}{$file} or $db->{dirs}{$dir}{$file} = {};
 	my $key = $_;
 	$key =~ s@\./@@;
 	$db->{exists}{$dir} = $db->{exists}{$key} = 1;
@@ -510,7 +518,7 @@ sub _wanted {
 
 	for my $tag (keys %{$this->{tag}}) { # should year be here???
 	    $db->_addpic2path("/[Tags]/$tag/$vname", $key);
-	    $db->{tags}{$tag}++; # all tags with picture counts
+	    $db->{new}{tags}{$tag}++; # all tags with picture counts
 	}
 	for my $id (keys %{$this->{album}}) { # named user albums
 	    next unless my $name = $db->{album}{$id}{name};
@@ -567,12 +575,12 @@ sub _understand {
     for my $k (keys %$ini) {
 	if ($k =~ /^Contacts/) {
 	    for my $id (keys %{$ini->{$k}}) {
-		$pic->{contact}{$id}{$ini->{$k}{$id}}++;
+		$pic->{new}{contact}{$id}{$ini->{$k}{$id}}++;
 	    }
 	} elsif ($k =~ /^\.album:(\w+)$/) {
 	    $pic->{dirs}{$ini->{dir}}{"[$k]"} =
-		$pic->{album}{$1} =
-		&_merge(undef, $pic->{album}{$1}, $ini->{$k});
+		$pic->{new}{album}{$1} =
+		&_merge(undef, $pic->{new}{album}{$1}, $ini->{$k});
 	    next;
 	} elsif ($k eq 'dir') {
 	    next;
