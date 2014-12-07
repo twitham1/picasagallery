@@ -187,8 +187,11 @@ sub goto {
 }
 
 # given a virtual path, return all data known about it with current filters
+{
+    my $sort; my $done;
 sub filter {
     my($self, $path, $opt) = @_;
+    $opt or $opt = 0;
     my $data = {};
     my %child;			# children of this parent
     my %face;			# faces in this path
@@ -201,12 +204,16 @@ sub filter {
     warn "filter:$path\n" if $conf->{debug};
     my $begin = $conf->{filter}{age} ? strftime $conf->{datefmt},
     localtime time - $conf->{filter}{age} : 0;
-    for my $str (sort keys %{$self->{root}}) { # for each picture file
+    if (!$sort or $self->{done} and !$done) { # cached and current list
+	@$sort = sort keys %{$self->{root}};
+	$self->{done} and $done = 1;
+    }
+    for my $str (@$sort) { # for each picture file
 	next unless 0 == index($str, $path); # match
 	next unless my $filename = $self->{root}{$str}; # physical path
 	next unless my $this = $self->{pics}{$filename}; # metadata
 
-	unless ($opt and $opt eq 'nofilter') {
+	unless ($opt eq 'nofilter') {
 	    warn "filtering $str for filter ", Dumper $conf->{filter}
 	    if $conf->{debug} > 1;
 	    next if $conf->{filter}{Stars}	and !$this->{stars};
@@ -218,7 +225,7 @@ sub filter {
 	    next if $conf->{filter}{age} and $this->{time} lt $begin;
 	}
 
-	if ($opt and $opt eq 'slideshow') {
+	if ($opt eq 'slideshow') {
 	    push @ss, $str;
 	    next;
 	}
@@ -226,7 +233,7 @@ sub filter {
 	warn "looking at ($path) in ($str)\n" if $conf->{debug} > 1;
 	if ($str eq $path) {	# filename: copy metadata
 	    map { $data->{$_} = $this->{$_} } keys %$this;
-	} else { 		# directory: sum metadata
+	} elsif ($opt ne 'nofilter') { # directory: sum metadata
 	    my $rest = substr $str, length $path;
 	    $rest =~ s!/.*!/!;
 	    $rest and $child{$rest}++; # entries in this directory
@@ -240,7 +247,6 @@ sub filter {
 	    map { $tag{$_}++ }   keys %{$this->{tag}};
 	    $data->{caption} += $this->{caption} ? 1 : 0;
 	}
-	$data->{pixels} += $this->{width} * $this->{height};
 	$data->{files}++;
 
 	$data->{time} = $this->{time} and
@@ -255,16 +261,21 @@ sub filter {
 	    $data->{physical} ne $data->{first} and
 	    $data->{physical} ne $data->{last} or
 	    $data->{physical} = $filename;
+
+	next if $opt eq 'nofilter';
+	$data->{pixels} += $this->{width} * $this->{height}
     }
-    if ($opt and $opt eq 'slideshow') {
-	return @ss;
-    }
+    $opt eq 'nofilter' and return $data;
+    $opt eq 'slideshow' and return @ss;
+
     $data->{children} = [sort keys %child]; # maybe sort later? sort by option?
     $data->{face}  or $data->{face}  = \%face;
     $data->{album} or $data->{album} = \%album;
     $data->{tag}   or $data->{tag}   = \%tag;
     warn "filtered $path: ", Dumper $data if $conf->{debug} > 2;
+
     return $data;
+}
 }
 
 # add picture to virtual path
