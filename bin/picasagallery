@@ -2,8 +2,9 @@
 
 # picasagallery by twitham@sbcglobal.net, 2013-12
 
-# keyboard-driven mythgallery-style browser that understands local Picasa:
-# albums, faces, stars, uploads, captions, exif, tags, location, etc.
+# remote-control (keyboard) driven mythgallery-style browser that
+# understands local Picasa: albums, faces, stars, uploads, captions,
+# exif, tags, etc.
 
 # TODO: support all Picasa file formats (videos for example) (help ->
 #	options -> file types: jpe?g, bmp, gif, png, tga, tiff?, webp,
@@ -281,7 +282,8 @@ $full->bind('<Configure>' => # resize window resizes full-size picture
 		   my($vw, $vh) = ($w->vrootwidth, $w->vrootheight);
 		   my $s = $w->screen;
 		   my($maxw, $maxh) = $w->maxsize;
-		   warn "$mx x $my @ $x,$y ($vw, $vy) in $W x $H ($vw x $vh) $s => $maxw x $maxh\n";
+		   warn "$mx x $my @ $x,$y ($vw, $vy) in $W x $H ($vw x $vh) $s => $maxw x $maxh\n"
+		       if $conf->{debug};
 		   &newpic;
 	    });
 $full->bind('<Button-1>' => [sub { # 3x3 "touch" control zones
@@ -780,6 +782,10 @@ sub newpic {	     # replace the full picture with current selection
 	&max($mx / $x, $my / $y) :
 	&min($mx / $x, $my / $y);
     $conf->{pan} == 2 and $scale = 1;
+    # cap max zoom at 10X physical display to prevent "thin" image
+    # (e.g. 1x2000) from going to Gigapixels and consuming massive memory:
+    $scale = 10 * $mx / $x if $scale * $x > 10 * $mx;
+    $scale = 10 * $my / $y if $scale * $y > 10 * $my;
     &PhotoXYfull($image, $pf, map { int } $scale * $x, $scale * $y)
 	or return;
     my($X, $Y) = ($mx/2 - ($scale * $x)/2, $my/2 - ($scale * $y)/2);
