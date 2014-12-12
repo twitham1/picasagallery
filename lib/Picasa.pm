@@ -383,9 +383,15 @@ sub save {
 	}
     }
     if ($was eq $now) {
-#	print "# $out unchanged\n";
+#	print "# $out unchanged\n" if $conf->{debug} < 0;
     } else {
-	print "# $out being replaced\n";
+	if ($conf->{debug} < 0) {
+	    print "# $out ", length($was),
+	    " bytes NOT being replaced by ", length($now), " bytes\n";
+	    return 0;
+	}
+	print "# $out ", length($was),
+	" bytes being replaced by ", length($now), " bytes\n";
 	if (-f $out) {		# backup the original, but only once
 		my $tmp = $out . '_original';
 		rename $out, $tmp or warn "$0: can't rename $out $tmp: $!\n";
