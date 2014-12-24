@@ -24,6 +24,7 @@ use Data::Dumper;
 use POSIX qw/strftime/;
 
 my $db;	    # picasa database pointer needed for File::Find's _wanted.
+my $odb;    # old cached db from last run, if any - TODO!!!
 
 my $conf = {		       # override any keys in first arg to new
     reject	=> 'PATTERN OF FILES TO REJECT',
@@ -40,7 +41,7 @@ my $modified;	       # mtime of current file
 # return new empty picasa database object
 sub new {
     my $class = shift;
-    my $self  = { done => 0 };	# data complete?
+    my $self;
     if (ref(my $hash = shift)) {	# switch to user's conf + my defaults
 	while (my($k, $v) = each %$conf) {
 	    $hash->{$k} = $v unless $hash->{$k};
@@ -52,13 +53,16 @@ sub new {
 		       DateFormat => $conf->{datefmt});
     if (($conf->{metadata} and -f $conf->{metadata})) { # use previous data
 	$self = &loadperl($conf->{metadata});
+	$self->{done} = 0;	# but move to root first
 	$self->{dir} = $self->{file} = $self->filter('/');
+	$odb = $self;		# save global pointer to previous data
+	$db = {};		# write new db from scratch
+	bless($db, $class);	# hack!!!!
     } else {			# use currently scanning data
-	for (qw/contact tags root album/) { # data always rebuilt from .ini
-	    $self->{$_} = $self->{new}{$_} = {};
-	}
+	$self = $db = {};
+	$odb = {};
     }
-    $self->{exists} = {};
+    $db->{index} = $db->{done} = $db->{sofar} = 0;
     $self->{index} = $self->{done} = $self->{sofar} = 0;
     bless ($self, $class);
 #    warn Dumper $self;
@@ -79,32 +83,25 @@ sub loadperl {
 # find pictures and picasa data in given directories
 sub recursedirs {
     my $self = shift;
+    my $current = $self;
     for (@_) {
 	readdb($self, $_);
     }
-    for (keys %{$self->{dirs}}) {
-    	$self->{exists}{$_} ? delete $self->{exists}{$_} :
-    	    delete $self->{dirs}{$_};
+    unless ($self eq $db) {
+#	warn "$self = $db\n";
+	$self = $db;		# now start using new db
+	map { $self->{$_} = $current->{$_} } qw/dir file index/;
     }
-    for (keys %{$self->{pics}}) {
-    	$self->{exists}{$_} ? delete $self->{exists}{$_} :
-    	    delete $self->{pics}{$_};
-    }
-    for (qw/contact tags root album/) { # use new data now
-	$self->{$_} eq $self->{new}{$_} or
-	    $self->{$_} = $self->{new}{$_} and
-	    delete $self->{new}{$_};
-    }
-    delete $self->{new};
     $self->{done} = 1;		# data complete!
     &{$conf->{update}};
+    return $self;
 }
 
 # recursively add given directory or . to picasa database
 sub readdb {
     my $self = shift;
     my $dir = shift || '.';
-    $db = $self;
+#    $db = $self;
     warn "readdb $dir\n" if $conf->{debug};
     find ({ no_chdir => 1,
 	    preprocess => sub { sort @_ },
@@ -188,7 +185,7 @@ sub goto {
 
 # given a virtual path, return all data known about it with current filters
 {
-    my $sort; my $done;
+    my $sort; my $done = 0;
 sub filter {
     my($self, $path, $opt) = @_;
     $opt or $opt = 0;
@@ -207,6 +204,7 @@ sub filter {
     if (!$sort or $self->{done} and !$done) { # cached and current list
 	@$sort = sort keys %{$self->{root}};
 	$self->{done} and $done = 1;
+#	warn "SORTED ", scalar @$sort, " paths, done = $self->{done}, $done\n";
     }
     for my $str (@$sort) { # for each picture file
 	next unless 0 == index($str, $path); # match
@@ -281,7 +279,7 @@ sub filter {
 # add picture to virtual path
 sub _addpic2path {
     my($self, $virt, $file) = @_;
-    $self->{new}{root}{$virt} = $file;
+    $self->{root}{$virt} = $file;
 }
 
 # return all directories of the database
@@ -460,24 +458,12 @@ sub _merge {
 
 # add a file or directory to the database
 sub _wanted {
-    my($file, $dir) = fileparse $_;
+#    my($file, $dir) = fileparse $_;
+    my($dir, $file) = dirfile $_;
     $modified = (stat $_)[9]; 
 #    $dir = '' if $dir eq '.';
     if ($file eq '.picasa.ini' or $file eq 'Picasa.ini') {
-	warn "$_: cache $db->{dirs}{$dir}{'<<updated>>'}, mtime $modified\n"
-	    if $conf->{debug};
 	&_understand($db, _readfile($_));
-	# update possibly affected pictures later via updated=-1
-	unless ($db->{dirs}{$dir}{'<<updated>>'} and
-		$db->{dirs}{$dir}{'<<updated>>'} >= $modified) {
-	    for my $pic (keys %{$db->{dirs}{$dir}}) {
-		next if $pic =~ m@^[\[<]|/$@;
-		next unless keys %{$db->{dirs}{$dir}{$pic}};
-		my $key = "$dir$pic";
-		$key =~ s@\./@@;
-		$db->{pics}{$key}{updated} = -1
-	    }
-	}
 	$db->{dirs}{$dir}{'<<updated>>'} = $modified;
 	return;
     } elsif ($file =~ /^\..+/ or $file eq 'Originals') { # ignore hidden files
@@ -490,11 +476,10 @@ sub _wanted {
 	$db->{dirs}{$dir}{$file} or $db->{dirs}{$dir}{$file} = {};
 	my $key = $_;
 	$key =~ s@\./@@;
-	$db->{exists}{$dir} = $db->{exists}{$key} = 1;
 	my $this;		# metadata for this picture
-	if ($db->{pics}{$key}{updated} and
-	    $db->{pics}{$key}{updated} >= $modified) {
-	    $this = $db->{pics}{$key};
+	if ($odb->{pics}{$key}{updated} and
+	    $odb->{pics}{$key}{updated} >= $modified) {
+	    $this = $db->{pics}{$key} = $odb->{pics}{$key};
 	} else {		# update from exif & .picasa.ini data
 	    warn "reading $dir$file\n" if $conf->{debug};
 	    return unless -f $key and -s $key > 100;
@@ -505,7 +490,7 @@ sub _wanted {
 	    $info->{Keywords} || $info->{Subject} || '';
 	    $this = $db->{pics}{$key} = {
 		updated	=> $modified,
-		tag		=> \%tags,
+		tag	=> \%tags,
 		bytes	=> -s $key,
 		width	=> $info->{ImageWidth},
 		height	=> $info->{ImageHeight},
@@ -513,17 +498,18 @@ sub _wanted {
 		|| $info->{ModifyDate} || $info->{FileModifyDate} || 0,
 		caption	=> $info->{'Caption-Abstract'}
 		|| $info->{'Description'} || '',
-		face	=> $db->faces($dir, $file), # picasa data for this pic
-		album	=> $db->albums($dir, $file),
-		stars	=> $db->star($dir, $file),
-		uploads	=> $db->uploads($dir, $file),
 	    };
-	    $this->{faces} = keys %{$this->{face}} ? 1 : 0; # files that have attributes
-	    $this->{albums} = keys %{$this->{album}} ? 1 : 0;
-	    $this->{tags} = keys %{$this->{tag}} ? 1 : 0;
-	    $this->{time} =~ /0000/ and
-		warn "bogus time in $_: $this->{time}\n";
 	}
+	$this->{face}	= $db->faces($dir, $file); # picasa data for this pic
+	$this->{album}	= $db->albums($dir, $file);
+	$this->{stars}	= $db->star($dir, $file);
+	$this->{uploads} = $db->uploads($dir, $file);
+	$this->{faces}	= keys %{$this->{face}} ? 1 : 0; # files that have attributes
+	$this->{albums}	= keys %{$this->{album}} ? 1 : 0;
+	$this->{tags}	= keys %{$this->{tag}} ? 1 : 0;
+
+	$this->{time} =~ /0000/ and
+	    warn "bogus time in $_: $this->{time}\n";
 	my $year = 0;
 	$year = $1 if $this->{time} =~ /(\d{4})/; # year must be first
 
@@ -535,7 +521,7 @@ sub _wanted {
 
 	for my $tag (keys %{$this->{tag}}) { # should year be here???
 	    $db->_addpic2path("/[Tags]/$tag/$vname", $key);
-	    $db->{new}{tags}{$tag}++; # all tags with picture counts
+	    $db->{tags}{$tag}++; # all tags with picture counts
 	}
 	for my $id (keys %{$this->{album}}) { # named user albums
 	    next unless my $name = $db->{album}{$id}{name};
@@ -554,7 +540,7 @@ sub _wanted {
 	# multiple locations (y/f or f/y); maybe this would be ok?)
 	$db->_addpic2path("/[Folders]/$key", $key);
 
-	$db->{sofar}++;		# count of pics read so far
+	$odb->{sofar}++;	# count of pics read so far
 
     } elsif (-d $_) {
 	$db->{dirs}{$dir}{"$file/"} = {}
@@ -592,12 +578,12 @@ sub _understand {
     for my $k (keys %$ini) {
 	if ($k =~ /^Contacts/) {
 	    for my $id (keys %{$ini->{$k}}) {
-		$pic->{new}{contact}{$id}{$ini->{$k}{$id}}++;
+		$pic->{contact}{$id}{$ini->{$k}{$id}}++;
 	    }
 	} elsif ($k =~ /^\.album:(\w+)$/) {
 	    $pic->{dirs}{$ini->{dir}}{"[$k]"} =
-		$pic->{new}{album}{$1} =
-		&_merge(undef, $pic->{new}{album}{$1}, $ini->{$k});
+		$pic->{album}{$1} =
+		&_merge(undef, $pic->{album}{$1}, $ini->{$k});
 	    next;
 	} elsif ($k eq 'dir') {
 	    next;
