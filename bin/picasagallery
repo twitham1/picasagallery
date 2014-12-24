@@ -14,6 +14,12 @@
 # TODO: config file should be able to auto-start a {slideshow} = /root/path
 # TODO: documentation?
 
+# to extract thumbnails from videos (1 frame @ 60 seconds):
+# ffmpeg -ss 60 -vframes 1 -i $video [-s 640x480] $file.jpg
+
+# to play videos:
+# mplayer -fs -vf yadif -sub-paths srt $video
+
 use strict;
 use warnings;
 use Tk;
@@ -479,7 +485,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 warn "starting Picasa recursion\n" if $conf->{debug};
 #$mw->after(1500, \&newdir);	# show browser after we have some data
 $mw->after(1500, sub { $mw->eventGenerate('<Return>') });
-$picasa->recursedirs('.');	# updates GUI via $conf->{update}
+$picasa = $picasa->recursedirs('.'); # updates GUI via $conf->{update}
 &update(1);			# update stats one last time
 $pg->value($pg->cget('-to') + 10); # empty the progress bar
 warn "Picasa recursion done!\n" if $conf->{debug};
