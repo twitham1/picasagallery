@@ -488,7 +488,7 @@ sub _wanted {
 	    return unless $info->{ImageWidth} && $info->{ImageHeight};
 	    my %tags; map { $tags{$_}++ } split /,\s*/,
 	    $info->{Keywords} || $info->{Subject} || '';
-	    $this = $db->{pics}{$key} = {
+	    $this = $db->{pics}{$key} = $odb->{pics}{$key} = {
 		updated	=> $modified,
 		tag	=> \%tags,
 		bytes	=> -s $key,
