@@ -669,16 +669,19 @@ sub stats {			# format the [average] image metrics
     $w, $h, $w / $h, 100 * $scale;
 }
 
-sub move {		       # move browser to new directory or file
+sub scroll {			# move browser to current selection
     return unless $picasa->{index} >= 0;
-
-    $mw->title("PG: $picasa->{file}{dir}");
     $tg->see(int($picasa->{index} / $tnx + 1), # Table index begins at 1, not 0!
 	     $picasa->{index} % $tnx + 1);
+}
 
+sub move {		       # move browser to new directory or file
+    &scroll;
     return unless my $current = $picasa->{file};
     # warn "location: $picasa->{dir}{dir} $picasa->{dir}{file} - $picasa->{file}{dir} $picasa->{file}{file} ($picasa->{index})\n" if $conf->{debug};
     return unless $current->{files};
+
+    $mw->title("PG: $picasa->{file}{dir}");
 
     for my $i (0 .. $#tn) {
 	my $w = $tg->get(int($i / $tnx + 1), $i % $tnx + 1);
@@ -752,16 +755,16 @@ sub newdir {		 # replace all thumbnails in current directory
 	if ($img =~ m!/$!) {	# directory: stack some pics
 	    $child =~ s@/$@@;
 	    &StackXYthumb($image, $child, (map { int } $tpx, $tpy),
-			  "$img ($this->{files})",
-			  $this->{first}, $this->{physical},
-			  $this->{last});
+			  "$img ($this->{files})", $this->{mtime},
+			  $this->{first}, $this->{physical}, $this->{last});
 	} else {
 	    &PhotoXYthumb($image, $pf, (map { int } $tpx, $tpy),
 			  $data->{caption} || 0, $child);
 	}
         $tn[$index]->update;	# Display the thumbnail
+	&scroll;    # toward selection while thumbnails are generating
     }
-    &move;
+    &move;			# refresh selection
     $refreshing = "";
 }
 
@@ -1027,7 +1030,7 @@ sub PhotoXYthumb {
 
 # 3 @pics stacked into $w image of size $x / $y, with cacheing as $f
 sub StackXYthumb {
-    my ($w, $f, $x, $y, $label, @pic) = @_;
+    my ($w, $f, $x, $y, $label, $time, @pic) = @_;
     $f && $x && $y && @pic or return;
     my $ext = 'png';		# jpg isn't transparent; use png
     my $cfn = "$conf->{cache}/$f";
@@ -1035,8 +1038,7 @@ sub StackXYthumb {
     &cropface($pic[0], $f, \$id);
     $cfn .= "-$id" if $id;
     $cfn .= "-$x-$y.$ext";
-    unless (!$rebuildthumb{$f} &&
-	    -f $cfn && @pic == grep { -M $_ >= -M $cfn } @pic) {
+    unless (!$rebuildthumb{$f} && -f $cfn && (stat $cfn)[9] == $time) {
 	delete $rebuildthumb{$f};
 	-f $cfn and unlink $cfn;
 	my($dir, $file) = Picasa::dirfile($cfn);
@@ -1061,7 +1063,6 @@ sub StackXYthumb {
 	    sprintf("%.0fx%.0f", $x, $y / 5), "caption:$label", '-composite',
 	    $cfn;
 	}
-	my($time) = sort { $b <=> $a } map { (stat $_)[9] } @pic; # latest
 	utime $time, $time, $cfn;
     }
     $w->blank;
