@@ -111,29 +111,25 @@ my $tpy = int($tpx / 1.1);	# "average" aspect ratio for most pics
 # text metadata in corners of browser
 my($nw, $n, $ne, $se, $s, $sw) = ('', '', '', '', '', '');
 # maybe font should be replaced on <configure> window resize...
-my $big = $mw->Font(-family => 'Helvetica',
-		    -size => int($my / 40), # 20,
-		    -weight => 'bold',
-    );
-my $med = $mw->Font(-family => 'Helvetica',
+my $font = $mw->Font(-family => 'Helvetica',
 		    -size => int($my / 50), # 15,
     );
 
 my @c = (-fg => $conf->{text}, -bg => $conf->{bg});
 my $top = $mw->Frame(@c)->pack(-side => "top", -fill => 'x');
-my $nww = $top->Label(-textvariable => \$nw, -font => $med, @c)
+my $nww = $top->Label(-textvariable => \$nw, -font => $font, @c)
     ->pack(-side => "left");
-my $new = $top->Label(-textvariable => \$ne, -font => $med, @c)
+my $new = $top->Label(-textvariable => \$ne, -font => $font, @c)
     ->pack(-side => "right");
-my $nnw = $top->Label(-textvariable => \$n,  -font => $big, @c,
+my $nnw = $top->Label(-textvariable => \$n,  -font => $font, @c,
 		      -fg => $conf->{title})->pack(-side => "top");
 
 my $bot = $mw->Frame(@c)->pack(-side => "bottom", -fill => 'x');
-my $sww = $bot->Label(-textvariable => \$sw, -font => $med, @c)
+my $sww = $bot->Label(-textvariable => \$sw, -font => $font, @c)
     ->pack(-side => "left");
-my $sew = $bot->Label(-textvariable => \$se, -font => $med, @c)
+my $sew = $bot->Label(-textvariable => \$se, -font => $font, @c)
     ->pack(-side => "right");
-my $ssw = $bot->Label(-textvariable => \$s, -font => $med, @c,
+my $ssw = $bot->Label(-textvariable => \$s, -font => $font, @c,
 		      -fg => $conf->{title})->pack(-side => "bottom");
 
 # thumbnail table grid
@@ -167,7 +163,7 @@ $canvas->createImage(0, 0, -image => $image, -anchor => 'nw', -tags => 'image');
 
 # popup option menu is invoked with "m" key ----------------------------------
 my $menu = $mw->Menu(-tearoff => 0, -takefocus => 1, # takefocus doesn't work???
-		     -font => $med);
+		     -font => $font);
 $menu->transient($mw);		# not needed?
 $menu->add('command', -label => 'Menu: Picasa Gallery',
 	   -accelerator => 'm', -underline => 0, -state => 'active');
@@ -182,7 +178,7 @@ my $i = 0;
 $menu->add('command', -label => "Clear All Filters",
 	   -accelerator => $i++, -underline => 0, -command =>
 	   sub { $mw->eventGenerate('<Key-0>') });
-my $filter = $menu->Menu(-tearoff => 0, -font => $med);
+my $filter = $menu->Menu(-tearoff => 0, -font => $font);
 for (@{$conf->{filters}}) {
     $filter->add('checkbutton', -label => $_,
 		 -accelerator => $i++,
@@ -194,7 +190,7 @@ for (@{$conf->{filters}}) {
 }
 $menu->add('cascade', -label => 'Filter by Attributes', -menu => $filter,
 	   -underline => 0);
-my $age = $menu->Menu(-tearoff => 0, -font => $med);
+my $age = $menu->Menu(-tearoff => 0, -font => $font);
 my $day = 24 * 60 * 60;
 my $year = 365.25 * $day;	# approximate, close enough
 my %age = my @age		# ugly menu, but any better way?
@@ -239,7 +235,7 @@ $menu->add('cascade', -label => 'Filter by Age',
 	   -menu => $age, -underline => 10);
 $menu->add('separator');
 
-my $ssmenu = $menu->Menu(-tearoff => 0, -font => $med);
+my $ssmenu = $menu->Menu(-tearoff => 0, -font => $font);
 $ssmenu->add('command', -label => 'Play / Pause',
 	   -accelerator => 'p', -underline => 0, -command => sub {
 	       $mw->eventGenerate('<Key-p>'); });
@@ -248,7 +244,7 @@ $ssmenu->add('command', -label => 'Stop / Reset',
 	       $mw->eventGenerate('<Key-t>'); });
 $ssmenu->add('checkbutton', -label => 'Random', -underline => 0,
 	   -variable => \$conf->{random}, -command => \&refilter);
-my $delay = $ssmenu->Menu(-tearoff => 0, -font => $med);
+my $delay = $ssmenu->Menu(-tearoff => 0, -font => $font);
 for (1 .. 20) {
     $delay->add('radiobutton',
 		-label => "$_ seconds",
@@ -822,7 +818,7 @@ sub newpic {	     # replace the full picture with current selection
 	$canvas->createTextBox($mx, $my, $conf->{bg},
 			       -justify => 'right',
 			       -anchor => 'se',
-			       -font => $med,
+			       -font => $font,
 			       -fill => $conf->{text},
 			       -text => (join " \n", @info),
 			       -tags => 'fg');
@@ -830,7 +826,7 @@ sub newpic {	     # replace the full picture with current selection
     $canvas->createTextBox($mx, 0, $conf->{bg},
 			   -justify => 'right',
 			   -anchor => 'ne',
-			   -font => $med,
+			   -font => $font,
 			   -fill => $conf->{text},
 			   -text => &stats($this, $mx, $my, $scale),
 			   -tags => 'fg');
@@ -842,7 +838,7 @@ sub newpic {	     # replace the full picture with current selection
     $text .= "\n" . join "\n", keys %{$this->{tag}} if keys %{$this->{tag}};
     $canvas->createTextBox(0, 0, $conf->{filtering} ? 'red' : $conf->{bg},
 			   -anchor => 'nw',
-			   -font => $med,
+			   -font => $font,
 			   -fill =>
 			   $conf->{filtering} ? 'white' : $conf->{text},
 			   -text => $text,
@@ -851,7 +847,7 @@ sub newpic {	     # replace the full picture with current selection
     keys %{$this->{album}};
     $canvas->createTextBox(0, $my, $conf->{bg},
 			   -anchor => 'sw',
-			   -font => $med,
+			   -font => $font,
 			   -fill => $conf->{text},
 			   -text => $text,
 			   -tags => 'fg');
@@ -861,7 +857,7 @@ sub newpic {	     # replace the full picture with current selection
     $text = " $cur / $total ";
     $canvas->createTextBox($mx / 2, 0, $conf->{bg},
 			   -anchor => @ss ? 'nw' : 'n',
-			   -font => $med,
+			   -font => $font,
 			   -fill => $conf->{title},
 			   -text => $text,
 			   -tags => 'fg');
@@ -870,7 +866,7 @@ sub newpic {	     # replace the full picture with current selection
 	$conf->{delay}, $conf->{random} ? 'r' : '';
 	$canvas->createTextBox($mx / 2, 0, $conf->{bg},
 			       -anchor => 'ne',
-			       -font => $med,
+			       -font => $font,
 			       -fill => ($ss->time ? $conf->{ssc} : 'white'),
 			       -text => $text,
 			       -tags => 'fg');
@@ -899,7 +895,7 @@ sub newpic {	     # replace the full picture with current selection
 	$canvas->createTextBox($mx / 2, $my, $conf->{bg},
 			       -width => $mx,
 			       -anchor => 's',
-			       -font => $med,
+			       -font => $font,
 			       -fill => $conf->{title},
 			       -text => $this->{caption},
 			       -tags => 'fg');
@@ -914,7 +910,7 @@ sub newpic {	     # replace the full picture with current selection
 				 -tags => 'faces');
 	$canvas->createText($X + $l * $x * $scale + 2, $Y + $t * $y * $scale,
 			    -anchor => 'nw',
-			    -font => $med,
+			    -font => $font,
 			    -fill => $conf->{face},
 			    -text => $name,
 			    -tags => 'faces');
@@ -938,7 +934,7 @@ sub newpic {	     # replace the full picture with current selection
 				$Y + $b * $y * $scale,
 				-justify => 'right',
 				-anchor => 'se',
-				-font => $med,
+				-font => $font,
 				-fill => $conf->{face},
 				-text => $age,
 				-tags => 'faces');
