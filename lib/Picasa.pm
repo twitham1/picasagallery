@@ -190,6 +190,7 @@ sub filter {
     my($self, $path, $opt) = @_;
     $opt or $opt = 0;
     my $data = {};
+    my @files;			# files of this parent, to find center
     my %child;			# children of this parent
     my %face;			# faces in this path
     my %album;			# albums in this path
@@ -247,6 +248,7 @@ sub filter {
 	    map { $tag{$_}++ }   keys %{$this->{tag}};
 	    $data->{caption} += $this->{caption} ? 1 : 0;
 	}
+	push @files, $filename;
 	$data->{files}++;
 
 	$data->{time} = $this->{time} and
@@ -257,14 +259,10 @@ sub filter {
 	    $data->{last} = $filename unless
 	    $data->{endtime} && $data->{endtime} gt $this->{time};
 
-	$data->{physical} and
-	    $data->{physical} ne $data->{first} and
-	    $data->{physical} ne $data->{last} or
-	    $data->{physical} = $filename;
-
 	next if $opt eq 'nofilter';
 	$data->{pixels} += $this->{width} * $this->{height}
     }
+    $data->{physical} = $files[$data->{files} / 2]; # middle picture
     if ($opt eq 'nofilter') {
 	$data->{mtime} and $data->{mtime} =
 	    int($data->{mtime} / $data->{files});
