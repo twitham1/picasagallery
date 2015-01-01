@@ -231,6 +231,7 @@ sub filter {
 
 	warn "looking at ($path) in ($str)\n" if $conf->{debug} > 1;
 	if ($opt eq 'nofilter') { # average mtime for directory thumbnails
+	    next if $done{$filename}++;
 	    $data->{mtime} += $this->{updated};
 	} elsif ($str eq $path) { # filename: copy metadata
 	    map { $data->{$_} = $this->{$_} } keys %$this;
@@ -240,8 +241,9 @@ sub filter {
 	    $rest and $child{$rest}++; # entries in this directory
 	    next if $done{$filename}++;
 	    warn "$path: $str ($rest)\n" if $conf->{debug} > 1;
-	    for my $num (qw/bytes stars uploads faces albums tags width height/) {
-		$data->{$num} += $this->{$num};
+	    for my $num
+		(qw/bytes stars uploads faces albums tags width height/) {
+		    $data->{$num} += $this->{$num};
 	    }
 	    map { $face{$_}++ }  keys %{$this->{face}};
 	    map { $album{$_}++ } keys %{$this->{album}};
@@ -263,6 +265,14 @@ sub filter {
 	$data->{pixels} += $this->{width} * $this->{height}
     }
     $data->{physical} = $files[$data->{files} / 2]; # middle picture
+    if ($data->{files} > 2) {			    # not first or last
+    	$data->{physical} = $files[$data->{files} / 2 - 1]
+    	    if $data->{physical} eq $data->{first} or
+    	    $data->{physical} eq $data->{last};
+    	$data->{physical} = $files[$data->{files} / 2 + 1]
+    	    if $data->{physical} eq $data->{first} or 
+    	    $data->{physical} eq $data->{last};
+    }
     if ($opt eq 'nofilter') {
 	$data->{mtime} and $data->{mtime} =
 	    int($data->{mtime} / $data->{files});
