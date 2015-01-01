@@ -229,9 +229,11 @@ sub filter {
 	}
 
 	warn "looking at ($path) in ($str)\n" if $conf->{debug} > 1;
-	if ($str eq $path) {	# filename: copy metadata
+	if ($opt eq 'nofilter') { # average mtime for directory thumbnails
+	    $data->{mtime} += $this->{updated};
+	} elsif ($str eq $path) { # filename: copy metadata
 	    map { $data->{$_} = $this->{$_} } keys %$this;
-	} elsif ($opt ne 'nofilter') { # directory: sum metadata
+	} else {		# directory: sum metadata
 	    my $rest = substr $str, length $path;
 	    $rest =~ s!/.*!/!;
 	    $rest and $child{$rest}++; # entries in this directory
@@ -263,7 +265,11 @@ sub filter {
 	next if $opt eq 'nofilter';
 	$data->{pixels} += $this->{width} * $this->{height}
     }
-    $opt eq 'nofilter' and return $data;
+    if ($opt eq 'nofilter') {
+	$data->{mtime} and $data->{mtime} =
+	    int($data->{mtime} / $data->{files});
+	return $data;
+    }
     $opt eq 'slideshow' and return @ss;
 
     $data->{children} = [sort keys %child]; # maybe sort later? sort by option?
