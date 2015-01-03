@@ -2,9 +2,9 @@
 
 # picasagallery by twitham@sbcglobal.net, 2013-12
 
-# remote-control (keyboard) driven mythgallery-style browser that
-# understands local Picasa: albums, faces, stars, uploads, captions,
-# exif, tags, etc.
+# remote-control (keyboard) driven mythgallery-style picture browser
+# that understands local Picasa data: albums, faces, stars, uploads,
+# captions, exif, tags, and so on.
 
 # TODO: support all Picasa file formats (videos for example) (help ->
 #	options -> file types: jpe?g, bmp, gif, png, tga, tiff?, webp,
@@ -30,6 +30,7 @@ use Tk::Bitmap;
 use Tk::Pixmap;
 use Tk::Photo;
 use Tk::Font;
+use Tk::ErrorDialog;   # unexpected errors to dialog instead of stderr
 use Tk::Table;			 # for picture browser
 use Tk::ProgressBar;		 # for metadata refreshing progress bar
 use Data::Dumper;		 # for saving metadata cache
@@ -333,8 +334,12 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 		$mw->raiseFocus;
 		&move;
 	    } elsif ($picasa->{dir}{file} eq '/') {
-		if ($picasa->{done}) { # save recently updated cache
+		$tg->clear;
+		$full->withdraw;
+		$mw->withdraw;
+		if ($picasa->{done}) { # save current updated cache
 		    if (open my $fh, '>', "$conf->{metadata}~") {
+			print "saving $conf->{metadata}...\n" if -t STDIN;
 			print $fh Dumper $picasa or warn $!;
 			close $fh and rename "$conf->{metadata}~",
 			$conf->{metadata} or warn $!;
@@ -346,6 +351,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 		$full->destroy;
 		$mw->destroy;
 		Tk::exit;
+		exit;
 	    } else {
 		$picasa->up;
 		&newdir;
@@ -616,8 +622,8 @@ BEGIN {	# filtering for stats is expensive, so we update GUI only once a second
 	my($force) = @_;
 	$force and $updated = 1;
 	$mw->update;		# let GUI work while we are busy
-	return unless time > $updated;
-	return unless $picasa->{root};
+	time > $updated or return;
+	$picasa->{root} or return;
 
 	# warn "updating $File::Find::name\n" if $conf->{debug};
 	my $loc = $picasa->{file} && $picasa->{file}{dir} && $picasa->{file}{file}
@@ -923,7 +929,7 @@ sub newpic {	     # replace the full picture with current selection
 	    # 	if $conf->{debug};
 	    my $age;
 	    my $days = delta_days($yr, $m, $d, $Yr, $M, $D);
-	    if ($days < 92) {	# 31 + 31 + 30 will always get to thrid month
+	    if ($days < 92) {	# 31 + 31 + 30 will always get to third month
 		$age = sprintf "%dd", $days;
 	    } elsif ($days < 366 * 3) { # show months below age 3 years
 		$age = sprintf "%dm", int($year * 12 + $mon + $day/365.25/12);
@@ -1155,5 +1161,5 @@ sub Tk::raiseFocus {
     $w->focus;
     $w->grab unless $^O =~ /MSWin/;
     $w->update;
-    $cur = $w unless $w eq $menu; # focus to restore after menu
+    $cur = $w unless Exists $menu and $w eq $menu; # focus to restore after menu
 }
