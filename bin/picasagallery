@@ -55,6 +55,7 @@ our $conf = {
     fullscreen	=> 0, # go full-screen with no borders (ignore width/height)
     birthday	=> {}, # optional contact(id|name) => 'yyyy/mm/dd' birthdays
     bg		=> 'black',	# background color for the application
+    dbg		=> 'gray22',	# background color for directory tiles
     select	=> 'green',	# current thumbnail selection color
     text	=> 'white',	# corner information text color
     title	=> 'red',	# header/footer color
@@ -153,7 +154,6 @@ my $pg = $mw->ProgressBar(-anchor => 's', -to => $picasa->{pics} ?
 my $full = $mw->Toplevel(-width => $mx, -height => $my, -bg => $conf->{bg});
 $full->geometry(sprintf "%dx%d", $mx, $my);
 $full->update;
-$conf->{fullscreen} and &togglefullscreen($full);
 my $scale = 1;			# scale of current picture
 my $canvas = $full->Canvas(-bg => $conf->{bg},
 			   -highlightthickness=> 0, -borderwidth => 0)
@@ -665,9 +665,9 @@ sub stats {			# format the [average] image metrics
 	unless $scale;
     $scale *= 2 / 3 if $this->{file} =~ m!/$!;
 
-    return sprintf "%.0f KB (%.2f MP) %.0f x %.0f (%.3f) %.0f%%",
+    return sprintf "%.0f KB (%.0f KP) %.0f x %.0f (%.3f) %.0f%%",
     $this->{bytes} / 1024 / $this->{files},
-    $this->{pixels} / 1000 / 1000 / $this->{files},
+    $this->{pixels} / 1000 / $this->{files},
     $w, $h, $w / $h, 100 * $scale;
 }
 
@@ -680,24 +680,26 @@ sub scroll {			# move browser to current selection
 sub move {		       # move browser to new directory or file
     &scroll;
     return unless my $current = $picasa->{file};
-    # warn "location: $picasa->{dir}{dir} $picasa->{dir}{file} - $picasa->{file}{dir} $picasa->{file}{file} ($picasa->{index})\n" if $conf->{debug};
+#    warn "location: $picasa->{dir}{dir} $picasa->{dir}{file} - $picasa->{file}{dir} $picasa->{file}{file} ($picasa->{index})\n" if $conf->{debug};
     return unless $current->{files};
 
     $mw->title("PG: $picasa->{file}{dir}");
 
     for my $i (0 .. $#tn) {
 	my $w = $tg->get(int($i / $tnx + 1), $i % $tnx + 1);
-	$w->configure(-bg => $conf->{bg});
+	my $dir = $picasa->{dir}{children}[$i] || 0;
+	$dir and $dir = $dir =~ m@/$@;
+	$w->configure(-bg => $dir ? $conf->{dbg} : $conf->{bg});
 	$w->configure(-bg => $conf->{select}) if $i == $picasa->{index};
     }
 
     $n = $current->{file};
     $n =~ s/$current->{time}-//; # unless $n =~ m!/$!;
 
-    $nw = sprintf "%.2f MB (%.2f GP) in %d files",
+    $nw = $n =~ m@/$@ ? sprintf "%.0f MB (%.0f MP) in %d files",
     $current->{bytes} / 1024 / 1024,
-    $current->{pixels} / 1000 / 1000 / 1000,
-    $current->{files};
+    $current->{pixels} / 1000 / 1000,
+    $current->{files} : '';
     my $tmp = &nums($current);
     $nw .= " ($tmp)" if $tmp;
 
