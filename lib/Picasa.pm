@@ -262,7 +262,7 @@ sub filter {
 	    $data->{endtime} && $data->{endtime} gt $this->{time};
 
 	next if $opt eq 'nofilter';
-	$data->{pixels} += $this->{width} * $this->{height}
+	$data->{pixels} += $this->{width} * $this->{height};
     }
     $data->{physical} = $files[$data->{files} / 2]; # middle picture
     if ($data->{files} > 2) {			    # not first or last
@@ -518,7 +518,7 @@ sub _wanted {
 	$this->{album}	= $db->albums($dir, $file);
 	$this->{stars}	= $db->star($dir, $file);
 	$this->{uploads} = $db->uploads($dir, $file);
-	$this->{faces}	= keys %{$this->{face}} ? 1 : 0; # files that have attributes
+	$this->{faces}	= keys %{$this->{face}} ? 1 : 0; # boolean attributes
 	$this->{albums}	= keys %{$this->{album}} ? 1 : 0;
 	$this->{tags}	= keys %{$this->{tag}} ? 1 : 0;
 
@@ -527,7 +527,8 @@ sub _wanted {
 	my $year = 0;
 	$year = $1 if $this->{time} =~ /(\d{4})/; # year must be first
 
-	my $vname = "$this->{time}-$file"; # unique virtual filename
+	my $vname = "$this->{time}-$file"; # sort files chronologically
+	$conf->{sortbyfilename} and $vname = $file; # sort by filename
 
 	# add virtual folders of stars, tags, albums, people
 	$this->{stars} and
@@ -540,7 +541,7 @@ sub _wanted {
 	for my $id (keys %{$this->{album}}) { # named user albums
 	    next unless my $name = $db->{album}{$id}{name};
 	    # putting year in this path would cause albums that span
-	    # year boundary to be in 2 places...
+	    # year boundary to be split to multiple places...
 	    $db->_addpic2path("/[Albums]/$name/$vname", $key);
 	}
 
@@ -552,7 +553,9 @@ sub _wanted {
 
 	# add folders (putting year here would split folders into
 	# multiple locations (y/f or f/y); maybe this would be ok?)
-	$db->_addpic2path("/[Folders]/$key", $key);
+#	$db->_addpic2path("/[Folders]/$key", $key);
+	(my $timekey = $key) =~ s@[^/]+$@$vname@;
+	$db->_addpic2path("/[Folders]/$timekey", $key);
 
 	$odb->{sofar}++;	# count of pics read so far
 
