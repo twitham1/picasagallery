@@ -170,9 +170,8 @@ $m{m}->add('command', -label => 'Menu: Picasa Gallery',
 	   qw(-accelerator m -underline 0)); #, -state => 'disabled');
 $m{m}->add(qw/command -label Help -accelerator h -underline 0 -command/
 	   => \&help);
-$m{m}->add('checkbutton', -label => 'Info Overlay',
-	   qw(-accelerator i -underline 0 -variable) => \$conf->{info},
-	   -command => \&newpic);
+$m{m}->add('command', -label => 'Information Overlay',
+	   qw(-accelerator i -underline 0 -command) => \&info);
 $m{m}->add('checkbutton', -label => 'Zoom Thumbnails',
 	   qw(-accelerator e -underline 0 -variable) => \$conf->{thumbcrops},
 	   -command => \&refilter);
@@ -510,8 +509,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
     }
     for (qw(<Key-i>)) {
 	$w->bind($_, sub {	# information toggle
-	    $conf->{info} = $conf->{info} ? 0 : 1;
-	    &newpic;
+	    &info
 		 });
     }
     for (qw(<Key-e>)) {
@@ -707,6 +705,9 @@ sub stats {			# format the [average] image metrics
 	unless $scale;
     $scale *= 2 / 3 if $this->{file} =~ m!/$!;
 
+    $conf->{info} == 1 and $x == $mx and
+	return sprintf '%.0f%%', 100 * $scale;
+
     return sprintf "%.0f KB (%.0f KP) %.0f x %.0f (%.3f) %.0f%%",
     $this->{bytes} / 1024 / $this->{files},
     $this->{pixels} / 1000 / $this->{files},
@@ -825,6 +826,12 @@ sub max {
     return (sort { $b <=> $a } @_)[0];
 }
 
+sub info {			# cycle information overlay level
+    $conf->{info}++;
+    $conf->{info} > 2 and $conf->{info} = 0;
+    &newpic;
+}
+
 sub newpic {	     # replace the full picture with current selection
     &move;
     $ss->time or $full->focusCurrent eq $full or return;
@@ -851,17 +858,14 @@ sub newpic {	     # replace the full picture with current selection
     $canvas->coords('image', $X, $Y);
     $full->title("PG: $picasa->{file}{file}");
 
-    $canvas->delete('bg');
-    $canvas->delete('fg');
-    $canvas->delete('faces');
-    $canvas->delete('view');
-    $canvas->delete('help');
-    
+    my @all = qw/bg fg faces view help/;
+    map { $canvas->delete($_) } @all;
+
     unless ($conf->{info}) {
 	$conf->{pan} and &picmove(0, 0);
 	return;
     }
-    if (my $info = $exif->ImageInfo($pf)) {
+    if ($conf->{info} > 1 and my $info = $exif->ImageInfo($pf)) {
 	my @info;
 	push @info, $info->{Make} if $info->{Make};
 	push @info, $info->{Model} if $info->{Model};
@@ -893,6 +897,7 @@ sub newpic {	     # replace the full picture with current selection
     my $tmp = &nums($this);
     $text .= "\n($tmp)" if $tmp;
     $text .= "\n" . join "\n", keys %{$this->{tag}} if keys %{$this->{tag}};
+    $conf->{info} == 1 and $text = $this->{time};
     $canvas->createTextBox(0, 0, $conf->{filtering} ? 'red' : $conf->{bg},
 			   -anchor => 'nw',
 			   -font => $font,
@@ -900,15 +905,16 @@ sub newpic {	     # replace the full picture with current selection
 			   $conf->{filtering} ? 'white' : $conf->{text},
 			   -text => $text,
 			   -tags => 'fg');
-    $text = join "\n", map { $picasa->{album}{$_}{name} }
-    keys %{$this->{album}};
-    $canvas->createTextBox(0, $my, $conf->{bg},
-			   -anchor => 'sw',
-			   -font => $font,
-			   -fill => $conf->{text},
-			   -text => $text,
-			   -tags => 'fg');
-
+    if ($conf->{info} > 1) {
+	$text = join "\n", map { $picasa->{album}{$_}{name} }
+	keys %{$this->{album}};
+	$canvas->createTextBox(0, $my, $conf->{bg},
+			       -anchor => 'sw',
+			       -font => $font,
+			       -fill => $conf->{text},
+			       -text => $text,
+			       -tags => 'fg');
+    }
     my $total = @{$picasa->{dir}{children}};
     my $cur = $picasa->{index} + 1;
     $text = " $cur / $total ";
@@ -936,7 +942,6 @@ sub newpic {	     # replace the full picture with current selection
 			-fill => $conf->{title},
 			-width => 5,
 			-tags => 'fg');
-#    $full->after(3000, sub { $canvas->delete($id) });
     if (@ss) {
 	my $bar = $mx / @ss;
 	$canvas->createLine($bar * $ssindex, 2,
@@ -958,45 +963,49 @@ sub newpic {	     # replace the full picture with current selection
 			       -tags => 'fg');
     }
 
-    for my $id (keys %{$this->{face}}) { # named rectangles around faces!
-	my($l, $t, $r, $b) = @{$this->{face}{$id}};
-	my $name = $picasa->contact2person($id);
-	$canvas->createRectangle($X + $l * $x * $scale, $Y + $t * $y * $scale,
-				 $X + $r * $x * $scale, $Y + $b * $y * $scale,
-				 -outline => $conf->{face},
-				 -tags => 'faces');
-	$canvas->createText($X + $l * $x * $scale + 2, $Y + $t * $y * $scale,
-			    -anchor => 'nw',
-			    -font => $font,
-			    -fill => $conf->{face},
-			    -text => $name,
-			    -tags => 'faces');
-	if (my $birth = $conf->{birthday}{$id} # show ages of faces :-)
-	    || $conf->{birthday}{$name}) {
-	    my($yr, $m, $d) = split '/', $birth;
-	    my($Yr, $M, $D) = split /\D+/, $this->{time};
-	    my($year, $mon, $day) = delta_ymd($yr, $m, $d, $Yr, $M, $D);
-	    # warn "age $id/$name: $Yr, $M, $D - $yr, $m, $d = $year, $mon, $day\n"
-	    # 	if $conf->{debug};
-	    my $age;
-	    my $days = delta_days($yr, $m, $d, $Yr, $M, $D);
-	    if ($days < 92) {	# 31 + 31 + 30 will always get to third month
-		$age = sprintf "%dd", $days;
-	    } elsif ($days < 366 * 3) { # show months below age 3 years
-		$age = sprintf "%dm", int($year * 12 + $mon + $day/365.25/12);
-	    } else {
-		$age = sprintf "%d", int($year + $mon / 12 + $day / 365.25);
-	    }
-	    $canvas->createText($X + $r * $x * $scale - 2,
-				$Y + $b * $y * $scale,
-				-justify => 'right',
-				-anchor => 'se',
+    if ($conf->{info} > 1) {
+	for my $id (keys %{$this->{face}}) { # named rectangles around faces!
+	    my($l, $t, $r, $b) = @{$this->{face}{$id}};
+	    my $name = $picasa->contact2person($id);
+	    $canvas->createRectangle($X + $l * $x * $scale, $Y + $t * $y * $scale,
+				     $X + $r * $x * $scale, $Y + $b * $y * $scale,
+				     -outline => $conf->{face},
+				     -tags => 'faces');
+	    $canvas->createText($X + $l * $x * $scale + 2, $Y + $t * $y * $scale,
+				-anchor => 'nw',
 				-font => $font,
 				-fill => $conf->{face},
-				-text => $age,
+				-text => $name,
 				-tags => 'faces');
+	    if (my $birth = $conf->{birthday}{$id} # show ages of faces :-)
+		|| $conf->{birthday}{$name}) {
+		my($yr, $m, $d) = split '/', $birth;
+		my($Yr, $M, $D) = split /\D+/, $this->{time};
+		my($year, $mon, $day) = delta_ymd($yr, $m, $d, $Yr, $M, $D);
+		# warn "age $id/$name: $Yr, $M, $D - $yr, $m, $d = $year, $mon, $day\n"
+		# 	if $conf->{debug};
+		my $age;
+		my $days = delta_days($yr, $m, $d, $Yr, $M, $D);
+		if ($days < 92) { # 31 + 31 + 30 will always get to third month
+		    $age = sprintf "%dd", $days;
+		} elsif ($days < 366 * 3) { # show months below age 3 years
+		    $age = sprintf "%dm", int($year*12 + $mon + $day/365.25/12);
+		} else {
+		    $age = sprintf "%d", int($year + $mon / 12 + $day / 365.25);
+		}
+		$canvas->createText($X + $r * $x * $scale - 2,
+				    $Y + $b * $y * $scale,
+				    -justify => 'right',
+				    -anchor => 'se',
+				    -font => $font,
+				    -fill => $conf->{face},
+				    -text => $age,
+				    -tags => 'faces');
+	    }
 	}
     }
+    # $full->after($conf->{info} > 1 ? 10000 : 5000,
+    # 		 sub { map { $canvas->delete($_) } @all });
     $conf->{pan} and &picmove(0, 0);
 }
 
