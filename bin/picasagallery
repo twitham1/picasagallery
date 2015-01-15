@@ -3,8 +3,8 @@
 # picasagallery by twitham@sbcglobal.net, 2013-12
 
 # remote-control (keyboard) driven mythgallery-style picture browser
-# that understands local Picasa data: albums, faces, stars, uploads,
-# captions, exif, tags, and so on.
+# that also understands local Picasa data: albums, faces, stars,
+# uploads, captions, exif, tags, and so on.
 
 # TODO: support all Picasa file formats (videos for example) (help ->
 #	options -> file types: jpe?g, bmp, gif, png, tga, tiff?, webp,
@@ -83,16 +83,6 @@ require $conf->{config} if -f $conf->{config};
 $Data::Dumper::Indent = 1;   # readable format for the cached metadata
 $Data::Dumper::Purity = 1;   # evalable on next run
 
-# 3x3 touch zone controls
-my @key = qw(
-	<Escape>	<Up>		<Key-i>
-	<Left>		<Return>	<Right>
-	<Key-m>		<Down>		<Key-m>);
-my @desc =
-    ('up to PARENT', "PREVIOUS row/\nscroll UP", 'toggle text INFORMATION',
-     "PREVIOUS pic/\nscroll LEFT", 'cycle ZOOM', "NEXT pic/\nscroll RIGHT",
-     "MENU/\nsee more keys", "NEXT row/\nscroll DOWN", "MENU/\nsee more keys");
-
 #  rebuild all data since prior run, using previous cache until finished
 my $picasa = Picasa->new($conf);
 
@@ -123,45 +113,42 @@ my $tnx = 7;		       # columns of thumbnails to display
 my $tpx = int(($mx - 4 * $tnx - 50) / $tnx); # 50 = scroll + progress bar width
 my $tpy = int($tpx / 1.1);	# "average" aspect ratio for most pics
 
-# text metadata in corners of browser
-my($nw, $n, $ne, $se, $s, $sw) = ('', '', '', '', '', '');
+my %s;				# strings - data on labels
+my %l;				# label widgets - top and bottom of browser
+my %m;				# menu widgets
+
 # maybe font should be replaced on <configure> window resize...
 my $font = $mw->Font(-family => 'Helvetica',
 		    -size => int($my / 50), # 15,
     );
 
 my @c = (-fg => $conf->{text}, -bg => $conf->{bg});
-my $top = $mw->Frame(@c)->pack(-side => "top", -fill => 'x');
-my $nww = $top->Label(-textvariable => \$nw, -font => $font, @c)
+my $top = $mw->Frame(@c)->pack(qw/-side top -fill x/);
+$l{nw} = $top->Label(-textvariable => \$s{nw}, -font => $font, @c)
     ->pack(-side => "left");
-my $new = $top->Label(-textvariable => \$ne, -font => $font, @c)
+$l{ne} = $top->Label(-textvariable => \$s{ne}, -font => $font, @c)
     ->pack(-side => "right");
-my $nnw = $top->Label(-textvariable => \$n,  -font => $font, @c,
-		      -fg => $conf->{title})->pack(-side => "top");
+$l{n} = $top->Label(-textvariable => \$s{n},  -font => $font, @c,
+		    -fg => $conf->{title})->pack(qw/-side top/);
 
-my $bot = $mw->Frame(@c)->pack(-side => "bottom", -fill => 'x');
-my $sww = $bot->Label(-textvariable => \$sw, -font => $font, @c)
+my $bot = $mw->Frame(@c)->pack(qw/-side bottom -fill x/);
+$l{sw} = $bot->Label(-textvariable => \$s{sw}, -font => $font, @c)
     ->pack(-side => "left");
-my $sew = $bot->Label(-textvariable => \$se, -font => $font, @c)
+$l{se} = $bot->Label(-textvariable => \$s{se}, -font => $font, @c)
     ->pack(-side => "right");
-my $ssw = $bot->Label(-textvariable => \$s, -font => $font, @c,
-		      -fg => $conf->{title})->pack(-side => "bottom");
+$l{s} = $bot->Label(-textvariable => \$s{s}, -font => $font, @c,
+		    -fg => $conf->{title})->pack(qw/-side bottom/);
 
 # thumbnail table grid
-my $tg = $mw->Table(-rows => 4,
-		    -columns => 7,
-		    -scrollbars => 'w',
-		    -bg => $conf->{bg},
-    )->pack(-side => "left", -expand => 1, -fill => "both");
+my $tg = $mw->Table(qw/-rows 4 -columns 7 -scrollbars w -bg/ => $conf->{bg},
+    )->pack(qw/-side left -expand 1 -fill both/);
 
 # metadata refreshing progress bar
 my $sofar = 0;
-my $pg = $mw->ProgressBar(-anchor => 's', -to => $picasa->{pics} ?
-			  scalar keys %{$picasa->{pics}} : 1000,
-			  -variable => \$sofar,
-			  -gap => 0,
-			  -troughcolor => 'red',
-    )->pack(-side => "right", -expand => 0, -fill => 'y');
+my $pg = $mw->ProgressBar(qw/-anchor s -gap 0 -troughcolor red -to/ =>
+			  $picasa->{pics} ? scalar keys %{$picasa->{pics}}
+			  : 1000, -variable => \$sofar,
+    )->pack(qw/-side right -expand 0 -fill y/);
 
 # full size image viewer --------------------------------------------------
 my $full = $mw->Toplevel(-width => $mx, -height => $my, -bg => $conf->{bg});
@@ -169,49 +156,45 @@ $full->geometry(sprintf "%dx%d", $mx, $my);
 $full->update;
 $conf->{fullscreen} and &togglefullscreen($full);
 my $scale = 1;			# scale of current picture
-my $canvas = $full->Canvas(-bg => $conf->{bg},
-			   -highlightthickness=> 0, -borderwidth => 0)
-    ->pack(-side => 'top', -anchor => 'nw', -expand => 1, -fill => 'both');
+my $canvas = $full->Canvas(qw/-highlightthickness 0 -borderwidth 0 -bg/
+			   => $conf->{bg})
+    ->pack(qw/-side top -anchor nw -expand 1 -fill both/);
 my $image = $mw->Photo;
 $image->blank;
-$canvas->createImage(0, 0, -image => $image, -anchor => 'nw', -tags => 'image');
+$canvas->createImage(qw/0 0 -anchor nw -tags image -image/ => $image);
 
 # popup option menu is invoked with "m" key ----------------------------------
-my $menu = $mw->Menu(-tearoff => 0, -takefocus => 1, # takefocus doesn't work???
-		     -font => $font);
-$menu->transient($mw);		# not needed?
-$menu->add('command', -label => 'Menu: Picasa Gallery',
+$m{m} = $mw->Menu(qw/-tearoff 0 -takefocus 1 -font/ => $font);
+$m{m}->transient($mw);		# not needed?
+$m{m}->add('command', -label => 'Menu: Picasa Gallery',
 	   qw(-accelerator m -underline 0)); #, -state => 'disabled');
-$menu->add('checkbutton', -label => 'Help',
-	   qw(-accelerator h -underline 0 -variable) => \$conf->{help});
-$menu->add('checkbutton', -label => 'Info Overlay',
+$m{m}->add(qw/command -label Help -accelerator h -underline 0 -command/
+	   => \&help);
+$m{m}->add('checkbutton', -label => 'Info Overlay',
 	   qw(-accelerator i -underline 0 -variable) => \$conf->{info},
 	   -command => \&newpic);
-$menu->add('checkbutton', -label => 'Zoom Thumbnails',
+$m{m}->add('checkbutton', -label => 'Zoom Thumbnails',
 	   qw(-accelerator e -underline 0 -variable) => \$conf->{thumbcrops},
 	   -command => \&refilter);
-$menu->add('checkbutton', -label => 'Face Thumbnails',
-	   # -accelerator e,
+$m{m}->add('checkbutton', -label => 'Face Thumbnails',
  	   qw(-underline 5 -variable) => \$conf->{facecrops},
 	   -command => \&refilter);
-$menu->add('separator');
+$m{m}->add('separator');
 my $i = 0;
-$menu->add('command', -label => "Clear All Filters",
+$m{m}->add('command', -label => "Clear All Filters",
 	   -accelerator => $i++, -underline => 0, -command =>
 	   sub { $mw->eventGenerate('<Key-0>') });
-my $filter = $menu->Menu(-tearoff => 0, -font => $font);
+$m{filter} = $m{m}->Menu(qw/-tearoff 0 -font/ => $font);
 for (@{$conf->{filters}}) {
-    $filter->add('checkbutton', -label => $_,
-		 -accelerator => $i++,
-		 -variable => \$conf->{filter}{$_},
-		 -onvalue => 1,
-		 -offvalue => 0,
-		 -underline => 0,
-		 -command => \&refilter);
+    $m{filter}->add(qw/checkbutton -onvalue 1 -offvalue 0 -underline 0/,
+		    -label => $_,
+		    -accelerator => $i++,
+		    -variable => \$conf->{filter}{$_},
+		    -command => \&refilter);
 }
-$menu->add('cascade', -label => 'Filter by Attributes', -menu => $filter,
-	   -underline => 0);
-my $age = $menu->Menu(-tearoff => 0, -font => $font);
+$m{m}->add(qw/cascade -underline 0 -label/ => 'Filter by Attributes',
+	   -menu => $m{filter});
+$m{age} = $m{m}->Menu(qw/-tearoff 0 -font/ => $font);
 my $day = 24 * 60 * 60;
 my $year = 365.25 * $day;	# approximate, close enough
 my %age = my @age		# ugly menu, but any better way?
@@ -243,42 +226,42 @@ my %age = my @age		# ugly menu, but any better way?
     my $last;
     for (@age) {
 	$age{$_} = $last and next if /^\d+$/;
-	$age->add('radiobutton',
-		  -label => $_,
-		  -variable => \$conf->{filter}{age},
-		  -value => $age{$_},
-		  (/^\d year|unlimited/ ? (-underline => 0) : ()),
-		  -command => \&refilter);
+	$m{age}->add('radiobutton',
+		     -label => $_,
+		     -variable => \$conf->{filter}{age},
+		     -value => $age{$_},
+		     (/^\d year|unlimited/ ? (-underline => 0) : ()),
+		     -command => \&refilter);
 	$last = $_;
     }
 }
-$menu->add('cascade', -label => 'Filter by Age',
-	   -menu => $age, -underline => 10);
-$menu->add('separator');
+$m{m}->add('cascade', -label => 'Filter by Age',
+	   -menu => $m{age}, -underline => 10);
+$m{m}->add('separator');
 
-my $ssmenu = $menu->Menu(-tearoff => 0, -font => $font);
-$ssmenu->add('command', -label => 'Play / Pause',
-	     qw(-accelerator p -underline 0 -command) => sub {
-	       $mw->eventGenerate('<Key-p>'); });
-$ssmenu->add('command', -label => 'Stop / Reset',
-	     qw(-accelerator t -underline 0 -command) => sub {
-		 $mw->eventGenerate('<Key-t>'); });
-$ssmenu->add(qw(checkbutton -label Random -underline 0 -accelerator r),
-	     -variable => \$conf->{random}, -command => \&refilter);
-my $delay = $ssmenu->Menu(-tearoff => 0, -font => $font);
+$m{ss} = $m{m}->Menu(qw/-tearoff 0 -font/ => $font);
+$m{ss}->add('command', -label => 'Play / Pause',
+	    qw(-accelerator p -underline 0 -command) => sub {
+		$mw->eventGenerate('<Key-p>'); });
+$m{ss}->add('command', -label => 'Stop / Reset',
+	    qw(-accelerator t -underline 0 -command) => sub {
+		$mw->eventGenerate('<Key-t>'); });
+$m{ss}->add(qw(checkbutton -label Random -underline 0 -accelerator r),
+	    -variable => \$conf->{random}, -command => \&refilter);
+$m{delay} = $m{ss}->Menu(qw/-tearoff 0 -font/ => $font);
 for (1 .. 20) {
-    $delay->add('radiobutton',
-		-label => "$_ seconds",
-		-variable => \$conf->{delay},
-		-value => $_,
-		($_ < 10 ? (-underline => 0) : ()),
-		-command => \&showgo);
+    $m{delay}->add('radiobutton',
+		   -label => "$_ seconds",
+		   -variable => \$conf->{delay},
+		   -value => $_,
+		   ($_ < 10 ? (-underline => 0) : ()),
+		   -command => \&showgo);
 }
-$ssmenu->add('cascade', -label => 'Delay',
-	     -menu => $delay, -underline => 0);
-$menu->add('cascade', -label => 'Slide Show',
-	   -menu => $ssmenu, -underline => 0);
-$menu->add('command', -label => 'Rebuild Thumbnail',
+$m{ss}->add('cascade', -label => 'Delay',
+	     -menu => $m{delay}, -underline => 0);
+$m{m}->add('cascade', -label => 'Slide Show',
+	   -menu => $m{ss}, -underline => 0);
+$m{m}->add('command', -label => 'Rebuild Thumbnail',
 	   -underline => 0, -command =>
 	   sub { 	
 	       my $tmp = "$picasa->{file}{dir}$picasa->{file}{file}";
@@ -287,34 +270,43 @@ $menu->add('command', -label => 'Rebuild Thumbnail',
 		   $rebuildthumb{$picasa->{file}{physical}} = 1;
 	       &newdir;
 	   });
-$menu->add('command', -label => 'Quit', -underline => 0, -command =>
+$m{m}->add('command', -label => 'Quit', -underline => 0, -command =>
 	   sub { while(1) { $mw->eventGenerate('<Escape>'); } });
 
-$menu->bind('<Unmap>', sub { $menu->withdraw; $cur->raiseFocus; });
+$m{m}->bind('<Unmap>', sub { $m{m}->withdraw; $cur->raiseFocus; });
 
 $mw->raiseFocus;
 
-# 3x3 touch help overlay toggle ----------------------------------------
+# 3x3 touch/click help overlay ----------------------------------------
+my @key = qw(
+	<Escape>	<Up>		<Key-i>
+	<Left>		<Return>	<Right>
+	<Key-m>		<Down>		<Key-m>);
+my @desc =
+    ('<-- back to PARENT', "PREVIOUS row/\nscroll UP", 'INFORMATION',
+     "PREVIOUS pic/\nscroll LEFT", 'ZOOM in/out', "NEXT pic/\nscroll RIGHT",
+     "MENU/\nshow more keys","NEXT row/\nscroll DOWN","MENU/\nshow more keys");
+
 sub help {
-    my @opt = (
-	-fill => 'yellow',
-	-tags => 'help');
+    my %opt = (qw/-fill yellow -tags help/);
+    $s{nw} = '<-- <Escape> to parent';
+    $s{n} = 'Scroll <Up>';
+    $s{ne} = 'Information <Key-i>';
+    $s{sw} = $s{se} = 'MENU <Key-m>';
+    $s{s} = 'Scroll <Down>';
+    $l{$_}->configure(-fg => $opt{'-fill'}, -bg => $conf->{bg})
+	for qw/nw n ne se s sw/;
     for my $i (0 .. 8) {	# global @key defined above
 	my $x = $mx / 3 * int($i % 3) + $mx / 6;
 	my $y = $my / 3 * int($i / 3) + $my / 6;
 #	$canvas->createTextBox($x, $y, 'black',
 	$canvas->createText($x, $y, -font => $font,
-			    -justify => 'center', -anchor => 'center',
-			    -text => "$desc[$i]\n$key[$i]", @opt);
-	$canvas->createLine($x + $mx / 6, 0, $x + $mx / 6, $my, @opt);
-	$canvas->createLine(0, $y + $my / 6, $mx, $y + $my / 6, @opt);
+			    qw/-justify center -anchor center -text/
+			    => "$desc[$i]\n$key[$i]", %opt);
+	$canvas->createLine($x + $mx / 6, 0, $x + $mx / 6, $my, %opt);
+	$canvas->createLine(0, $y + $my / 6, $mx, $y + $my / 6, %opt);
     }
-    $canvas->createText($mx/2, $my/3, -font => $font,
-			-justify => 'center', -anchor => 'n',
-			-text => '
-(these same touch / mouse click controls are also available in
-the top and bottom lines of the main thumbnail browser window)
-', @opt);
+    $conf->{help} = 0;
 }
 
 # all event bindings happen here ----------------------------------------
@@ -324,13 +316,13 @@ $full->bind('<Button-1>' => [sub { # 3x3 "touch" control zones
     my $hitkey = int($x / $mx * 3) + 3 * int($y / $my * 3);
     $key[$hitkey] and $full->eventGenerate($key[$hitkey]);
 			     }, Ev('x'), Ev('y')]);
-# similar "touch" control zones for main window via corner labels
-$nww->bind('<Button-1>' => [sub { $mw->eventGenerate($key[0]) }]);
-$nnw->bind('<Button-1>' => [sub { $mw->eventGenerate($key[1]) }]);
-$new->bind('<Button-1>' => [sub { $mw->eventGenerate($key[2]) }]);
-$sww->bind('<Button-1>' => [sub { $mw->eventGenerate($key[6]) }]);
-$ssw->bind('<Button-1>' => [sub { $mw->eventGenerate($key[7]) }]);
-$sew->bind('<Button-1>' => [sub { $mw->eventGenerate($key[8]) }]);
+# similar "touch" control zones for main window via text labels
+$l{nw}->bind('<Button-1>' => [sub { $mw->eventGenerate($key[0]) }]);
+$l{n}->bind('<Button-1>' => [sub { $mw->eventGenerate($key[1]) }]);
+$l{ne}->bind('<Button-1>' => [sub { $mw->eventGenerate($key[2]) }]);
+$l{sw}->bind('<Button-1>' => [sub { $mw->eventGenerate($key[6]) }]);
+$l{s}->bind('<Button-1>' => [sub { $mw->eventGenerate($key[7]) }]);
+$l{se}->bind('<Button-1>' => [sub { $mw->eventGenerate($key[8]) }]);
 
 $full->bind('<Configure>' => # resize window resizes full-size picture
 	    sub  { my $w = shift;
@@ -364,11 +356,11 @@ for my $w ($mw, $full) {	# both windows have same key bindings
     }
     for (qw(<Key-m> <Button-3>)) {
 	$w->bind($_, sub {	# popup options menu
-	    $menu->post($w->x + $w->width / 3, $w->y + $w->height / 3);
-	    $menu->raiseFocus;	# -takefocus fails on mythbuntu???
+	    $m{m}->post($w->x + $w->width / 3, $w->y + $w->height / 3);
+	    $m{m}->raiseFocus;	# -takefocus fails on mythbuntu???
 		 });
     }
-    for (qw(<Key-q> <Escape> <Button-2>)) {
+    for (qw(<Escape> <BackSpace> <Key-q> <Button-2>)) {
 	$w->bind($_, sub {	# up or exit
 	    my $tmp = $mw->focusCurrent;
 	    if ($mw->focusCurrent eq $full) {
@@ -424,7 +416,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 	    }
 		 });
     }
-    for (qw(<Left> <BackSpace>)) {
+    for (qw(<Left>)) {
 	$w->bind($_, sub {	# previous picture or subdir
 	    if ($conf->{pan} and $mw->focusCurrent eq $full) {
 		&picmove($mx / 10, 0);
@@ -529,10 +521,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 		 });
     }
     for (qw(<Key-h> <F1>)) {
-	$w->bind($_, sub {	# help toggle
-	    $conf->{help} = $conf->{help} ? 0 : 1;
-	    &newpic;
-		 });
+	$w->bind($_, \&help);	# help toggle
     }
 }
 
@@ -706,7 +695,7 @@ sub nums {	# format the counts of attributes; upcase if filtering
     keys %{$conf->{filter}};
     $conf->{filter}{age} and ++$conf->{filtering} and
 	$out .= " $age{$conf->{filter}{age}}";
-    $nww->configure($conf->{filtering} ? (-fg => 'white', -bg => 'red') : @c);
+    $l{nw}->configure($conf->{filtering} ? (-fg => 'white', -bg => 'red') : @c);
     return ($conf->{filtering} || $out =~ /[1-9]/ ? $out : '');
 }
 
@@ -746,32 +735,34 @@ sub move {		       # move browser to new directory or file
 	$w->configure(-bg => $conf->{select}) if $i == $picasa->{index};
     }
 
-    $n = $current->{file};
-    $n =~ s/$current->{time}-//; # unless $n =~ m!/$!;
+    $l{$_}->configure(@c) for qw/nw n ne se s sw/;
 
-    $nw = $n =~ m@/$@ ? sprintf "%.0f MB (%.0f MP) in %d files",
+    $s{n} = $current->{file};
+    $s{n} =~ s/$current->{time}-//; # unless $s{n} =~ m!/$!;
+
+    $s{nw} = $s{n} =~ m@/$@ ? sprintf "%.0f MB (%.0f MP) in %d files",
     $current->{bytes} / 1024 / 1024,
     $current->{pixels} / 1000 / 1000,
     $current->{files} : '';
     my $tmp = &nums($current);
-    $nw .= " ($tmp)" if $tmp;
-    $nw or $nw = '<--back';
+    $s{nw} .= " ($tmp)" if $tmp;
+    $s{nw} or $s{nw} = '<--back';
 
-    $ne = &stats($current, $tpx, $tpy); # highlight means update is in progress
-    $new->configure($picasa->{done} ? @c : (-fg => 'white', -bg => 'red'));
+    $s{ne} = &stats($current, $tpx, $tpy); # highlight means update is in progress
+    $l{ne}->configure($picasa->{done} ? @c : (-fg => 'white', -bg => 'red'));
 
     my $total = @{$picasa->{dir}{children}};
     my $cur = $picasa->{index} + 1;
-    $s = "$current->{dir} $cur / $total";
+    $s{s} = "$current->{dir} $cur / $total";
 
-    $sw = $current->{time};
-    $se = $ss->time ? sprintf("$conf->{slideshow} %d / %d (%d%s) ",
-			      $ssindex + 1, scalar @ss,
-			      $conf->{delay}, $conf->{random} ? 'r' : '')
+    $s{sw} = $current->{time};
+    $s{se} = $ss->time ? sprintf("$conf->{slideshow} %d / %d (%d%s) ",
+				 $ssindex + 1, scalar @ss,
+				 $conf->{delay}, $conf->{random} ? 'r' : '')
 	: ($current->{time} eq $current->{endtime}) ? $current->{caption} || ''
 	: $current->{endtime};
-    $se or $se = '(menu)';
-    $sew->configure($ss->time ? (-fg => $conf->{ssc}) : @c);
+    $s{se} or $s{se} = '(menu)';
+    $l{se}->configure($ss->time ? (-fg => $conf->{ssc}) : @c);
 }
 
 sub newdir {		 # replace all thumbnails in current directory
@@ -865,10 +856,11 @@ sub newpic {	     # replace the full picture with current selection
     $canvas->delete('faces');
     $canvas->delete('view');
     $canvas->delete('help');
-    $conf->{help} and &help;
     
-    $conf->{info} or do { $conf->{pan} and &picmove(0, 0); return; };
-
+    unless ($conf->{info}) {
+	$conf->{pan} and &picmove(0, 0);
+	return;
+    }
     if (my $info = $exif->ImageInfo($pf)) {
 	my @info;
 	push @info, $info->{Make} if $info->{Make};
@@ -1262,5 +1254,5 @@ sub Tk::raiseFocus {
     $w->focus;
     $w->grab unless $^O =~ /MSWin/;
     $w->update;
-    $cur = $w unless Exists $menu and $w eq $menu; # focus to restore after menu
+    $cur = $w unless Exists $m{m} and $w eq $m{m}; # focus to restore after menu
 }
