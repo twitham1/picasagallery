@@ -33,6 +33,8 @@ my $conf = {		       # override any keys in first arg to new
     update	=> sub {},  # callback after each directory is scanned
     debug	=> 0,	    # diagnostics to STDERR
     filter	=> {},	    # filters
+    editfiles	=> 0,	# optional sub to return modified virtual path
+    sortbyfilename => 0,	# sort by filename rather than time
 };
 
 my $exiftool;	       # for collecting exif data we are interested in
@@ -293,6 +295,7 @@ sub filter {
 # add picture to virtual path
 sub _addpic2path {
     my($self, $virt, $file) = @_;
+    $conf->{editfiles} and $virt = &{$conf->{editfiles}}($virt);
     $self->{root}{$virt} = $file;
 }
 
