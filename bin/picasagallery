@@ -69,12 +69,11 @@ our $conf = {
 	age => 0,	   # show only newer than X seconds before now
     },
     slideshow	=> '',		# root of current automatic slide show
-    delay	=> 3,		# seconds to show each picture
+    delay	=> 4,		# seconds to show each picture
     random	=> 0,		# 0 = sequential, 1 == random show
     pan		=> 0,		# 1 = pan image mode
-    thumbcrops	=> 1,		# 1 = zoom (crop) thumbnails to fill tiles
+    thumbcrops	=> 0,		# 1 = zoom (crop) thumbnails to fill tiles
     facecrops	=> 1,		# 1 = face thumnails in [People] paths
-    help	=> 0,		# 1 = overlay 3x3 click/touch help
 };
 
 # configuration file can override any of the above options:
@@ -94,8 +93,7 @@ my %rebuildthumb;	   # stale thumbnails to rebuild
 mkdir $conf->{cache} or die $! unless -d $conf->{cache}; # thumbnail cache
 
 my $exif = new Image::ExifTool;	# for collecting picture metadata
-$exif->Options(FastScan => 1,
-	       DateFormat => $conf->{datefmt});
+$exif->Options(FastScan => 1, DateFormat => $conf->{datefmt});
 
 # main window is a thumbnail browser ----------------------------------------
 my $mw = Tk::MainWindow->new (-title => "Picasa Gallery", -bg => $conf->{bg});
@@ -105,6 +103,7 @@ $mw->geometry(sprintf "%dx%d", $mx, $my);
 $mw->update;
 $conf->{fullscreen} and &togglefullscreen($mw);
 
+my $pos;			    # position indicator timer
 my $ss = $mw->repeat(1000, \&show); # slideshow timer
 $ss->time(0);			    # but not yet running
 
@@ -305,7 +304,6 @@ sub help {
 	$canvas->createLine($x + $mx / 6, 0, $x + $mx / 6, $my, %opt);
 	$canvas->createLine(0, $y + $my / 6, $mx, $y + $my / 6, %opt);
     }
-    $conf->{help} = 0;
 }
 
 # all event bindings happen here ----------------------------------------
@@ -355,8 +353,9 @@ for my $w ($mw, $full) {	# both windows have same key bindings
     }
     for (qw(<Key-m> <Button-3>)) {
 	$w->bind($_, sub {	# popup options menu
-	    $m{m}->post($w->x + $w->width / 3, $w->y + $w->height / 3);
-	    $m{m}->raiseFocus;	# -takefocus fails on mythbuntu???
+	    $m{m}->Post($w->x + $w->width / 3, $w->y + $w->height / 3);
+	    $m{m}->raiseFocus	# -takefocus fails on ubuntu???
+		unless $^O =~ /MSWin/;
 		 });
     }
     for (qw(<Escape> <BackSpace> <Key-q> <Button-2>)) {
@@ -563,16 +562,12 @@ sub picmove {			# pan picture with view indicators
     $canvas->createLine($left / $w * $mx, $my - 6,
 			$mx - ($right / $w * $mx), $my - 6,
 			-fill => $conf->{scroll},
-			-width => 5,
-			-arrow => 'both',
-			-tags => 'view')
+			qw/-width 5 -arrow both -tags view/)
 	if $left > 0 or $right > 0;
     $canvas->createLine(6, $above / $h * $my,
 			6, $my - ($below / $h * $my),
 			-fill => $conf->{scroll},
-			-width => 5,
-			-arrow => 'both',
-			-tags => 'view')
+			qw/-width 5 -arrow both -tags view/)
 	if $above > 0 or $below > 0;
     if ($left > 0 or $right > 0
 	or $above > 0 or $below > 0) {
@@ -672,9 +667,8 @@ BEGIN {	# filtering for stats is expensive, so we update GUI only once a second
 	$picasa->{dir} or $picasa->{dir} = $picasa->{file};
 	&move;			# updates statistics on GUI
 	$sofar = $picasa->{sofar};
-	if ($sofar > $pg->cget('-to')) {
+	$sofar < $pg->cget('-to') or
 	    $pg->configure(-to => $sofar + 1000);
-	}
 	$updated = time;
     }
 }
@@ -858,10 +852,27 @@ sub newpic {	     # replace the full picture with current selection
     $canvas->coords('image', $X, $Y);
     $full->title("PG: $picasa->{file}{file}");
 
-    my @all = qw/bg fg faces view help/;
+    my @all = qw/bg fg faces view help pos/;
     map { $canvas->delete($_) } @all;
 
-    unless ($conf->{info}) {
+    $pos and $pos->cancel;	# cancel position remover
+    my $total = @{$picasa->{dir}{children}};
+    my $bar = $mx / $total;	# progress bar
+    $canvas->createLine($bar * $picasa->{index}, 2,
+			$bar * $picasa->{index} +
+			($bar > 5 ? $bar : 5), 2,
+			-fill => $conf->{title},
+			qw/-width 5 -tags pos/);
+    if (@ss) {
+	my $bar = $mx / @ss;
+	$canvas->createLine($bar * $ssindex, 2,
+			    $bar * $ssindex +
+			    ($bar > 5 ? $bar : 5), 2,
+			    -fill => $conf->{ssc},
+			    qw/-width 5 -tags pos/);
+    }
+    unless ($conf->{info}) {	# bypass info overlay
+	$pos = $full->after(2000, sub { $canvas->delete('pos') });
 	$conf->{pan} and &picmove(0, 0);
 	return;
     }
@@ -915,7 +926,6 @@ sub newpic {	     # replace the full picture with current selection
 			       -text => $text,
 			       -tags => 'fg');
     }
-    my $total = @{$picasa->{dir}{children}};
     my $cur = $picasa->{index} + 1;
     $text = " $cur / $total ";
     $canvas->createTextBox($mx / 2, 0, $conf->{bg},
@@ -933,24 +943,6 @@ sub newpic {	     # replace the full picture with current selection
 			       -fill => ($ss->time ? $conf->{ssc} : 'white'),
 			       -text => $text,
 			       -tags => 'fg');
-    }
-    my $bar = $mx / $total;	# progress bar
-    # my $id =
-    $canvas->createLine($bar * $picasa->{index}, 2,
-			$bar * $picasa->{index} +
-			($bar > 5 ? $bar : 5), 2,
-			-fill => $conf->{title},
-			-width => 5,
-			-tags => 'fg');
-    if (@ss) {
-	my $bar = $mx / @ss;
-	$canvas->createLine($bar * $ssindex, 2,
-			    $bar * $ssindex +
-			    ($bar > 5 ? $bar : 5), 2,
-			    -fill => $conf->{ssc},
-			    -width => 5,
-			    -tags => 'fg');
-
     }
 
     if ($this->{caption}) {
@@ -1004,8 +996,7 @@ sub newpic {	     # replace the full picture with current selection
 	    }
 	}
     }
-    # $full->after($conf->{info} > 1 ? 10000 : 5000,
-    # 		 sub { map { $canvas->delete($_) } @all });
+    $canvas->raise('pos', 'image||bg');
     $conf->{pan} and &picmove(0, 0);
 }
 
