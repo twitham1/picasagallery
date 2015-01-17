@@ -459,12 +459,13 @@ for my $w ($mw, $full) {	# both windows have same key bindings
     for (qw(<Key-F> <Key-f>)) {
 	$w->bind($_, sub {	# faster slideshow
 	    $conf->{delay}--;
-	    $conf->{delay} >= 1 or $conf->{delay} = 1;
+	    $conf->{delay} >= 1 or $conf->{delay} = 0.5;
 	    &showgo;
 		 });
     }
     for (qw(<Key-B> <Key-b>)) {
 	$w->bind($_, sub {	# slower slideshow
+	    $conf->{delay} >= 1 or $conf->{delay} = 0;
 	    $conf->{delay}++;
 	    $conf->{delay} <= 20 or $conf->{delay} = 20;
 	    &showgo;
@@ -598,6 +599,7 @@ sub showgo {			# start show or adjust time delay
 }
 
 sub show {		# slide show callback: advance to next picture
+    $mw->update;
     return unless @ss;
     my $was = "$picasa->{dir}{dir}$picasa->{dir}{file}";
     my $pic = "$picasa->{file}{dir}$picasa->{file}{file}";
@@ -723,7 +725,7 @@ sub move {		       # move browser to new directory or file
     $mw->title("PG: $picasa->{file}{dir}");
 
     for my $i (0 .. $#tn) {
-	my $w = $tg->get(int($i / $tnx + 1), $i % $tnx + 1);
+	my $w = $tg->get(int($i / $tnx + 1), $i % $tnx + 1) or next;
 	my $dir = $picasa->{dir}{children}[$i] || 0;
 	$dir and $dir = $dir =~ m@/$@;
 	$w->configure(-bg => $dir ? $conf->{dbg} : $conf->{bg});
@@ -768,7 +770,7 @@ sub newdir {		 # replace all thumbnails in current directory
     $mw->raiseFocus unless $conf->{slideshow};
 
     &move;
-    $_->cget(-image)->blank for (@tn);
+    $_ and $_->cget(-image)->blank for (@tn);
 #    $ss->time and $conf->{random} and return; # too expensive to cd often
     $refreshing = $now;
     # sort by distance from current selection to update visible ones first
@@ -917,7 +919,8 @@ sub newpic {	     # replace the full picture with current selection
 			   -text => $text,
 			   -tags => 'fg');
     if ($conf->{info} > 1) {
-	$text = join "\n", map { $picasa->{album}{$_}{name} }
+	$text = join "\n", split '/', $pf;
+	$text = join "\n", "$text\n", map { $picasa->{album}{$_}{name} }
 	keys %{$this->{album}};
 	$canvas->createTextBox(0, $my, $conf->{bg},
 			       -anchor => 'sw',
