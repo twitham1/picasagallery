@@ -171,6 +171,8 @@ $m{m}->add(qw/command -label Help -accelerator h -underline 0 -command/
 	   => \&help);
 $m{m}->add('command', -label => 'Information Overlay',
 	   qw(-accelerator i -underline 0 -command) => \&info);
+$m{m}->add(qw/command -accelerator F11 -label/ => 'Full Screen',
+	   -command => sub { &togglefullscreen($cur) });
 $m{m}->add('checkbutton', -label => 'Zoom Thumbnails',
 	   qw(-accelerator e -underline 0 -variable) => \$conf->{thumbcrops},
 	   -command => \&refilter);
