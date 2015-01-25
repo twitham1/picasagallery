@@ -366,21 +366,7 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 	    if ($mw->focusCurrent eq $full) {
 		$mw->raiseFocus;
 		&move;
-	    } elsif ($picasa->{dir}{file} eq '/') {
-		$tg->clear;
-		$full->withdraw;
-		$mw->withdraw;
-		if ($picasa->{done}) { # save current updated cache
-		    if (open my $fh, '>', "$conf->{metadata}~") {
-			print "saving $conf->{metadata}...\n" if -t STDIN;
-			print $fh Dumper $picasa or warn $!;
-			close $fh and rename "$conf->{metadata}~",
-			$conf->{metadata} or warn $!;
-			warn "$conf->{metadata} saved\n" if $conf->{debug};
-		    } else {
-			warn "can't write $conf->{metadata}~: $!\n";
-		    }
-		}
+	    } elsif ($picasa->{dir}{file} eq '/') { # exit app
 		$full->destroy;
 		$mw->destroy;
 		Tk::exit;
@@ -525,11 +511,22 @@ for my $w ($mw, $full) {	# both windows have same key bindings
     }
 }
 
-# all metadata is updated in the background -----------------------------------
+# all metadata is updated in the background at each startup ----------------
 warn "starting Picasa recursion\n" if $conf->{debug};
 #$mw->after(1500, \&newdir);	# show browser after we have some data
 $mw->after(1500, sub { $mw->eventGenerate('<Return>') });
 $picasa = $picasa->recursedirs('.'); # updates GUI via $conf->{update}
+if ($picasa->{done}) {		     # save current updated cache
+    if (open my $fh, '>', "$conf->{metadata}~") {
+	print "saving $conf->{metadata}...\n" if -t STDIN;
+	print $fh Dumper $picasa or warn $!;
+	close $fh and rename "$conf->{metadata}~",
+	$conf->{metadata} or warn $!;
+	warn "$conf->{metadata} saved\n" if $conf->{debug};
+    } else {
+	warn "can't write $conf->{metadata}~: $!\n";
+    }
+}
 &update(1);			# update stats one last time
 $pg->value($pg->cget('-to') + 10); # empty the progress bar
 warn "Picasa recursion done!\n" if $conf->{debug};
