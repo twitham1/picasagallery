@@ -781,10 +781,12 @@ sub newdir {		 # replace all thumbnails in current directory
     $mw->raiseFocus unless $conf->{slideshow};
 
     &move;
-    my $i = 0;			# fix this!!!
-    while (my $w = $tg->get(int($i / $tnx + 1), $i % $tnx + 1)) {
-	$w->cget(-image)->blank;
-	$i++;
+    for my $row (1 .. $tg->totalRows) { # blank previous thumbs
+	for my $col (1 .. $tg->totalColumns) {
+	    if (my $w = $tg->get($row, $col)) {
+		$w->cget(-image)->blank;
+	    }
+	}
     }
 #    $ss->time and $conf->{random} and return; # too expensive to cd often
     $refreshing = $now;
@@ -801,14 +803,14 @@ sub newdir {		 # replace all thumbnails in current directory
 	my $this = $picasa->filter($child, 'nofilter');
 	my $pf = $this->{physical};
 	my $data = $picasa->{pics}{$pf};
-	my $x = int($index / $tnx) + 1, # Table index begins at 1, not 0!
-	my $y = $index % $tnx + 1,
+	my $row = int($index / $tnx) + 1, # Table index begins at 1, not 0!
+	my $col = $index % $tnx + 1,
 	my $w;
-	unless ($w = $tg->get($x, $y)) { # connect 1 photo to each cell once
+	unless ($w = $tg->get($row, $col)) { # connect 1 photo to each cell once
 	    $w = $tg->Label(-width => $tpx, -height => $tpy, -image =>
 			    $mw->Photo(-width => $tpx, -height => $tpy),
 			    -bg => $conf->{bg});
-	    $tg->put($x, $y, $w);
+	    $tg->put($row, $col, $w);
 	}
 	my $image = $w->cget(-image); # replace cell's photo
 	if ($img =~ m!/$!) {	# directory: stack some pics
