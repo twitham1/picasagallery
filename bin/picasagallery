@@ -107,7 +107,6 @@ my $pos;			    # position indicator timer
 my $ss = $mw->repeat(1000, \&show); # slideshow timer
 $ss->time(0);			    # but not yet running
 
-my(@tn);		       # thumbnails: array of labels of Photos
 my $tnx = 7;		       # columns of thumbnails to display
 my $tpx = int(($mx - 4 * $tnx - 50) / $tnx); # 50 = scroll + progress bar width
 my $tpy = int($tpx / 1.1);	# "average" aspect ratio for most pics
@@ -323,6 +322,19 @@ $l{sw}->bind('<Button-1>' => [sub { $mw->eventGenerate($key[6]) }]);
 $l{s}->bind('<Button-1>' => [sub { $mw->eventGenerate($key[7]) }]);
 $l{se}->bind('<Button-1>' => [sub { $mw->eventGenerate($key[8]) }]);
 
+$mw->bind('<Configure>' =>	# maybe reposition thumbs
+	  sub  { my $w = shift;
+		 return unless $w =~ /Table/;
+		 return if $refreshing;
+		 my($x, $y) = ($w->Width, $w->height);
+		 my $newx = int(($x - 20) / ($tpx + 4));
+		 $newx > 0 or $newx = 1;
+#		 warn ">>>$w\t$x x $y\t$newx\n";
+		 if ($newx != $tnx) {
+		     $tnx = $newx;
+		     &newdir;
+		 }
+	  });
 $full->bind('<Configure>' => # resize window resizes full-size picture
 	    sub  { my $w = shift;
 		   ($mx, $my) = ($w->Width, $w->Height);
@@ -518,7 +530,7 @@ $mw->after(1500, sub { $mw->eventGenerate('<Return>') });
 $picasa = $picasa->recursedirs('.'); # updates GUI via $conf->{update}
 if ($picasa->{done}) {		     # save current updated cache
     if (open my $fh, '>', "$conf->{metadata}~") {
-	print "saving $conf->{metadata}...\n" if -t STDIN;
+	print "saving $conf->{metadata}...\n" if $conf->{debug};
 	print $fh Dumper $picasa or warn $!;
 	close $fh and rename "$conf->{metadata}~",
 	$conf->{metadata} or warn $!;
@@ -723,14 +735,14 @@ sub move {		       # move browser to new directory or file
 
     $mw->title("PG: $picasa->{file}{dir}");
 
-    for my $i (0 .. $#tn) {
-	my $w = $tg->get(int($i / $tnx + 1), $i % $tnx + 1) or next;
+    my $i = 0;
+    while (my $w = $tg->get(int($i / $tnx + 1), $i % $tnx + 1)) {
 	my $dir = $picasa->{dir}{children}[$i] || 0;
 	$dir and $dir = $dir =~ m@/$@;
 	$w->configure(-bg => $dir ? $conf->{dbg} : $conf->{bg});
 	$w->configure(-bg => $conf->{select}) if $i == $picasa->{index};
+	$i++;
     }
-
     $l{$_}->configure(@c) for qw/nw n ne se s sw/;
 
     $s{n} = $current->{file};
@@ -769,7 +781,11 @@ sub newdir {		 # replace all thumbnails in current directory
     $mw->raiseFocus unless $conf->{slideshow};
 
     &move;
-    $_ and $_->cget(-image)->blank for (@tn);
+    my $i = 0;			# fix this!!!
+    while (my $w = $tg->get(int($i / $tnx + 1), $i % $tnx + 1)) {
+	$w->cget(-image)->blank;
+	$i++;
+    }
 #    $ss->time and $conf->{random} and return; # too expensive to cd often
     $refreshing = $now;
     # sort by distance from current selection to update visible ones first
@@ -785,19 +801,16 @@ sub newdir {		 # replace all thumbnails in current directory
 	my $this = $picasa->filter($child, 'nofilter');
 	my $pf = $this->{physical};
 	my $data = $picasa->{pics}{$pf};
-	my $x = $data->{width};
-	my $y = $data->{height};
-
-	unless ($tn[$index]) { # connect 1 photo to each cell only once
-	    $tn[$index] =
-		$tg->Label(-width => $tpx, -height => $tpy, -image =>
-			   $mw->Photo(-width => $tpx, -height => $tpy),
-			   -bg => $conf->{bg});
-	    $tg->put(int($index / $tnx) + 1, # Table index begins at 1, not 0!
-		     $index % $tnx + 1,
-		     $tn[$index]);
+	my $x = int($index / $tnx) + 1, # Table index begins at 1, not 0!
+	my $y = $index % $tnx + 1,
+	my $w;
+	unless ($w = $tg->get($x, $y)) { # connect 1 photo to each cell once
+	    $w = $tg->Label(-width => $tpx, -height => $tpy, -image =>
+			    $mw->Photo(-width => $tpx, -height => $tpy),
+			    -bg => $conf->{bg});
+	    $tg->put($x, $y, $w);
 	}
-	my $image = $tn[$index]->cget(-image); # replace cell's photo
+	my $image = $w->cget(-image); # replace cell's photo
 	if ($img =~ m!/$!) {	# directory: stack some pics
 	    $child =~ s@/$@@;
 	    &StackXYthumb($image, $child, (map { int } $tpx, $tpy),
@@ -807,7 +820,7 @@ sub newdir {		 # replace all thumbnails in current directory
 	    &PhotoXYthumb($image, $pf, (map { int } $tpx, $tpy),
 			  $data->{caption} || 0, $child);
 	}
-        $tn[$index]->update;	# Display the thumbnail
+        $w->update; # Display the thumbnail
 	&scroll;    # toward selection while thumbnails are generating
     }
     &move;			# refresh selection
