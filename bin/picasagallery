@@ -51,8 +51,8 @@ our $conf = {
     update	=> \&update,	# don't change this (GUI updates)
     debug	=> 0,		# debug to STDERR?
     info	=> 0,		# overlay metadata on images?
-    width	=> 1280,	# initial size
-    height	=> 720,
+    width	=> 1920, # initial size also determines thumbnail size
+    height	=> 1080,
     fullscreen	=> 0, # go full-screen with no borders (ignore width/height)
     birthday	=> {}, # optional contact(id|name) => 'yyyy/mm/dd' birthdays
     bg		=> 'black',	# background color for the application
@@ -71,13 +71,16 @@ our $conf = {
     slideshow	=> '',		# root of current automatic slide show
     delay	=> 4,		# seconds to show each picture
     random	=> 0,		# 0 = sequential, 1 == random show
-    pan		=> 0,		# 1 = pan image mode
+    pan		=> 0, # 0 = full picture, 1 = 1D pan, 2 == 2D pan (100%)
     thumbcrops	=> 0,		# 1 = zoom (crop) thumbnails to fill tiles
     facecrops	=> 1,		# 1 = face thumnails in [People] paths
 };
 
 # configuration file can override any of the above options:
 require $conf->{config} if -f $conf->{config};
+
+# command line can override config file and above defaults:
+map { /^(\w+)=(.*)$/ and $conf->{$1} = $2 } @ARGV;
 
 $Data::Dumper::Indent = 1;   # readable format for the cached metadata
 $Data::Dumper::Purity = 1;   # evalable on next run
@@ -526,7 +529,9 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 # all metadata is updated in the background at each startup ----------------
 warn "starting Picasa recursion\n" if $conf->{debug};
 #$mw->after(1500, \&newdir);	# show browser after we have some data
-$mw->after(1500, sub { $mw->eventGenerate('<Return>') });
+$mw->after(1500, sub {
+    $mw->eventGenerate('<Return>');
+    $tg->eventGenerate('<Configure>') });
 $picasa = $picasa->recursedirs('.'); # updates GUI via $conf->{update}
 if ($picasa->{done}) {		     # save current updated cache
     if (open my $fh, '>', "$conf->{metadata}~") {
@@ -671,13 +676,11 @@ BEGIN {	# filtering for stats is expensive, so we update GUI only once a second
 	$force and $updated = 1;
 	$mw->update;		# let GUI work while we are busy
 	time > $updated or return;
-	$picasa->{root} or return;
+	$picasa->{root} and $picasa->{file} or return;
 
 	# warn "updating $File::Find::name\n" if $conf->{debug};
-	my $loc = $picasa->{file} && $picasa->{file}{dir} && $picasa->{file}{file}
-	? "$picasa->{file}{dir}$picasa->{file}{file}" : "/";
-	$picasa->{file} = $picasa->filter($loc);
-	$picasa->{dir} or $picasa->{dir} = $picasa->{file};
+	$picasa->{file} =	# update current statistics
+	    $picasa->filter("$picasa->{file}{dir}$picasa->{file}{file}");
 	&move;			# updates statistics on GUI
 	$sofar = $picasa->{sofar};
 	$sofar < $pg->cget('-to') or
@@ -731,7 +734,7 @@ sub move {		       # move browser to new directory or file
     &scroll;
     return unless my $current = $picasa->{file};
 #    warn "location: $picasa->{dir}{dir} $picasa->{dir}{file} - $picasa->{file}{dir} $picasa->{file}{file} ($picasa->{index})\n" if $conf->{debug};
-    return unless $current->{files};
+    return unless $current->{files} and $current->{bytes};
 
     $mw->title("PG: $picasa->{file}{dir}");
 
