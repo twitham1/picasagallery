@@ -61,8 +61,7 @@ sub new {
 	$db = {};		# write new db from scratch
 	bless($db, $class);	# hack!!!!
     } else {			# use currently scanning data
-	$self = $db = {};
-	$odb = {};
+	$self = $db = $odb = {};
     }
     $db->{index} = $db->{done} = $db->{sofar} = 0;
     $self->{index} = $self->{done} = $self->{sofar} = 0;
@@ -90,7 +89,6 @@ sub recursedirs {
 	readdb($self, $_);
     }
     unless ($self eq $db) {
-#	warn "$self = $db\n";
 	$self = $db;		# now start using new db
 	map { $self->{$_} = $current->{$_} } qw/dir file index/;
     }
@@ -190,6 +188,7 @@ sub goto {
     my $sort; my $done = 0;
 sub filter {
     my($self, $path, $opt) = @_;
+    $self->{root} or return;
     $opt or $opt = 0;
     my $data = {};
     my @files;			# files of this parent, to find center
@@ -204,7 +203,7 @@ sub filter {
     warn "filter:$path\n" if $conf->{debug};
     my $begin = $conf->{filter}{age} ? strftime $conf->{datefmt},
     localtime time - $conf->{filter}{age} : 0;
-    if (!$sort or $self->{done} and !$done) { # cached and current list
+    if (!$sort or !$self->{done} or $self->{done} and !$done) {
 	@$sort = sort keys %{$self->{root}};
 	$self->{done} and $done = 1;
 #	warn "SORTED ", scalar @$sort, " paths, done = $self->{done}, $done\n";
@@ -563,8 +562,12 @@ sub _wanted {
 	$odb->{sofar}++;	# count of pics read so far
 
     } elsif (-d $_) {
-	$db->{dirs}{$dir}{"$file/"} = {}
-	unless $db->{dirs}{$dir}{"$file/"};
+	$db->{dirs}{$dir}{"$file/"} or
+	    $db->{dirs}{$dir}{"$file/"} = {};
+    }
+    unless ($db->{dir} and $db->{file}) {
+    	my $tmp = $db->filter(qw(/));
+    	$tmp and $tmp->{children} and $db->{dir} = $db->{file} = $tmp;
     }
     &{$conf->{update}};
 }
