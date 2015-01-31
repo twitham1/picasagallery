@@ -329,7 +329,7 @@ $mw->bind('<Configure>' =>	# maybe reposition thumbs
 	  sub  { my $w = shift;
 		 return unless $w =~ /Table/;
 		 return if $refreshing;
-		 my($x, $y) = ($w->Width, $w->height);
+		 my($x, $y) = ($w->width, $w->height);
 		 my $newx = int(($x - 20) / ($tpx + 4));
 		 $newx > 0 or $newx = 1;
 #		 warn ">>>$w\t$x x $y\t$newx\n";
@@ -340,16 +340,7 @@ $mw->bind('<Configure>' =>	# maybe reposition thumbs
 	  });
 $full->bind('<Configure>' => # resize window resizes full-size picture
 	    sub  { my $w = shift;
-		   ($mx, $my) = ($w->Width, $w->Height);
-		   if ($conf->{debug}) {
-		       my($x, $y) = ($w->rootx, $w->rooty);
-		       my($vx, $vy) = ($w->vrootx, $w->vrooty);
-		       my($W, $H) = ($w->screenwidth, $w->screenheight);
-		       my($vw, $vh) = ($w->vrootwidth, $w->vrootheight);
-		       my $s = $w->screen;
-		       my($maxw, $maxh) = $w->maxsize;
-		       warn "$mx x $my @ $x,$y ($vw, $vy) in $W x $H ($vw x $vh) $s => $maxw x $maxh\n";
-		   }
+		   ($mx, $my) = ($w->width, $w->height);
 		   &newpic;
 	    });
 
@@ -758,8 +749,9 @@ sub move {		       # move browser to new directory or file
     my $tmp = &nums($current);
     $s{nw} .= " ($tmp)" if $tmp;
     $s{nw} or $s{nw} = '<--back';
+    $s{nw} .= ' ';
 
-    $s{ne} = &stats($current, $tpx, $tpy); # highlight means update is in progress
+    $s{ne} = ' ' . &stats($current, $tpx, $tpy); # red = update in progress
     $l{ne}->configure($picasa->{done} ? @c : (-fg => 'white', -bg => 'red'));
 
     my $total = @{$picasa->{dir}{children}};
@@ -1134,7 +1126,7 @@ sub PhotoXYthumb {
 	utime $time, $time, $cfn;
     }
     $w->blank;
-    $w->read($cfn, -to => int(($tpx - $x) / 2), int(($tpy - $y) / 2));
+    $w->read($cfn);
 }
 
 # 3 @pics stacked into $w image of size $x / $y, with cacheing as $f
@@ -1243,21 +1235,20 @@ sub Tk::Canvas::createTextBox {
     sub togglefullscreen {
 	my($w) = @_;
 	my($offx, $offy) = ($w->rootx, $w->rooty);
-#	warn "$w: + $offx + $offy\n" if $conf->{debug};
-	if ($offx || $offy) {	# not at 0, 0 == not full screen
+	my($sw, $sh) = ($w->screenwidth, $w->screenheight);
+	my($dx, $dy) = ($offx - $offx % $sw, $offy - $offy % $sh);
+	if ($offx % $sw || $offy % $sh) { # not at 0, 0 == not full screen
 	    $geom{"$w"} = $w->geometry; # size/location to restore
-	    my($x, $y) = ($mw->screenwidth, $mw->screenheight);
-	    $w->minsize($x, $y); $w->maxsize($x, $y);
-	    $w->geometry(sprintf "%dx%d+0+0", $x, $y);
+	    $w->maxsize($sw, $sh);
+	    $w->geometry(sprintf "%dx%d+%d+%d", $sw, $sh, $dx, $dy);
 	    $w->update;
-	    ($offx, $offy) = ($w->rootx, $w->rooty);
-	    # warn "$w: $x x $y +- $offx +- $offy\n" if $conf->{debug};
-	    $w->geometry(sprintf "%dx%d+-%d+-%d", $x, $y, $offx, $offy);
+	    ($offx, $offy) = ($w->rootx, $w->rooty); # decoration offsets
+	    ($dx, $dy) = ($dx + ($dx - $offx), $dy + ($dy - $offy));
+	    $w->geometry(sprintf "%dx%d+%d+%d", $sw, $sh, $dx, $dy);
 	    $w->attributes(-fullscreen => 1) # works on mythbuntu!
 		if grep /-fullscreen/, $w->attributes;
 	    $w->raiseFocus;
 	} else {		# at 0, 0 == already full screen
-	    $w->minsize(1, 1);
 	    $w->geometry($geom{"$w"});
 	    $w->attributes(-fullscreen => 0)
 		if grep /-fullscreen/, $w->attributes;
