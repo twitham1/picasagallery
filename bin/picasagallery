@@ -472,12 +472,26 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 	    &showgo;
 		 });
     }
+    for (qw(<KeyRelease>)) {
+	$w->bind($_, [sub {	# pause slide show
+	    my($w, $ascii) = @_;
+	    return if $ascii =~ /[pfbr]/i;
+	    $conf->{slideshow} and # show in progress
+		$ss->time or return;
+	    $ss->time(0);
+	    &move;		# update info
+	    &newpic;
+	    $conf->{random} and &newdir;
+		      }, Ev('A')]);
+    }
     for (qw(<Key-p>)) {
 	$w->bind($_, sub {	# start / pause /resume slide show
 	    if ($conf->{slideshow}) { # show in progress
 		if ($ss->time) {      # running -> pause
 		    $ss->time(0);
-		    &newdir;
+		    &move;	# update info
+		    &newpic;
+		    $conf->{random} and &newdir;
 		} else {	# paused -> run
 		    &showgo;
 		}
@@ -598,11 +612,11 @@ sub click {			# select or enter selection
 sub showgo {			# start show or adjust time delay
 #    warn "showgo: $conf->{slideshow};\n";
     return unless $conf->{slideshow};
+    $ss->time(0);
+    $ss = $mw->repeat($conf->{delay} * 1000, \&show);
     &show;
     $full->raiseFocus;
 #    warn $mw->afterInfo($ss);
-    $ss->time(0);
-    $ss = $mw->repeat($conf->{delay} * 1000, \&show);
 }
 
 sub show {		# slide show callback: advance to next picture
@@ -773,8 +787,8 @@ sub newdir {		 # replace all thumbnails in current directory
     $now =~ s@/+@/@g;
     $refreshing eq $now and return;
     # warn "\n\nnewdir $now\n" if $conf->{debug};
+    $ss->time and $conf->{random} and return; # too expensive to cd often
     $mw->raiseFocus unless $conf->{slideshow};
-
     &move;
     for my $row (1 .. $tg->totalRows) { # blank previous thumbs
 	for my $col (1 .. $tg->totalColumns) {
@@ -783,7 +797,6 @@ sub newdir {		 # replace all thumbnails in current directory
 	    }
 	}
     }
-#    $ss->time and $conf->{random} and return; # too expensive to cd often
     $refreshing = $now;
     # sort by distance from current selection to update visible ones first
     for my $index (sort { abs($picasa->{index} - $a) <=>
@@ -838,7 +851,7 @@ sub info {			# cycle information overlay level
 }
 
 sub newpic {	     # replace the full picture with current selection
-    &move;
+    &move unless $ss->time and $conf->{random};
     $ss->time or $full->focusCurrent eq $full or return;
     my $this = $picasa->{file} or return;
     if ($this->{file} =~ m!/$!) { # raise browser to see directory option
