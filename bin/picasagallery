@@ -74,6 +74,7 @@ our $conf = {
     pan		=> 0, # 0 = full picture, 1 = 1D pan, 2 == 2D pan (100%)
     thumbcrops	=> 0,		# 1 = zoom (crop) thumbnails to fill tiles
     facecrops	=> 1,		# 1 = face thumnails in [People] paths
+    fast	=> 0,		# 0 = scan for changes, 1 = use cache only
 };
 
 # configuration file can override any of the above options:
@@ -533,23 +534,26 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 
 # all metadata is updated in the background at each startup ----------------
 warn "starting Picasa recursion\n" if $conf->{debug};
-#$mw->after(1500, \&newdir);	# show browser after we have some data
-$mw->after(1500, sub {
+$mw->after(1500, sub {		# show browser after we have some data
     $mw->eventGenerate('<Return>');
     $tg->eventGenerate('<Configure>') });
-$picasa = $picasa->recursedirs('.'); # updates GUI via $conf->{update}
-if ($picasa->{done}) {		     # save current updated cache
-    if (open my $fh, '>', "$conf->{metadata}~") {
-	print "saving $conf->{metadata}...\n" if $conf->{debug};
-	print $fh Dumper $picasa or warn $!;
-	close $fh and rename "$conf->{metadata}~",
-	$conf->{metadata} or warn $!;
-	warn "$conf->{metadata} saved\n" if $conf->{debug};
-    } else {
-	warn "can't write $conf->{metadata}~: $!\n";
+if ($conf->{fast}) {		# shortcut - use cached data only
+    $picasa->{done} = 1;
+} else {		     # search for changes, write out new cache
+    $picasa = $picasa->recursedirs('.'); # updates GUI via $conf->{update}
+    if ($picasa->{done}) {		 # save current updated cache
+	if (open my $fh, '>', "$conf->{metadata}~") {
+	    print "saving $conf->{metadata}...\n" if $conf->{debug};
+	    print $fh Dumper $picasa or warn $!;
+	    close $fh and rename "$conf->{metadata}~",
+	    $conf->{metadata} or warn $!;
+	    warn "$conf->{metadata} saved\n" if $conf->{debug};
+	} else {
+	    warn "can't write $conf->{metadata}~: $!\n";
+	}
     }
 }
-&update(1);			# update stats one last time
+&update(1);			   # update stats one last time
 $pg->value($pg->cget('-to') + 10); # empty the progress bar
 warn "Picasa recursion done!\n" if $conf->{debug};
 
