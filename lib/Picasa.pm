@@ -380,7 +380,7 @@ sub uploads {
 sub save {
     my($self, $dir) = @_;
     my $out = "$dir/.picasa.ini";
-    mkdir $dir or die "can't mkdir $dir: $!\n" unless -d $dir;
+    -d $dir or mkdir $dir or die "can't mkdir $dir: $!\n";
     my $was = '';
     if (open my $fh, $out) {
 	$was .= $_ while (<$fh>);
@@ -389,10 +389,12 @@ sub save {
     for my $file (sort keys %{$self->{dirs}{$dir}}) {
 	next if $file =~ m@/$@;	# skip subdirs
 	next if $file =~ m@^<<\w+>>$@; # skip internal metadata
-	if (my @key = sort keys %{$self->{dirs}{$dir}{$file}}) {
+	my $ref = $self->{dirs}{$dir}{$file};
+	$file =~ /^\[.album:(\w+)\]$/ and $ref = $self->{album}{$1};
+	if (my @key = sort keys %$ref) {
 	    $now .= ($file =~ /\[.+\]/ ? $file : "[$file]") . "\r\n";
 	    for my $f (@key) {
-		$now .= "$f=$self->{dirs}{$dir}{$file}{$f}\r\n";
+		$now .= "$f=$ref->{$f}\r\n";
 	    }
 	}
     }
@@ -402,6 +404,11 @@ sub save {
 	if ($conf->{debug} < 0) {
 	    print "# $out ", length($was),
 	    " bytes NOT being replaced by ", length($now), " bytes\n";
+	    my $tmp;
+	    open $tmp, '>', "/tmp/a$$" and print $tmp $was and close $tmp;
+	    open $tmp, '>', "/tmp/b$$" and print $tmp $now and close $tmp;
+	    print `diff -u /tmp/a$$ /tmp/b$$`;
+	    unlink "/tmp/a$$", "/tmp/b$$";
 	    return 0;
 	}
 	print "# $out ", length($was),
@@ -604,8 +611,8 @@ sub _understand {
 		$pic->{contact}{$id}{$ini->{$k}{$id}}++;
 	    }
 	} elsif ($k =~ /^\.album:(\w+)$/) {
-	    $pic->{dirs}{$ini->{dir}}{"[$k]"} =
-		$pic->{album}{$1} =
+	    $pic->{dirs}{$ini->{dir}}{"[$k]"} = 1;
+	    $pic->{album}{$1} =
 		&_merge(undef, $pic->{album}{$1}, $ini->{$k});
 	    next;
 	} elsif ($k eq 'dir') {
