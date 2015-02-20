@@ -75,6 +75,7 @@ our $conf = {
     thumbcrops	=> 0,		# 1 = zoom (crop) thumbnails to fill tiles
     facecrops	=> 1,		# 1 = face thumnails in [People] paths
     fast	=> 0,		# 0 = scan for changes, 1 = use cache only
+    prate	=> 0,		# 1 = overlay pictures
 };
 
 # configuration file can override any of the above options:
@@ -877,6 +878,7 @@ sub newpic {	     # replace the full picture with current selection
     &PhotoXYfull($image, $pf, map { int } $scale * $x, $scale * $y)
 	or return;
     my($X, $Y) = ($mx/2 - ($scale * $x)/2, $my/2 - ($scale * $y)/2);
+    $conf->{prate} and $X = $Y = 0;
     $canvas->coords('image', $X, $Y);
     $full->title("PG: $picasa->{file}{file}");
 
@@ -1209,8 +1211,10 @@ BEGIN {
 	    $geo, "caption:ERROR: failed to convert $f", '-composite',
 	    $cfn;
 	}
-	$w->blank;
-	$w->read($cfn);
+	$w->blank unless $conf->{prate}; # overlay opposite corner mode
+	$w->read($cfn, ($conf->{prate} && !$conf->{pan} && $id % 2)
+		 ? (-to => $mx - $x, $my - $y)
+		 : ());
 	$cfn =~ s/.$ext/*.$ext/;
 	unlink glob $cfn;
 	return 1;
