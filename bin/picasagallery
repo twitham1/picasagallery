@@ -177,6 +177,8 @@ $m{m}->add('command', -label => 'Information Overlay',
 	   qw(-accelerator i -underline 0 -command) => \&info);
 $m{m}->add(qw/command -accelerator F11 -label/ => 'Full Screen',
 	   -command => sub { &togglefullscreen($cur) });
+$m{m}->add('checkbutton', -label => 'Overlay Pictures',
+	   qw(-underline 0 -variable) => \$conf->{prate});
 $m{m}->add('checkbutton', -label => 'Zoom Thumbnails',
 	   qw(-accelerator e -underline 0 -variable) => \$conf->{thumbcrops},
 	   -command => \&refilter);
@@ -342,6 +344,7 @@ $mw->bind('<Configure>' =>	# maybe reposition thumbs
 	  });
 $full->bind('<Configure>' => # resize window resizes full-size picture
 	    sub  { my $w = shift;
+		   $mx != $w->width or $my != $w->height or return;
 		   ($mx, $my) = ($w->width, $w->height);
 		   &newpic;
 	    });
