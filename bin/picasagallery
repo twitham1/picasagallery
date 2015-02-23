@@ -77,6 +77,7 @@ our $conf = {
     fast	=> 0,		# 0 = scan for changes, 1 = use cache only
     overlay	=> 0,		# 0 = replace, 1 = overlay pictures
     attrs	=> 0,		# prate attribute hash {file}{n,a}
+    variable	=> 1,		# variable speed show (if n ratings in attrs)
 };
 
 # configuration file can override any of the above options:
@@ -255,6 +256,9 @@ $m{ss}->add('command', -label => 'Stop / Reset',
 		$mw->eventGenerate('<Key-t>'); });
 $m{ss}->add(qw(checkbutton -label Random -underline 0 -accelerator r),
 	    -variable => \$conf->{random}, -command => \&refilter);
+$m{ss}->add(qw(checkbutton -underline 0 -label) => 'Variable Speed',
+	    -variable => \$conf->{variable})
+    if $conf->{attrs};
 $m{delay} = $m{ss}->Menu(qw/-tearoff 0 -font/ => $font);
 for (1 .. 20) {
     $m{delay}->add('radiobutton',
@@ -655,7 +659,7 @@ sub show {		# slide show callback: advance to next picture
     &newpic;
     $was eq $now or &newdir;
     my $delay = $conf->{delay};
-    if ($conf->{attrs} and	# variable speed show by rating
+    if ($conf->{attrs} and $conf->{variable} and
 	my $this = $conf->{attrs}{$picasa->{file}{physical}}) {
 	if (defined $this->{n}) {
 	    $delay *= $this->{n} / 9;
