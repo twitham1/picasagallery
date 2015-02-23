@@ -75,7 +75,8 @@ our $conf = {
     thumbcrops	=> 0,		# 1 = zoom (crop) thumbnails to fill tiles
     facecrops	=> 1,		# 1 = face thumnails in [People] paths
     fast	=> 0,		# 0 = scan for changes, 1 = use cache only
-    prate	=> 0,		# 1 = overlay pictures
+    overlay	=> 0,		# 0 = replace, 1 = overlay pictures
+    attrs	=> 0,		# prate attribute hash {file}{n,a}
 };
 
 # configuration file can override any of the above options:
@@ -178,7 +179,7 @@ $m{m}->add('command', -label => 'Information Overlay',
 $m{m}->add(qw/command -accelerator F11 -label/ => 'Full Screen',
 	   -command => sub { &togglefullscreen($cur) });
 $m{m}->add('checkbutton', -label => 'Overlay Pictures',
-	   qw(-underline 0 -variable) => \$conf->{prate});
+	   qw(-underline 0 -variable) => \$conf->{overlay});
 $m{m}->add('checkbutton', -label => 'Zoom Thumbnails',
 	   qw(-accelerator e -underline 0 -variable) => \$conf->{thumbcrops},
 	   -command => \&refilter);
@@ -620,8 +621,6 @@ sub click {			# select or enter selection
 sub showgo {			# start show or adjust time delay
 #    warn "showgo: $conf->{slideshow};\n";
     return unless $conf->{slideshow};
-    $ss->time(0);
-    $ss = $mw->repeat($conf->{delay} * 1000, \&show);
     &show;
     $full->raiseFocus;
 #    warn $mw->afterInfo($ss);
@@ -655,6 +654,15 @@ sub show {		# slide show callback: advance to next picture
     my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
     &newpic;
     $was eq $now or &newdir;
+    my $delay = $conf->{delay};
+    if ($conf->{attrs} and	# variable speed show by rating
+	my $this = $conf->{attrs}{$picasa->{file}{physical}}) {
+	if (defined $this->{n}) {
+	    $delay *= $this->{n} / 9;
+	}
+    }
+    $ss->time(0);
+    $ss = $mw->after($delay * 1000, \&show);
 }
 
 sub processkey {  # generic key event handler if nothing more specific
@@ -881,7 +889,7 @@ sub newpic {	     # replace the full picture with current selection
     &PhotoXYfull($image, $pf, map { int } $scale * $x, $scale * $y)
 	or return;
     my($X, $Y) = ($mx/2 - ($scale * $x)/2, $my/2 - ($scale * $y)/2);
-    $conf->{prate} and $X = $Y = 0;
+    $conf->{overlay} and $X = $Y = 0;
     $canvas->coords('image', $X, $Y);
     $full->title("PG: $picasa->{file}{file}");
 
@@ -920,6 +928,18 @@ sub newpic {	     # replace the full picture with current selection
 	push @info, "f/$info->{FNumber}" if $info->{FNumber};
 	push @info, "ISO: $info->{ISO}" if $info->{ISO};
 	push @info, $info->{Flash} if $info->{Flash};
+	$canvas->createTextBox($mx, $my, $conf->{bg},
+			       -justify => 'right',
+			       -anchor => 'se',
+			       -font => $font,
+			       -fill => $conf->{text},
+			       -text => (join " \n", @info),
+			       -tags => 'fg');
+    }
+    if ($conf->{attrs} and my $info = $conf->{attrs}{$pf}) {
+	my @info;
+	push @info, $info->{n} if defined $info->{n};
+	push @info, $info->{a} if $conf->{info} > 1 and $info->{a};
 	$canvas->createTextBox($mx, $my, $conf->{bg},
 			       -justify => 'right',
 			       -anchor => 'se',
@@ -1214,8 +1234,8 @@ BEGIN {
 	    $geo, "caption:ERROR: failed to convert $f", '-composite',
 	    $cfn;
 	}
-	$w->blank unless $conf->{prate}; # overlay opposite corner mode
-	$w->read($cfn, ($conf->{prate} && !$conf->{pan} && $id % 2)
+	$w->blank unless $conf->{overlay}; # overlay opposite corner mode
+	$w->read($cfn, ($conf->{overlay} && !$conf->{pan} && $id % 2)
 		 ? (-to => $mx - $x, $my - $y)
 		 : ());
 	$cfn =~ s/.$ext/*.$ext/;
