@@ -21,6 +21,7 @@ use File::Find;
 use File::Basename;
 use Image::ExifTool qw(:Public);
 use Data::Dumper;
+use Storable;			# for optional metadata cache
 use POSIX qw/strftime/;
 
 my $db;	    # picasa database pointer needed for File::Find's _wanted.
@@ -54,7 +55,8 @@ sub new {
     $exiftool->Options(FastScan => 1,
 		       DateFormat => $conf->{datefmt});
     if (($conf->{metadata} and -f $conf->{metadata})) { # use previous data
-	$self = &loadperl($conf->{metadata});
+	$self = retrieve $conf->{metadata} or
+	    die "can't retrieve $conf->{metadata}: $!";
 	$self->{done} = 0;	# but move to root first
 	$self->{dir} = $self->{file} = $self->filter('/');
 	$odb = $self;		# save global pointer to previous data
@@ -68,17 +70,6 @@ sub new {
     bless ($self, $class);
 #    warn Dumper $self;
     return $self;
-}
-
-# load up a perl Data::Dumper file, with error checking to stderr
-sub loadperl {
-    my($file) = @_;
-    our $VAR1;
-    my $ret = do $file;
-    warn "couldn't parse $file: $@" if $@;
-    warn "couldn't do $file: $!"    unless defined $ret;
-    warn "couldn't run $file"       unless $ret;
-    return $VAR1;
 }
 
 # find pictures and picasa data in given directories
