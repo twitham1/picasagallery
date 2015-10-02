@@ -34,7 +34,8 @@ use Tk::Font;
 use Tk::ErrorDialog;   # unexpected errors to dialog instead of stderr
 use Tk::Table;			 # for picture browser
 use Tk::ProgressBar;		 # for metadata refreshing progress bar
-use Data::Dumper;		 # for saving metadata cache
+use Storable qw(nstore retrieve); # for saving metadata cache
+use Data::Dumper;		 # for saving metadata cache in readable format
 use File::Path;			 # for creating thumbnail paths
 use Image::ExifTool qw(:Public); # for picture metadata
 use Time::Local;		 # for age calculations
@@ -43,7 +44,8 @@ use Picasa;			 # for groking Picasa data!
 # config file can override any settings here (Picasa.pm also uses a few):
 our $conf = {
     config	=> '.picasagallery_conf.pl', # config to require, if present
-    metadata	=> '.picasagallery_cache.pl', # cache of picture data
+    metadata	=> '.picasagallery.cache',   # cache of picture data
+    metaperl	=> 0,	 # filename for cache in perl format, 0 = none
     cache	=> '.thumbcache', # where to put thumbnails
     keep	=> '(?i)\.(jpe?g|gif|x[pb]m|png|bmp|tiff?|nef)$',
     reject	=> '(?i)\b(\.?thumb(nail)?s?(.db)?)\b',
@@ -86,9 +88,6 @@ require $conf->{config} if -f $conf->{config};
 # command line can override config file and above defaults:
 map { /^(\w+)=(.*)$/ and $conf->{$1} = $2 } @ARGV;
 
-$Data::Dumper::Indent = 1;   # readable format for the cached metadata
-$Data::Dumper::Purity = 1;   # evalable on next run
-
 #  rebuild all data since prior run, using previous cache until finished
 my $picasa = Picasa->new($conf);
 
@@ -97,7 +96,17 @@ my $ssindex = 0;	   # slide show index
 my $refreshing = '';	   # directory currently refreshing thumbnails
 my %rebuildthumb;	   # stale thumbnails to rebuild
 
-mkdir $conf->{cache} or die $! unless -d $conf->{cache}; # thumbnail cache
+# don't accidentally recurse: create thumbnail cache only with confirmation
+unless (-d $conf->{cache}) {
+    -t STDIN or die "bailing out, $conf->{cache} not configured here!\n";
+    print "$conf->{cache} doesn't exist here!
+Shall I create it and recurse for pictures?  yes/no [no] : ";
+    my $ans = <>;
+    $ans =~ /^\s*y/
+	or die "cd to root of pictures or configure $conf->{config}
+\(see \$conf in $0\)\n";
+    mkdir $conf->{cache} or die "can't mkdir $conf->{cache}: $!\n";
+}
 
 my $exif = new Image::ExifTool;	# for collecting picture metadata
 $exif->Options(FastScan => 1, DateFormat => $conf->{datefmt});
@@ -551,14 +560,26 @@ if ($conf->{fast}) {		# shortcut - use cached data only
 } else {		     # search for changes, write out new cache
     $picasa = $picasa->recursedirs('.'); # updates GUI via $conf->{update}
     if ($picasa->{done}) {		 # save current updated cache
-	if (open my $fh, '>', "$conf->{metadata}~") {
-	    print "saving $conf->{metadata}...\n" if $conf->{debug};
-	    print $fh Dumper $picasa or warn $!;
-	    close $fh and rename "$conf->{metadata}~",
-	    $conf->{metadata} or warn $!;
+	if ($conf->{metadata}) {	 # nstored cache
+	    warn "saving $conf->{metadata}...\n" if $conf->{debug};
+	    my $tmp = "$conf->{metadata}~";
+	    nstore $picasa, $tmp or warn "can't store $tmp: $!\n";
+	    rename $tmp, $conf->{metadata} or warn "can't reanme $tmp: $!\n";
 	    warn "$conf->{metadata} saved\n" if $conf->{debug};
-	} else {
-	    warn "can't write $conf->{metadata}~: $!\n";
+	}
+	if ($conf->{metaperl}) {
+	    my $tmp = "$conf->{metaperl}~";
+	    if (open my $fh, '>', $tmp) {
+		warn "saving $conf->{metaperl}...\n" if $conf->{debug};
+		$Data::Dumper::Indent = 1; # readable format for the cached metadata
+		$Data::Dumper::Purity = 1; # output only, {metadata} is the real cache
+		print $fh Dumper $picasa or warn $!;
+		close $fh and rename "$conf->{metaperl}~",
+		$conf->{metaperl} or warn $!;
+		warn "$conf->{metaperl} saved\n" if $conf->{debug};
+	    } else {
+		warn "can't write $tmp: $!\n";
+	    }
 	}
     }
 }
