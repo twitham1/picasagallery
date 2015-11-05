@@ -583,6 +583,9 @@ if ($conf->{fast}) {		# shortcut - use cached data only
 	}
     }
 }
+if (my $c = $conf->{tweakdata}) { # hack to tweak data after updating
+    &{$conf->{tweakdata}}($picasa);
+}
 &update(1);			   # update stats one last time
 $pg->value($pg->cget('-to') + 10); # empty the progress bar
 warn "Picasa recursion done!\n" if $conf->{debug};
@@ -823,6 +826,12 @@ sub move {		       # move browser to new directory or file
     $l{se}->configure($ss->time ? (-fg => $conf->{ssc}) : @c);
 }
 
+# sort by distance from current selection to update visible tiles first
+sub isort {
+    return sort { abs($picasa->{index} - $a) <=>
+		      abs($picasa->{index} - $b) } @_;
+}
+
 sub newdir {		 # replace all thumbnails in current directory
     my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
     $now =~ s@/+@/@g;
@@ -839,10 +848,13 @@ sub newdir {		 # replace all thumbnails in current directory
 	}
     }
     $refreshing = $now;
-    # sort by distance from current selection to update visible ones first
-    for my $index (sort { abs($picasa->{index} - $a) <=>
-			      abs($picasa->{index} - $b) }
-		   0 .. @{$picasa->{dir}{children}} - 1) {
+    my $location = -1;		# current browser position
+    my $index;			# current tile number updating
+    my @index = 0 .. @{$picasa->{dir}{children}} - 1;
+    while (@index) {
+	@index = &isort(@index) if $picasa->{index} != $location;
+	$location = $picasa->{index};
+	$index = shift @index;
 	my $now = "$picasa->{dir}{dir}$picasa->{dir}{file}";
 	$now =~ s@/+@/@g;	# bail out if user moved location
 	$refreshing eq $now or return;
@@ -1200,7 +1212,11 @@ sub PhotoXYthumb {
 sub StackXYthumb {
     my ($w, $f, $x, $y, $label, $time, @pic) = @_;
     $f && $x && $y && @pic or return;
-    my $ext = 'png';		# jpg isn't transparent; use png
+
+    # TODO: lossy compress PNG while preserving transparency
+#    my $ext = 'png';		# jpg isn't transparent; use png
+    my $ext = 'jpg';		# but png is >10X larger; use jpg
+
     my $cfn = "$conf->{cache}/$x-$y/";
     my $id = 0;
     my $crop = &cropfile($pic[0], $f, $x, $y, \$id);
