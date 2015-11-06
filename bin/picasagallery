@@ -1198,7 +1198,7 @@ sub PhotoXYthumb {
 	} else {
 	    system 'convert', "$f$crop", '-thumbnail', $geo, $cfn;
 	}
-	unless (-f $cfn) {
+	unless (-f $cfn) {	# highlight thumbnail failure in RED
 	    (my $l = $f) =~ s@.*/@@;
 	    system 'convert', '-size', "${x}x${y}", 'xc:#F000',
 	    qw/-fill white -gravity center -background/, '#F006',
@@ -1216,11 +1216,8 @@ sub PhotoXYthumb {
 sub StackXYthumb {
     my ($w, $f, $x, $y, $label, $time, @pic) = @_;
     $f && $x && $y && @pic or return;
-
-    # TODO: lossy compress PNG while preserving transparency
-#    my $ext = 'png';		# jpg isn't transparent; use png
-    my $ext = 'jpg';		# but png is >10X larger; use jpg
-
+    my $ext = 'png';		# jpg isn't transparent; use png
+#    my $ext = 'jpg';		# but png is >4X larger; use jpg
     my $cfn = "$conf->{cache}/$x-$y/";
     my $id = 0;
     my $crop = &cropfile($pic[0], $f, $x, $y, \$id);
@@ -1249,9 +1246,12 @@ sub StackXYthumb {
 	    unless $pic[2] eq $pic[1] or $pic[2] eq $pic[0];
 	push @cmd, qw/-fill white -gravity center -background/, '#0006',
 	'-size', sprintf("%.0fx%.0f", $x, $y / 5),
-	"caption:$label", '-composite', $cfn;
+	"caption:$label", '-composite';
+	push @cmd, $ext =~ /png/ # compress PNG while preserving transparency
+	    ? (qw/-background hotpink -alpha background/, "png24:$cfn")
+	    : $cfn;
 	system @cmd;
-	unless (-f $cfn) {
+	unless (-f $cfn) {	# highlight thumbnail failure in RED
 	    system 'convert', '-size', "${x}x${y}", 'xc:#0000',
 	    qw/-fill white -gravity center -background/, '#F006', '-size',
 	    sprintf("%.0fx%.0f", $x, $y / 5), "caption:$label", '-composite',
