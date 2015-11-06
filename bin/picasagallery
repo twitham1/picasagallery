@@ -58,7 +58,7 @@ our $conf = {
     fullscreen	=> 0, # go full-screen with no borders (ignore width/height)
     birthday	=> {}, # optional contact(id|name) => 'yyyy/mm/dd' birthdays
     bg		=> 'black',	# background color for the application
-    dbg		=> 'gray22',	# background color for directory tiles
+    dbg		=> 'gray33',	# background color for directory tiles
     select	=> 'green',	# current thumbnail selection color
     text	=> 'white',	# corner information text color
     title	=> 'red',	# header/footer color
@@ -639,11 +639,12 @@ sub click {			# select or enter selection
     my($w) = @_;
     my($r, $c) = $tg->Posn($w);
     return unless $r and $c;
-    my $cur = $picasa->{index};
+    $picasa->{pindex} = $picasa->{index};
     $picasa->{index} = --$r * $tnx + --$c; # index 1 -> index 0
     $picasa->filtermove;
     &move;
-    $picasa->{index} == $cur and $mw->eventGenerate('<Return>');
+    $picasa->{index} == $picasa->{pindex} and
+	$mw->eventGenerate('<Return>');
 }
 
 sub showgo {			# start show or adjust time delay
@@ -787,14 +788,15 @@ sub move {		       # move browser to new directory or file
 
     $mw->title("PG: $picasa->{file}{dir}");
 
-    my $i = 0;
-    while (my $w = $tg->get(int($i / $tnx + 1), $i % $tnx + 1)) {
+    # update background of previous and next tile locations
+    for my $i ($picasa->{pindex}, $picasa->{index}) {
 	my $dir = $picasa->{dir}{children}[$i] || 0;
 	$dir and $dir = $dir =~ m@/$@;
-	$w->configure(-bg => $dir ? $conf->{dbg} : $conf->{bg});
-	$w->configure(-bg => $conf->{select}) if $i == $picasa->{index};
-	$i++;
+	my $w = $tg->get(int($i / $tnx + 1), $i % $tnx + 1) or next;
+	$w->configure(-bg => $i == $picasa->{index} ? $conf->{select}
+		      : $dir ? $conf->{dbg} : $conf->{bg});
     }
+    $mw->update;		# needed?
     $l{$_}->configure(@c) for qw/nw n ne se s sw/;
 
     $s{n} = $current->{file};
@@ -844,6 +846,7 @@ sub newdir {		 # replace all thumbnails in current directory
 	for my $col (1 .. $tg->totalColumns) {
 	    if (my $w = $tg->get($row, $col)) {
 		$w->cget(-image)->blank;
+		$w->configure(-bg => $conf->{bg});
 	    }
 	}
     }
@@ -875,18 +878,19 @@ sub newdir {		 # replace all thumbnails in current directory
 	}
 	my $image = $w->cget(-image); # replace cell's photo
 	if ($img =~ m!/$!) {	# directory: stack some pics
+	    $w->configure(-bg => $conf->{dbg});
 	    $child =~ s@/$@@;
 	    &StackXYthumb($image, $child, (map { int } $tpx, $tpy),
 			  "$img ($this->{files})", $this->{mtime},
 			  $this->{first}, $this->{physical}, $this->{last});
 	} else {
+	    $w->configure(-bg => $conf->{bg});
 	    &PhotoXYthumb($image, $pf, (map { int } $tpx, $tpy),
 			  $data->{caption} || 0, $child);
 	}
         $w->update; # Display the thumbnail
-	&scroll;    # toward selection while thumbnails are generating
+	&move;    # toward selection while thumbnails are generating
     }
-    &move;			# refresh selection
     $refreshing = "";
 }
 

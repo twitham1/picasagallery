@@ -10,6 +10,7 @@
 # {dir} => { current virtual "directory/" after filtering/navigating }
 # {file} => { current virtual focused "file/?" after filtering/navigating }
 # {index} => current file index ( should this be in {dir} ? )
+# {pindex} => previous file index ( needed by GUI to update browser )
 # {album}{<id>} => { field => value } is album information
 # {contact}{<id>} => { 'name;email;id' => count } is contact data
 # {tags}{name} => count
@@ -65,8 +66,8 @@ sub new {
     } else {			# use currently scanning data
 	$self = $db = $odb = {};
     }
-    $db->{index} = $db->{done} = $db->{sofar} = 0;
-    $self->{index} = $self->{done} = $self->{sofar} = 0;
+    $db->{index} = $db->{pindex} = $db->{done} = $db->{sofar} = 0;
+    $self->{index} = $self->{pindex} = $self->{done} = $self->{sofar} = 0;
     bless ($self, $class);
 #    warn Dumper $self;
     return $self;
@@ -106,6 +107,7 @@ sub readdb {
 # TODO: option to automove to next directory if at end of this one
 sub next {
     my($self, $n) = @_;
+    $self->{pindex} = $self->{index};
     $self->{index} += defined $n ? $n : 1;
     my @child = @{$self->{dir}{children}};
     my $child = @child;
@@ -116,6 +118,7 @@ sub next {
 # TODO: option to automove to prev directory if at beginning of this one
 sub prev {
     my($self, $n) = @_;
+    $self->{pindex} = $self->{index};
     $self->{index} -= defined $n ? $n : 1;
     my @child = @{$self->{dir}{children}};
     $self->{index} = 0 if $self->{index} < 0;
@@ -133,6 +136,7 @@ sub up {
 	$index++;
     }
     $index = 0 if $file ne '!file found!';
+    $self->{pindex} = $self->{index};
     $self->{index} = $index;
     $self->next(0);
 }
@@ -142,6 +146,7 @@ sub down {
     return 0 unless $self->{file}{file} =~ m!/$!;
     warn "chdir $self->{file}{dir}$self->{file}{file}\n" if $conf->{debug};
     $self->{dir} = $self->filter("$self->{file}{dir}$self->{file}{file}");
+    $self->{pindex} = $self->{index};
     $self->{index} = -1;
     $self->next;
     return 1;
