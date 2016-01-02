@@ -12,6 +12,7 @@
 # TODO: directory/file sort options: name, date, reverse
 # TODO: replace external `convert` with internal Image::Magick PerlMagick
 # TODO: config file should be able to auto-start a {slideshow} = /root/path
+# TODO: speed up thumbnail rebuild option (don't reload whole directory)
 # TODO: documentation?
 
 # to extract thumbnails from videos (1 frame @ 60 seconds):
@@ -554,7 +555,8 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 warn "starting Picasa recursion\n" if $conf->{debug};
 $mw->after(1500, sub {		# show browser after we have some data
     $mw->eventGenerate('<Return>');
-    $tg->eventGenerate('<Configure>') });
+    $tg->eventGenerate('<Configure>'); });
+$conf->{tweakdata} and &{$conf->{tweakdata}}($picasa);
 if ($conf->{fast}) {		# shortcut - use cached data only
     $picasa->{done} = 1;
 } else {		     # search for changes, write out new cache
@@ -582,10 +584,9 @@ if ($conf->{fast}) {		# shortcut - use cached data only
 	    }
 	}
     }
+    $conf->{tweakdata} and &{$conf->{tweakdata}}($picasa);
 }
-if (my $c = $conf->{tweakdata}) { # hack to tweak data after updating
-    &{$conf->{tweakdata}}($picasa);
-}
+
 &update(1);			   # update stats one last time
 $pg->value($pg->cget('-to') + 10); # empty the progress bar
 warn "Picasa recursion done!\n" if $conf->{debug};
@@ -1184,7 +1185,8 @@ sub PhotoXYthumb {
 	$cfn .= 'full/';
     }
     $cfn .= "$f.$ext";
-    unless (!$rebuildthumb{$f} && -f $cfn && -M _ <= -M $f) {
+    unless (!$rebuildthumb{$f} && -f $cfn
+	    && abs((stat $cfn)[9] - (stat $f)[9]) < 3) {
 	delete $rebuildthumb{$f};
 	-f $cfn and unlink $cfn;
 	my($dir, $file) = Picasa::dirfile($cfn);
@@ -1229,7 +1231,8 @@ sub StackXYthumb {
 	$cfn .= 'full/';
     }
     $cfn .= "$f.$ext";
-    unless (!$rebuildthumb{$f} && -f $cfn && (stat $cfn)[9] == $time) {
+    unless (!$rebuildthumb{$f} && -f $cfn
+	    && abs((stat $cfn)[9] - $time) < 3) {
 	delete $rebuildthumb{$f};
 	-f $cfn and unlink $cfn;
 	my($dir, $file) = Picasa::dirfile($cfn);
