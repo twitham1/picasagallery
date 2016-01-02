@@ -106,14 +106,15 @@ sub readdb {
 
 # TODO: option to automove to next directory if at end of this one
 sub next {
-    my($self, $n) = @_;
-    $self->{pindex} = $self->{index};
+    my($self, $n, $pindexdone) = @_;
+    $self->{pindex} = $self->{index} unless $pindexdone;
     $self->{index} += defined $n ? $n : 1;
     my @child = @{$self->{dir}{children}};
     my $child = @child;
     $self->{index} = $child - 1 if $self->{index} >= $child;
     $self->{index} = 0 if $self->{index} < 0;
-    $self->{file} = $self->filter("$self->{dir}{dir}$self->{dir}{file}$child[$self->{index}]");
+    $self->{file} = $self->
+	filter("$self->{dir}{dir}$self->{dir}{file}$child[$self->{index}]");
 }
 # TODO: option to automove to prev directory if at beginning of this one
 sub prev {
@@ -122,7 +123,8 @@ sub prev {
     $self->{index} -= defined $n ? $n : 1;
     my @child = @{$self->{dir}{children}};
     $self->{index} = 0 if $self->{index} < 0;
-    $self->{file} = $self->filter("$self->{dir}{dir}$self->{dir}{file}$child[$self->{index}]");
+    $self->{file} = $self->
+	filter("$self->{dir}{dir}$self->{dir}{file}$child[$self->{index}]");
 }
 # back up into parent directory, with current file selected
 sub up {
@@ -138,7 +140,7 @@ sub up {
     $index = 0 if $file ne '!file found!';
     $self->{pindex} = $self->{index};
     $self->{index} = $index;
-    $self->next(0);
+    $self->next(0, 1);
 }
 # step into {file} of current {dir}
 sub down {
@@ -146,7 +148,6 @@ sub down {
     return 0 unless $self->{file}{file} =~ m!/$!;
     warn "chdir $self->{file}{dir}$self->{file}{file}\n" if $conf->{debug};
     $self->{dir} = $self->filter("$self->{file}{dir}$self->{file}{file}");
-    $self->{pindex} = $self->{index};
     $self->{index} = -1;
     $self->next;
     return 1;
@@ -160,7 +161,7 @@ sub filtermove {
 	$self->up;
 	last if $self->{dir}{file} eq '/';
     }
-    $self->next(0);
+    $self->next(0, 1);
 }
 
 sub dirfile { # similar to fileparse, but leave trailing / on directories
