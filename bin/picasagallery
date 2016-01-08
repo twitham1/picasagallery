@@ -10,7 +10,6 @@
 #	options -> file types: jpe?g, bmp, gif, png, tga, tiff?, webp,
 #	psd, (many raw), (movies: avi, mpg, asf, wmv)
 # TODO: directory/file sort options: name, date, reverse
-# TODO: replace external `convert` with internal Image::Magick PerlMagick
 # TODO: config file should be able to auto-start a {slideshow} = /root/path
 # TODO: speed up thumbnail rebuild option (don't reload whole directory)
 # TODO: documentation?
@@ -38,8 +37,9 @@ use Tk::ProgressBar;		 # for metadata refreshing progress bar
 use Storable qw(nstore retrieve); # for saving metadata cache
 use Data::Dumper;		 # for saving metadata cache in readable format
 use File::Path;			 # for creating thumbnail paths
-use Image::ExifTool qw(:Public); # for picture metadata
 use Time::Local;		 # for age calculations
+use Image::ExifTool qw(:Public); # for picture metadata
+use Image::Magick;		 # for picture conversions
 use Picasa;			 # for groking Picasa data!
 
 # config file can override any settings here (Picasa.pm also uses a few):
@@ -716,6 +716,7 @@ sub refilter {	       # reapply filters, updating dir, pic, slideshow
 	$conf->{random} and
 	    @ss = sort { rand(1) < 0.5 ? -1 : 1 } @ss;
     }
+    $refreshing = '';
     &newdir;
     &newpic;
 }
@@ -1162,10 +1163,9 @@ sub cropthumb {
 sub cropfile {
     my($file, $path, $x, $y, $idref) = @_;
     if ($path =~ m@\[People\]/@) {
-	return &cropface($file, $path, $idref);
-    } else {
-	return &cropthumb($file, $x, $y);
+	return &cropface($file, $path, $idref) || &cropthumb($file, $x, $y);
     }
+    return &cropthumb($file, $x, $y);
 }
 }
 
@@ -1185,29 +1185,28 @@ sub PhotoXYthumb {
 	$cfn .= 'full/';
     }
     $cfn .= "$f.$ext";
-    unless (!$rebuildthumb{$f} && -f $cfn
+    unless (!$rebuildthumb{$f} && -f $cfn && -f $f
 	    && abs((stat $cfn)[9] - (stat $f)[9]) < 3) {
 	delete $rebuildthumb{$f};
 	-f $cfn and unlink $cfn;
 	my($dir, $file) = Picasa::dirfile($cfn);
 	-d $dir or mkpath $dir or warn "can't mkdir $dir: $!\n";
 	my $geo = "${x}x${y}";
-	if ($c) {		# fix caption on faces
-	    system qw/convert/, '-size', "${x}x${y}", 'xc:#0000',
-	    "$f$crop", '-thumbnail', $geo, qw/-gravity northwest -composite/,
-	    qw/-fill white -gravity south -background/, '#0006', '-size',
-	    $tpx . 'x' . int($tpy / 6), "caption:$c", '-composite', $cfn;
+	my $im;
+	chomp $c;
+	if ($c) {		# caption on thumbnail
+	    $im = &image('xc:#0000', size => $geo);
+	    $im->Composite(qw/gravity northwest image/ =>
+			   &image("$f$crop", size => $geo));
+	    $im->Composite(qw/gravity south image/ =>
+			   &image("caption:$c",
+				  qw/fill white gravity south background/,
+				  '#0006', size => $tpx . 'x' . int($tpy / 6)));
 	} else {
-	    system 'convert', "$f$crop", '-thumbnail', $geo, $cfn;
+	    $im = &image("$f$crop", 'size' => $geo);
 	}
-	unless (-f $cfn) {	# highlight thumbnail failure in RED
-	    (my $l = $f) =~ s@.*/@@;
-	    system 'convert', '-size', "${x}x${y}", 'xc:#F000',
-	    qw/-fill white -gravity center -background/, '#F006',
-	    '-size', sprintf("%.0fx%.0f", $x, $y / 5),
-	    "caption:$l", '-composite', $cfn;
-	}
-	my($time) = (stat $f)[9]; # timestamp same as source file
+	my $e = $im->Write($cfn); $e and warn $e;
+	my($time) = -f $f ? (stat $f)[9] : 1; # timestamp same as source file
 	utime $time, $time, $cfn;
     }
     $w->blank;
@@ -1238,28 +1237,26 @@ sub StackXYthumb {
 	my($dir, $file) = Picasa::dirfile($cfn);
 	-d $dir or mkpath $dir or warn "can't mkdir $dir: $!\n";
 	my $geo = sprintf "%.0fx%.0f", $x * 2 / 3, $y * 2 / 3;
-	my @cmd = ('convert', '-size', "${x}x${y}", 'xc:#0000');
-	push @cmd, '(', $pic[0] . &cropfile($pic[0], $f, $x, $y, \$id),
-	'-thumbnail', $geo, qw/) -gravity northwest -composite/;
-	push @cmd, '(', $pic[1] . &cropfile($pic[1], $f, $x, $y, \$id),
-	'-thumbnail', $geo, qw/) -gravity center -composite/
-	    unless $pic[1] eq $pic[0];
-	push @cmd, '(', $pic[2] . &cropfile($pic[2], $f, $x, $y, \$id),
-	'-thumbnail', $geo, qw/) -gravity southeast -composite/
-	    unless $pic[2] eq $pic[1] or $pic[2] eq $pic[0];
-	push @cmd, qw/-fill white -gravity center -background/, '#0006',
-	'-size', sprintf("%.0fx%.0f", $x, $y / 5),
-	"caption:$label", '-composite';
-	push @cmd, $ext =~ /png/ # compress PNG while preserving transparency
-	    ? (qw/-background hotpink -alpha background/, "png24:$cfn")
-	    : $cfn;
-	system @cmd;
-	unless (-f $cfn) {	# highlight thumbnail failure in RED
-	    system 'convert', '-size', "${x}x${y}", 'xc:#0000',
-	    qw/-fill white -gravity center -background/, '#F006', '-size',
-	    sprintf("%.0fx%.0f", $x, $y / 5), "caption:$label", '-composite',
-	    $cfn;
+
+	my $im = &image('xc:#0000', size => "${x}x${y}");
+	my @pos = qw/northwest center southeast/;
+	my %uniq;
+	for my $p (grep !$uniq{$_}++, @pic) {
+	    $im->Composite(gravity => shift @pos, image =>
+			   &image($p . &cropfile($p, $f, $x, $y, \$id),
+				  size => $geo));
 	}
+	$im->Composite(qw/gravity center image/ =>
+		       &image("caption:$label",
+			      qw/fill white gravity center background/, '#0006',
+			      size => sprintf("%.0fx%.0f", $x, $y / 5)));
+	$im->Thumbnail("${x}x${y}");
+	my $out = $cfn;
+	if ($ext =~ /png/) { # compress PNG while preserving transparency
+	    $im->Set(qw/background hotpink alpha background/);
+	    $out = "png24:$cfn";
+	}
+	my $e = $im->Write($out); $e and warn $e;
 	utime $time, $time, $cfn;
     }
     $w->blank;
@@ -1275,13 +1272,11 @@ BEGIN {
 	$f && $x && $y or return;
 	my $cfn = "$conf->{cache}/tmp-$$-" . $id++ . ".$ext";
 	my $geo = "${x}x${y}";
-	system "convert", "-resize", $geo, $f, $cfn;
-	unless (-f $cfn) {
-	    system 'convert', '-size', $geo, 'xc:#0000',
-	    qw/-fill white -gravity center -background/, '#F006', '-size',
-	    $geo, "caption:ERROR: failed to convert $f", '-composite',
-	    $cfn;
-	}
+
+	my $im = &image($f, size => $geo);
+	my $e = $im->Resize(geometry => $geo); $e and warn $e;
+	$e = $im->Write($cfn); $e and warn $e;
+
 	$w->blank unless $conf->{overlay}; # overlay opposite corner mode
 	$w->read($cfn, ($conf->{overlay} && !$conf->{pan} && $id % 2)
 		 ? (-to => $mx - $x, $my - $y)
@@ -1290,6 +1285,21 @@ BEGIN {
 	unlink glob $cfn;
 	return 1;
     }
+}
+
+# return the $file or its error message in an Image::Magick object
+sub image {
+    my($file, %opt) = @_;
+    my $i = Image::Magick->new(%opt);
+    my $e = $i->Read($file);
+    if ($e) {
+	warn $e;      # opts are last-one-wins, so we override colors:
+	$i = Image::Magick->new(%opt,
+				qw/background red fill white gravity center/);
+	$i->Read("caption:$e");	# put error message in the image
+    }
+    $opt{size} and $i->Resize(geometry => $opt{size});
+    return $i;
 }
 
 # createText on a box of given color $c (since we have no transparency)
