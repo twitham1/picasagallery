@@ -88,6 +88,7 @@ require $conf->{config} if -f $conf->{config};
 
 # command line can override config file and above defaults:
 map { /^(\w+)=(.*)$/ and $conf->{$1} = $2 } @ARGV;
+-f $conf->{metadata} or $conf->{fast} = 0;
 
 #  rebuild all data since prior run, using previous cache until finished
 my $picasa = Picasa->new($conf);
