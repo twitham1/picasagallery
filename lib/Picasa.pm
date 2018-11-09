@@ -1,6 +1,6 @@
 # Picasa.pm
 
-# perl access to local Picasa picture database (faces, albums, stars, etc.)
+# ABSTRACT: perl access to local Picasa picture database (faces, albums, stars, etc.)
 
 # by twitham@sbcglobal.net, 2013-06
 
