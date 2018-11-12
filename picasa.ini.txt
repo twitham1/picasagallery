@@ -9,7 +9,7 @@
 #  Changelog:
 #  v0.1: initial release
 # ==============================================================
- 
+
 #---------------------------------------------------------
 # 1. Picasa Section
 #
@@ -28,9 +28,9 @@ category=Folders on Disk
 P2category=Downloaded Albums~otheruserid
 #if the album was uploaded, the username and album id are referenced in this format: <picasa user name>_lh=<picasa web album id>
 joedoe_lh=5620038667642797505
- 
- 
- 
+
+
+
 #-------------------------------------------------------------
 # 2. Contacts Section
 #
@@ -43,8 +43,8 @@ joedoe_lh=5620038667642797505
 d10a8325c557b085=joedoe_lh,cb989580bc43a91
 8e62398ebda8c1a5=joedoe_lh,4bd750800fb6a6b8
 d736528ba71f2254=joedoe_lh,6dc6a330c4804e8
- 
- 
+
+
 #---------------------------------------------------------------
 # 3. Photo Entries
 #
@@ -54,129 +54,132 @@ d736528ba71f2254=joedoe_lh,6dc6a330c4804e8
 # section.
 #----------------------------------------------------------------
 [P7025200.ORF]
- 
+
 # 3.1 BASIC METADATA
- 
+
 #added if image was starred in picasa
 star=yes
- 
+
 #caption entered in picasa 
 #(only added for non-jpeg photos, stored as IPTC Caption for jpeg photos)
 caption=dummy
- 
+
 #keywords assigned in picasa 
 #(only added for non-jpeg photos, stored as IPTC Keywords for jpeg photos)
 keywords=beer,empanadas,keyword with spaces
- 
+
 #backuphash - not yet decoded
 backuphash=36003
- 
+
 #if the pictures of the album have been uploaded
 # a key/value pair in the format IIDLIST_<picasa user name>_lh=<64-bit hexadecimal photo id>
 # is added to each photo entry.
 IIDLIST_joedoe_lh=4dfe636c9cf4c302
- 
+
 # 3.2 FILTER SETTINGS
- 
+
 # all applied filters per photo are recorded to .picasa.ini
 # to provide an editing history and/or an easier undo facility.
- 
+
 # Basic filter key format:
 # the filters key of each photo stores a semicolon-separated list of filter entries:
- 
+
 filters=enhance=1;crop64=1,45930000ba03defe;
- 
+
 # each entry follows the format
 # <filter identifier>=1,<filter value 1>,<filter value 2>,<..filter value n>;
- 
+
 # Here is a list of valid filter identifiers
 #
-#|------ Identifier-----|--------------Parameters-------------|----------Description-----------|---------Example---------------|
-#| crop64				|  CROP_RECTANGLE*  		          |	crop filter, crops the image   | crop64=1,30a730d2bf1ab897     |
-#| 						|							          |	according to crop rectangle    |                               |
-#| tilt					| !TILT_ANGLE,!SCALE                  |  tilts and scales image	       | tilt=1,0.280632,0.000000      |
-#| redeye			    |                                     |  redeye removal       	       | redeye=1                      |
-#| enhance			    |                                     | "I'm feeling lucky" enhancement| enhance=1                     |
-#| autolight		    |                                     | automatic contrast correction  | autolight=1                   |
-#| autocolor		    |                                     | automatic color correction     | autocolor=1                   |
-#| retouch  		    |                                     | retouch					       | retouch=1                     |
-#| finetune2  		    | (unidentified params)               | finetuning (brightness,        | finetune2=1,0.000000,0.000000,|
-#|                      |                                     |                                | 0.000000,fff7f5f3,0.000000;   |
-#|						| 						              | highlights, shadows,color temp)|					           |
-#| unsharp2             | !AMOUNT				              | unsharp mask filter            | unsharp2=1,0.600000;          |
-#| sepia                |          				              | sepia filter (no params)       | sepia=1				       |
-#| bw                   |          				              | black/white filter (no params) | bw=1				           |
-#| warm                 |               		              | warming filter (no params)     | bw=1				           |
-#| grain2               |               			          | film grain filter (no params)  | grain2=1			           |
-#| tint                 |!!PRESERVE_COLOR ,#TINT COLOR        | tint filter                    | tint=1,79.842102,ffff         |
-#| sat                  |!SATURATION                          | saturation filter              | sat=1,0.161800;               |
-#| radblur              |!MOUSE_X,!MOUSE_Y,!SIZE,!AMOUNT      | radial blur                    | radblur=1,0.500000,0.500000,  |
-#|						|                                     |                                | 0.239766,0.146199;            | 
-#| glow2                |!INTENSITY,!!RADIUS                  | glow effect                    | glow2=1,0.650000,3.000000;    |
-#| ansel                |#COLOR                               | filtered black/white           | ansel=1,ffffffff;             |
-#| radsat               |!MOUSE_X,!MOUSE_Y,!RADIUS,!SHARPNESS | radial saturation              | radsat=1,0.421652,0.594697,   |
-#|                      |                                     |                                | 0.333333,0.309942;            | 
-#| dir_tint             |!MOUSE_X,!MOUSE_Y,!GRADIENT,!SHADOW  | directed gradient              | dir_tint=1,0.306743,0.401515, |
-#|                      |                                     |                                | 0.250000,0.250000,ff5bfff3;   |
+#|--Identifier-|--------------Parameters-------------|----------Description-----------|---------Example---------------|
+#| crop64      |  CROP_RECTANGLE*                    |   crop filter, crops the image | crop64=1,30a730d2bf1ab897     |
+#|             |                                     |    according to crop rectangle |                               |
+#| tilt        | !TILT_ANGLE,!SCALE                  |  tilts and scales image        | tilt=1,0.280632,0.000000      |
+#| redeye      |                                     |  redeye removal                | redeye=1                      |
+#| enhance     |                                     | "I'm feeling lucky" enhancement| enhance=1                     |
+#| autolight   |                                     | automatic contrast correction  | autolight=1                   |
+#| autocolor   |                                     | automatic color correction     | autocolor=1                   |
+#| retouch     |                                     | retouch                        | retouch=1                     |
+#| finetune2   | (unidentified params)               | finetuning (brightness,        | finetune2=1,0.000000,0.000000,|
+#|             |                                     |highlights, shadows,color temp) | 0.000000,fff7f5f3,0.000000;   |
+#| unsharp2    | !AMOUNT                             | unsharp mask filter            | unsharp2=1,0.600000;          |
+#| sepia       |                                     | sepia filter (no params)       | sepia=1                       |
+#| bw          |                                     | black/white filter (no params) | bw=1                          |
+#| warm        |                                     | warming filter (no params)     | bw=1                          |
+#| grain2      |                                     | film grain filter (no params)  | grain2=1                      |
+#| tint        |!!PRESERVE_COLOR ,#TINT COLOR        | tint filter                    | tint=1,79.842102,ffff         |
+#| sat         |!SATURATION                          | saturation filter              | sat=1,0.161800;               |
+#| radblur     |!MOUSE_X,!MOUSE_Y,!SIZE,!AMOUNT      | radial blur                    | radblur=1,0.500000,0.500000,  |
+#|             |                                     |                                | 0.239766,0.146199;            | 
+#| glow2       |!INTENSITY,!!RADIUS                  | glow effect                    | glow2=1,0.650000,3.000000;    |
+#| ansel       |#COLOR                               | filtered black/white           | ansel=1,ffffffff;             |
+#| radsat      |!MOUSE_X,!MOUSE_Y,!RADIUS,!SHARPNESS | radial saturation              | radsat=1,0.421652,0.594697,   |
+#|             |                                     |                                | 0.333333,0.309942;            | 
+#| dir_tint    |!MOUSE_X,!MOUSE_Y,!GRADIENT,!SHADOW  | directed gradient              | dir_tint=1,0.306743,0.401515, |
+#|             |                                     |                                | 0.250000,0.250000,ff5bfff3;   |
 # 
 # LEGEND: 
 # ! = float between 0 and 1, precision:6
 # !! = float with arbitrary range, precision:6
 # # = 32-bit color in hex notation, e.g.: fff7f5f3
 # [] = crop rectangle
- 
- 
- 
+
+
+
 # 3.3 TEXT EDITS
- 
+
 text=1;136;11;sample text;Aharoni;0.279301,0.503929,0.033333,0.000000;v1,4294967295,4278190080,128.000000,1.000000,0.364486,0.878906,700,258,49152;;
 textactive=1
- 
+
 # 3.4. RECOGNIZED FACES
- 
+
 # all recognized faces are stored as bigint crop rectangles in the faces key
 # format faces=rect64(CROP_RECTANGLE*), contact_id;
 faces=rect64(3f845bcb59418507),8e62398ebda8c1a5;rect64(9eb15e89b6b584c1),d10a8325c557b085
- 
- 
+
+
 #
 # APPENDIX
 #
- 
+
 # A.1 DATA TYPES 
- 
+
 # A.1.1 CROP BOX RECTANGLES (*)
- 
+
 # Picasa uses a special string format to store crop boxes of
 # detected faces and from an applied crop filters. The number encased 
 # in the rect64() statement is a 64 bit hexadecimal number:
- 
-# 	rect64(3f845bcb59418507)
- 
+
+#     rect64(3f845bcb59418507)
+
 # break this number into 4 16-bit numbers by using substrings:
- 
+
 # '3f845bcb59418507'.substring(0,4) //"3f84"
 # '3f845bcb59418507'.substring(4,8) //"5bcb"
 # '3f845bcb59418507'.substring(8,12) // "5941"
 # '3f845bcb59418507'.substring(12,16) // "8507"  
- 
+
 # convert each obtained substring to an integer and divide it
 # by the highest 16-bit number (2^16 = 65536), which should give 0 < results < 1.
 # these are the relative coordinates of the crop rectangle (left,top,right,bottom):
- 
+
 # parseInt("3f84",16)/65536 //0.24810791015625  - left
 # parseInt("5bcb",16)/65536 //0.3585662841796875 - top
 # parseInt("5941",16)/65536 //0.3486480712890625 - right
 # parseInt("8507",16)/65536 //0.5196380615234375 - bottom
- 
+
 # for absolute coordinates, multiply the left/right coordinates with  
 # the image width and the top/bottom coordinates with the image height
- 
+
 # A.1.2 FRACTIONAL FLOATS (!)
- 
+
 # floats between 0 and 1 with a precision of 6 digits, e.g. 0.306743.
 # Often used to encode relative settings or mouse positions.
- 
+
 # A.1.3 FLOATS (!!)
- 
+
 # arbitrary floats with a precision of 6 digits
+
+# A.1.4. COLORS (#)
+
+# colors are stored as 32-bit hex string, e.g. ff5bfff3
