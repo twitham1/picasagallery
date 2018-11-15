@@ -1463,7 +1463,8 @@ the top of bin/picasagallery for startup options.
 This is currently works-for-me-ware which may not work for you.  It is
 incomplete and inefficient for very large picture collections.  I hope
 to resolve this someday with a re-write including a SQLite database
-backend and a Prima GUI frontend.
+backend and a Prima GUI frontend.  This should reduce the memory
+footprint and improve the interface.
 
 =head1 EXAMPLES
 
