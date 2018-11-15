@@ -1370,3 +1370,120 @@ sub Tk::raiseFocus {
     $w->update;
     $cur = $w unless Exists $m{m} and $w eq $m{m}; # focus to restore after menu
 }
+__END__
+
+=pod
+
+=head1 NAME
+
+picasagallery - .picasa.ini aware keyboard driven picture browser
+
+=head1 SYNOPSIS
+
+picasagallery [field=value]
+
+=head1 DESCRIPTION
+
+B<picasagallery> presents local pictures (optionally managed by
+Picasa) in a keyboard (or remote) controlled browser, similar to
+mythgallery of mythtv.  It does so by caching picture metadata from
+the filesystem and presenting a "virtual filesystem" as a grid of
+thumbnail images for navigation.  The goal is to have access to more
+picture metadata including several ways to organize the images.
+
+=head2 Thumbnail Grid
+
+The main window is a grid of thumnail images.  Directories are
+represented by a stack of three images: the oldest, center and
+youngest picture in the directories below that point in the tree.
+Arrow keys move around the grid while the B<Enter> key presents a
+single picture or moves into a subdirectory and the B<Escape> key
+moves back up to the parent.  Metadata about the selected tile is
+displayed above and below the grid.
+
+The top level directories are:
+
+=over 4
+
+=item [Folders]
+
+literal filesystem layout of picture files
+
+=item [Tags]
+
+tag strings found in Exif picture metadata
+
+=item [Albums]
+
+pictures organized by Albums (Picasa only)
+
+=item [People]
+
+thumnails of named face rectangles from the images (Picasa only)
+
+=item [Stars]
+
+pictures marked with stars as favorites (Picasa only)
+
+=back
+
+=head2 Image Viewer
+
+A second window opens when hitting B<Enter> on an image from the grid.
+This displays one picture at maximum size for the window.  B<Enter>
+again will zoom to maximize width or height or zoom to original size.
+Scrol with the arrow keys for images larger than the window.
+B<Escape> then returns to the thumbnail browser.
+
+The B<i> "info" key cycles through metadata overlay levels.  This
+draws named rectables around all recognized faces and presents common
+camera metadata in the corners.
+
+=head1 OPTIONS
+
+The B<M> key brings up a Menu of options including filtering, starting
+a slide show and so on.
+
+See the header of bin/picasagallery for field=value options that can
+be given on the command line or in the config file.
+
+=head1 FILES
+
+=over 4
+
+=item .picasapgallery_conf.pl
+
+perl config file must return a reference to a configuration hash; see
+the top of bin/picasagallery for startup options.
+
+=back
+
+=head1 CAVEATS / WARNINGS
+
+This is currently works-for-me-ware which may not work for you.  It is
+incomplete and inefficient for very large picture collections.  I hope
+to resolve this someday with a re-write including a SQLite database
+backend and a Prima GUI frontend.
+
+=head1 EXAMPLES
+
+picasagallery
+
+picasagallery fast=1
+
+=head1 SEE ALSO
+
+https://en.wikipedia.org/wiki/Picasa
+
+=head1 AUTHOR
+
+Timothy D Witham <twitham@sbcglobal.net>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2013-2018 Timothy D Witham.
+
+This program is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
+=cut
