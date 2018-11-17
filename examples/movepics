@@ -1,0 +1,141 @@
+#!/usr/bin/perl
+
+# move pictures below ./ to ./date-taken/, merging .picasa.ini
+
+use warnings;
+use File::Basename;
+use Data::Dumper;
+use Picasa;
+
+my $go = grep /go/, @ARGV;	# read-only dry-mode unless --go
+@ARGV = grep { $_ !~ /\b(debug|go)\b/ } @ARGV;
+@ARGV = ('.') unless @ARGV;
+my $conf = {
+#    debug	=> -1,
+    update	=> \&update,  # called for each dir/file by File::Find
+    datefmt	=> '%Y/%m-%b-%d', # desired sortable output directories
+    reject	=> 'IMAG\d+_ZOE\d+\.jpg$', # ignore extra HTC ZOE frames
+    metadata	=> '.picasagallery.cache', # cache of picture data
+};
+
+# Metadata cache is used to bypass re-read of exif from all files.
+# But we must re-read .ini files since picasa may have made changes.
+# So we run 2 passes: first to read current .ini and update to latest
+# cache, then second to write out any merge changes.
+my $reallygo = $go;
+$go = 0;	      # read-only: update cache with current .ini data
+my $picasa = Picasa->new($conf);
+$picasa = $picasa->recursedirs(@ARGV);	# start finding the pictures
+if ($reallygo) {
+    $go = 1;		   # write:run again to save the merge changes
+    $picasa->recursedirs(@ARGV); # save the metadata
+}
+
+$Data::Dumper::Indent = 1;
+print Dumper $picasa if grep /debug/, @ARGV;
+exit;
+
+sub update {
+    return unless $File::Find::name;
+    my($dir, $pic) = Picasa::dirfile($File::Find::name);
+
+#    return if $dir =~ m@^./\d\d\d\d-\d\d-\d\d/$@; # done
+#    return if $dir =~ m@^./\d\d\d\d/\d\d-\d\d/$@; # done
+    return if $dir =~ m@^./\d\d\d\d/\d\d-\w\w\w-\d\d/@; # done
+    return if $dir =~ m@/Picasa/Exports/@;		 # ignore
+    return if $dir =~ m@/Downloaded Albums/@;		 # ignore
+
+    return unless $pic =~ /.jpg$/i;
+    return if $pic =~ /IMAG\d+_ZOE\d+\.jpg$/; # ignore extra HTC ZOE frames
+
+    my $file = "$dir$pic";
+    $file =~ s@\./@@;		# convert to {pics} key
+    $pic = "$1-$pic" if $dir =~ m@/phones/.*\.(\d+)/sdcard/DCIM/100MEDIA/@;
+
+    my $this = $picasa->{pics}{$file} or
+	warn "no {pics} for $file\n" and return;
+
+    my $cap = $this->{caption} || '';
+    my $dt = $this->{time} or
+	warn "no {time} in $file\n" and return;
+    my $backup = -f "$dir.picasaoriginals/$pic" ? "$dir.picasaoriginals/$pic"
+	: -f "${dir}Originals/$pic" ? "${dir}Originals/$pic" : 0;
+    (my $tmp = $dt) =~ s@/[^/]+$@@;
+    mkdir $tmp unless -d $tmp;
+
+#	    next unless $dt =~ m@/2006-04-05/@; # uncomment to test 1 directory
+
+    my $dest = "$dt/$pic";
+    $dt = "./$dt/";		# convert to key format
+    
+    # move the .picasa.ini metadata first
+    $picasa->merge($dir, $pic, $dt);
+    $go ? $picasa->save($dt) : -t STDIN
+	? print "# (not) save $dt\n" : 0;
+    if (-f $dest) {		# decide which to keep
+	(my $bk = $dest) =~ s@/([^/]+)$@/.picasaoriginals/$1@;
+	my($s, $S, $d, $D, $b, $B) = ((stat $file)[7,9],
+				      (stat $dest)[7,9],
+				      (stat $bk)[7,9]);
+	-f $bk or $bk = $b = $B = 0;
+	if ($s == $d) {
+#		print "# $file already at $dest\n";
+	} else {
+	    my $info = $picasa->{pics}{$dest};
+	    my $c = $info->{caption} || '';
+
+	    my %info = ($file => "$s\t$S\t$cap",
+			$dest => "$d\t$D\t$c",
+			$bk => "$b\t$B\t");
+	    if ($S > $D) {	# simply keep last modified
+		$keep = $file; $toss = $dest; $what = "replaced";
+		&mylink($file, $dest);
+	    } else {
+		$keep = $dest; $toss = $file; $what = "nochange";
+	    }
+	    print "# < $what ($info{$toss}) $toss\n",
+	    "# > $what ($info{$keep}) $keep\n";
+	    $bk and print "# > $what ($info{$bk}) $bk\n";
+	}
+    } else {			# link new file to new location
+	&mylink($file, $dest);
+    }
+    if ($backup) {
+	if (-f "$dt.picasaoriginals/$pic") {
+	    print "# losing $backup since $dt already has backup\n";
+	} else {
+	    print "# also taking $backup to $dt\n";
+	    # HACK!!! Picasa.pm ignores .picasaoriginals.  So process it here...!!!
+	    my $db = Picasa->new();
+	    $db->{dirs}{"$dt.picasaoriginals/"} = # destination
+		Picasa::_readfile("$dt.picasaoriginals/.picasa.ini");
+	    $db->{dirs}{"$dir.picasaoriginals/"} = # new format
+		Picasa::_readfile("$dir.picasaoriginals/.picasa.ini");
+	    $db->merge("$dir.picasaoriginals/", $pic,
+		       "$dt.picasaoriginals/");
+	    $db->{dirs}{"${dir}Originals/"} = # old format
+		Picasa::_readfile("${dir}Originals/Picasa.ini");
+	    $db->merge("${dir}Originals/", $pic,
+		       "$dt.picasaoriginals/");
+	    $go ? $db->save("$dt.picasaoriginals/") : -t STDIN
+		? print "# (not) save $dt.picasaoriginals/\n" : 0;
+#		    warn "$backup: ", Dumper $db;
+	    &mylink($backup, "$dt.picasaoriginals/$pic");
+	}
+    }
+}
+
+sub mylink {
+    my($src, $dst) = @_;
+    unless ($go and !$conf->{debug}) {
+	print "# (not) link $src $dst\n";
+	return;
+    }
+    if (-f $dst) {		# backup the original, but only once
+	my $tmp = $dst . '_original';
+	rename $dst, $tmp or warn "$0: can't rename $dst $tmp: $!\n";
+    }
+    link $src, $dst or symlink $src, $dst or warn "$0: can't link $src $dst: $!\n";
+    $src =~ s/'/\\'/g; $dst =~ s/'/\\'/g;
+    print "ln '$src' '$dst'\n";
+}

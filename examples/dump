@@ -1,0 +1,9 @@
+#!/usr/bin/perl
+
+use Picasa;
+use Data::Dumper;
+
+my $picasa = Picasa->new();	    # new hash of metadata
+$picasa->recursedirs(@ARGV || '.'); # find .picasa.ini/.jpg metadata
+print Dumper $picasa->filter('/');  # show total metadata
+#print Dumper $picasa;		    # show all metadata
