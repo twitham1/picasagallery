@@ -4,41 +4,48 @@
 
 	WHY THIS?
 
-So in 2013 I wanted to see local Picasa metadata in mythtv's gallery
-of pictures.  Note that this has nothing to do with online web
-galleries, it only sees pictures in the local filesystem.
+So in 2013 I wanted to have Picasa organization and metadata in
+mythtv's gallery of pictures.  Note that this has nothing to do with
+online web galleries, it only sees pictures in the local filesystem.
 
-Picasa picture management is optional, but awesome.  Why use the now
-discontinued Picasa?  I need my pictures on fast local storage, not
-your slow cloud.  And automated face recognition, album organization,
-favorites, filtering, easy touch ups and so on.  After organizing on
-Windows, I simply rsync them to Linux, but Wine would probably work
-too.  Then I view them on mythtv.
+Why use the now discontinued Picasa?  I need my pictures on my fast
+local storage, not your slow cloud.  I like automated face detection,
+album organization, favorites, filtering, easy touch ups and captions
+and so on.  After organizing on Windows, I simply rsync them to Linux,
+but Wine might work too.  Then I view them on mythtv via this
+picasagallery.
 
-(BTW, this perl code works equally well on Windows or Linux)
+(BTW, this perl code works equally well on Windows and Linux)
 
 	THE CODE:
 
 	lib/Picasa.pm
 
-This library can study all .picasa.ini files to build an in-memory
+This package can study all .picasa.ini files to build an in-memory
 data structure that knows all albums, stars, contact names, face
 rectangles and other information recorded by Picasa.  It also adds
 some exif metadata from the images themselves and builds a "vitual
 filesystem" structure of the images organized in multiple trees.
-Routines are provided to navigate and filter the tree.  The library
-can even merge Picasa metadata and write out new .picasa.ini which is
+Methods are provided to navigate and filter the tree.  The library can
+even merge Picasa metadata and write out new .picasa.ini which is
 needed when consolidating files from multiple paths into a single
 path.
 
-TODO: add pod documentation to the library
+TODO: replace any direct data access with appropriate methods
+
+TODO: add pod documentation to the module
+
+TODO: add example scripts to demonstrate using the module
+
 
 	bin/picasagallery
 
 This is an image browser GUI like mythgallery of mythtv but greatly
-enhanced with Picasa information.  This uses the above library to
-present a thumbnail grid picture viewer and full-screen image viewer.
-See perldoc bin/picasagallery for more documentation.
+enhanced with Picasa information.  This uses the above module to
+present a thumbnail image navigator and full-screen image viewer.  See
+perldoc bin/picasagallery for more documentation.
+
+TODO: add example (documented?) configuration files
 
 
 	STATUS:
@@ -46,10 +53,10 @@ See perldoc bin/picasagallery for more documentation.
 So this Proof-Of-Concept was a resounding success (it works for me,
 maybe not for you).  The Picasa database is slurped into memory and
 cached in a Storable for quicker access on future runs.  Future runs
-update the data for changed and new files only.  Thumbnails are
-generated on demand and cached in a local directory.  The graphical
-interface was done in Perl Tk.  This all works as I had hoped but may
-consume too much memory for large collections.  So:
+quickly update the data for changed and new files only.  Thumbnails
+are generated on demand and cached in a local directory.  The
+graphical interface was done in Perl Tk.  This all works as I had
+hoped but may consume too much memory for large collections.  So:
 
 
 	TODO IDEAS for FUTURE WORK
@@ -59,32 +66,51 @@ consume too much memory for large collections.  So:
 Convert GUI from Perl Tk to Prima.  Experiments show that this will
 perform better while running smaller.  In particular, the Prima::Grid
 consumes memory only for the displayed cells, rather than all cells.
-Yet it runs very quickly when reading cell images from the thumbnail
+Yet it moves very quickly when reading cell images from the thumbnail
 cache.
 
 	DATABASE:
 
 Convert in-memory database to SQLite.  This should reduce the memory
 footprint significantly.  We can optionally move the thumbnails into
-the database for quicker reading from a single open file handle.  I
-think all the metric summaries of the filtered selection can turn into
-SQL queries, possibly simplifying some perl code.
+the database for quicker reading from a single open file handle.  The
+metric summaries of the filtered selection should turn into SQL
+queries, possibly simplifying some perl code.
 
 	THREADS:
 
 Currently the application is single threaded.  The GUI is updated
 between operations like reading directories or generating thumbnails.
-This causes sluggish response during lots of I/O.  With the above
-SQLite database, it is easy to go multithreaded:
+This causes sluggish response during lots of work.  With the above
+SQLite database, it is easy to go multithreaded in 2 processes:
 
-WRITER: database updater thread is scanning the directories for mtime
-updates and writing these to the SQLite database.  This need not by
-synchronized with the GUI at all.
+WRITER: database updater is scanning the directories for mtime updates
+and writing these to the SQLite database.  This background task need
+not be synchronized with the GUI at all.
 
 READER: GUI simply reads the SQLite database to present the interface.
 Any navigation errors (image deleted or moved but DB not updated yet)
 would simply browse up the tree until a working subdirectory is found.
 
-So these are the main changes I would like to make.  This is
-non-trival, basically requiring a full rewrite.  But I don't get much
+	THUMBNAILS:
+
+Thumbnail generation may remain on-demand but we could put more GUI
+updates between Image::Magick calls for quicker response.  Another
+option is to queue thumbnail generation to the background thread and
+load them into the grid as they finish, but this needs some
+communication between the processes.  Finally we could simply
+pre-generate all thumbnails, but this would maximize the cache size
+with images that may never be seen, wasting some time and space.  This
+is pretty much how Picasa works though.  Hmmmm, with more efficient
+Prima grid using fixed memory no matter how large the grid, we could
+even have flat single directory timeline view of all pictures in one
+giant grid, just like in Picasa!
+
+So these are the main improvements I would like to make.  This is all
+non-trival, requiring nearly a full rewrite.  But I don't get much
 time to work on this anymore...
+
+I may add specific bugs and further ideas in github issues.
+
+-- 
+Timothy D Witham <twitham@sbcglobal.net>

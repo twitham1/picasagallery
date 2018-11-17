@@ -1389,7 +1389,8 @@ Picasa) in a keyboard (or remote) controlled browser, similar to
 mythgallery of mythtv.  It does so by caching picture metadata from
 the filesystem and presenting a "virtual filesystem" as a grid of
 thumbnail images for navigation.  The goal is to have access to more
-picture metadata including several ways to organize the images.
+picture metadata including several ways to organize and filter the
+images.
 
 =head2 Thumbnail Grid
 
@@ -1401,9 +1402,9 @@ single picture or moves into a subdirectory and the B<Escape> key
 moves back up to the parent.  Metadata about the selected tile is
 displayed above and below the grid.
 
-The top level directories are:
+The top level virtual directories are:
 
-=over 4
+=over
 
 =item [Folders]
 
@@ -1449,7 +1450,7 @@ be given on the command line or in the config file.
 
 =head1 FILES
 
-=over 4
+=over
 
 =item .picasapgallery_conf.pl
 
