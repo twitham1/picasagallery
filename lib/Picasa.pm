@@ -639,7 +639,6 @@ stars, etc.)
     my $picasa = Picasa->new();		# new hash of metadata
     $picasa = $picasa->recursedirs(@ARGV || '.'); # find info
     print Dumper $picasa->filter('/');  # show total metadata
-    print Dumper $picasa;		# show all metadata
 
 =head1 DESCRIPTION
 
@@ -647,17 +646,16 @@ The Picasa library recurses through directories collecting information
 from .picasa.ini (optional) and image files into a perl hash.  Data
 includes image bytes, width, height, captions, tags, original
 timestamp and updated timestamp.  Optional .picasa.ini files from
-Picasa management may add detected face rectangles, album entries,
-stars and upload flags.  This data is used to build a virtual tree
-that organizes the images by Folders, Albums, People, Stars and Tags.
+Picasa software may add detected face rectangles, album entries, stars
+and upload flags.  This data is used to build a virtual tree that
+organizes the images by Folders, Albums, People, Stars and Tags.
 Methods are provided to then navigate and filter this tree of images.
 
-The caller can easily store this data structure in a Storable file on
-disk.  If one is passed in on future runs, it is used as a cache and
-the data is updated only for changed and new files for much quicker
-return.
+The caller can easily store this data structure in a L<Storable> file
+on disk.  If one is passed in on future runs, it is used as a cache
+and the data is updated only for changed and new files.
 
-picasagallery (see also) is the primary user of this library,
+L<picasagallery> (see also) is the primary user of this library,
 providing a keyboard driven Picasa aware image browser.  But it is
 also possible to use this library for other operations such as linking
 images into an alternate directory structure and merging the
@@ -666,15 +664,17 @@ directory for sample code.
 
 =head1 METHODS
 
-The methods are currently incomplete - picasagallery is using some
-direct object access.  Future versions might fix this.
+WARNING: The methods are currently incomplete; picasagallery is using
+some direct object access.  Extracting metadata also currently
+requires looking into the data hash.  Future versions might fix this,
+but see also C<TODO> below.
 
 =over
 
 =item new(%confighash)
 
 Create the Picasa database object and return it.  It is mostly empty
-unless $conf->{metadata} points to a file that contains a Storable
+unless $conf->{metadata} points to a file that contains a L<Storable>
 from a previous run.  In this case, the object returned already
 includes this data.
 
@@ -703,9 +703,9 @@ directory.  These take an optional integer argument, the number of
 steps to move in that direction.  They are a no-op if the beginning or
 end of the list is reached.
 
-down navigates into a child of the current directory.  This can be
-another directory or a single image.  up then navigates to the parent
-of the current directory.  This always moves to a directory, up to /.
+down navigates into the selected child of the current directory.  This
+can be another directory or a single image.  up then navigates to the
+parent directory of the current selection.
 
 The return value of all moves is a hash summary of all filtered images
 below that point in the tree.  For directories width, height, bytes,
@@ -732,7 +732,8 @@ found.  If all are excluded, the result is being in the / root.
 Merge metadata about sourceimage in sourcedir into destdir.  This is
 used for merging pictures from multiple directories into a common one.
 The destination image is assumed to have the same filename unless a
-new one is given.
+new one is given.  Note that this is only merging metadata in the
+hash, it is not touching any files.  See C<save> next:
 
 =item save(directory)
 
@@ -741,19 +742,24 @@ would be done in the destination directory after the above C<merge>.
 The caller would also need to actually link or copy the image in this
 case.  See the examples directory for sample code to do this.
 
-If the output is unchanged, the file will not be written.  If there is
-any change, the file will be backed up to _original but only once -
-_original will not be overwritten on future runs.  Then the current
-content is recorded in .picasa.ini.
+If the output is unchanged, the .picasa.ini file will not be written.
+If there is any change, the file will be backed up with an _original
+extension, but only one time.  The _original file will not be
+overwritten on multiple calls.
 
-If $conf->{debug} is negative, the writing is skipped and instead a
-difference is shown.  This is the only function that can modify data
-on disk, all others are read-only.
+This is the only function that can modify data on disk, all others are
+read-only.  If $conf->{debug} is negative, even this one will not
+write a new file.  Instead a difference is shown.
 
 =back
 
 There are several other methods used internally, which could be useful
-to code.
+to code.  See the source code and example directory for more.
+
+=head1 TODO
+
+I hope to someday replace or extend this with a more efficient SQLite
+database.  See the TODO file in the source for more on this idea.
 
 =head1 SEE ALSO
 
