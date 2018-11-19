@@ -889,7 +889,7 @@ sub newdir {		 # replace all thumbnails in current directory
 	} else {
 	    $w->configure(-bg => $conf->{bg});
 	    &PhotoXYthumb($image, $pf, (map { int } $tpx, $tpy),
-			  $data->{caption} || 0, $child);
+			  $data->{caption} || 0, $child, $data->{rot});
 	}
         $w->update; # Display the thumbnail
 	&move;    # toward selection while thumbnails are generating
@@ -930,7 +930,7 @@ sub newpic {	     # replace the full picture with current selection
     # (e.g. 1x2000) from going to Gigapixels and consuming massive memory:
     $scale = 10 * $mx / $x if $scale * $x > 10 * $mx;
     $scale = 10 * $my / $y if $scale * $y > 10 * $my;
-    &PhotoXYfull($image, $pf, map { int } $scale * $x, $scale * $y)
+    &PhotoXYfull($image, $pf, (map { int } $scale * $x, $scale * $y), $data->{rot})
 	or return;
     my($X, $Y) = ($mx/2 - ($scale * $x)/2, $my/2 - ($scale * $y)/2);
     $conf->{overlay} and $X = $Y = 0;
@@ -972,6 +972,8 @@ sub newpic {	     # replace the full picture with current selection
 	push @info, "f/$info->{FNumber}" if $info->{FNumber};
 	push @info, "ISO: $info->{ISO}" if $info->{ISO};
 	push @info, $info->{Flash} if $info->{Flash};
+	push @info, $info->{Orientation} if
+	    $info->{Orientation} and $info->{Orientation} =~ /Rotate/;
 	$canvas->createTextBox($mx, $my, $conf->{bg},
 			       -justify => 'right',
 			       -anchor => 'se',
@@ -1172,7 +1174,7 @@ sub cropfile {
 
 # read $f file into $w image scaled to size $x / $y, with cacheing
 sub PhotoXYthumb {
-    my ($w, $f, $x, $y, $c, $v) = @_;
+    my ($w, $f, $x, $y, $c, $v, $rot) = @_;
     $f && $x && $y or return;
     my $ext = 'jpg';		# jpg is smaller than png
     my $cfn = "$conf->{cache}/$x-$y/";
@@ -1198,13 +1200,13 @@ sub PhotoXYthumb {
 	if ($c) {		# caption on thumbnail
 	    $im = &image('xc:#0000', size => $geo);
 	    $im->Composite(qw/gravity northwest image/ =>
-			   &image("$f$crop", size => $geo));
+			   &image("$f$crop", size => $geo, rot => $rot));
 	    $im->Composite(qw/gravity south image/ =>
 			   &image("caption:$c",
 				  qw/fill white gravity south background/,
 				  '#0006', size => $tpx . 'x' . int($tpy / 6)));
 	} else {
-	    $im = &image("$f$crop", 'size' => $geo);
+	    $im = &image("$f$crop", size => $geo, rot => $rot);
 	}
 	my $e = $im->Write($cfn); $e and warn $e;
 	my($time) = -f $f ? (stat $f)[9] : 1; # timestamp same as source file
@@ -1245,7 +1247,7 @@ sub StackXYthumb {
 	for my $p (grep !$uniq{$_}++, @pic) {
 	    $im->Composite(gravity => shift @pos, image =>
 			   &image($p . &cropfile($p, $f, $x, $y, \$id),
-				  size => $geo));
+				  size => $geo, rot => $picasa->{pics}{$p}{rot}));
 	}
 	$im->Composite(qw/gravity center image/ =>
 		       &image("caption:$label",
@@ -1269,12 +1271,11 @@ BEGIN {
     my $id = 10000;
     my $ext = 'jpg';		# full format
     sub PhotoXYfull {
-	my ($w, $f, $x, $y) = @_;
+	my ($w, $f, $x, $y, $rot) = @_;
 	$f && $x && $y or return;
 	my $cfn = "$conf->{cache}/tmp-$$-" . $id++ . ".$ext";
 	my $geo = "${x}x${y}";
-
-	my $im = &image($f, size => $geo);
+	my $im = &image($f, size => $geo, rot => $rot);
 	my $e = $im->Resize(geometry => $geo); $e and warn $e;
 	$e = $im->Write($cfn); $e and warn $e;
 
@@ -1291,15 +1292,22 @@ BEGIN {
 # return the $file or its error message in an Image::Magick object
 sub image {
     my($file, %opt) = @_;
+    my $rot = $opt{rot} || 0; delete $opt{rot};
     my $i = Image::Magick->new(%opt);
+    # crop while reading unless rotated, in that case, crop later!
+    my $crop = 0; $crop = $1 if $rot and $file =~ s/\[(\S+)\]$//;
     my $e = $i->Read($file);
     if ($e) {
 	warn $e;      # opts are last-one-wins, so we override colors:
 	$i = Image::Magick->new(%opt,
 				qw/background red fill white gravity center/);
 	$i->Read("caption:$e");	# put error message in the image
+	$rot = 0;
     }
+    $rot and $i->Rotate($rot);	# must crop after rotate
+    $crop and $i->Crop(geometry => $crop);
     $opt{size} and $i->Resize(geometry => $opt{size});
+    $i->Strip;			# strip exif for smaller files
     return $i;
 }
 

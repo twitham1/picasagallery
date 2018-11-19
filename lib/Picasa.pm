@@ -336,14 +336,26 @@ sub picasa {
 
 # return hash of { id => [ NW, SE] } of faces in given $dir $pic
 sub faces {
-    my($self, $dir, $pic) = @_;
+    my($self, $dir, $pic, $rot) = @_;
     my $ret = {};
     return $ret unless $dir and $pic;
     my $this = $self->{dirs}{$dir}{$pic};
     return $ret unless $this and $this->{faces};
     for my $string (split ';', $this->{faces}) {
 	my($rect, $id) = split ',', $string;
-	$ret->{$id} = [$self->rect($rect)];
+	my($w, $n, $e, $s) = ($self->rect($rect));
+#	warn "$w, $n, $e, $s\n";
+	if ($rot == 0) {	# most common: no change
+	    $ret->{$id} = [$w, $n, $e, $s];
+	} elsif ($rot == 90) {
+	    $ret->{$id} = [1 - $s, $w, 1 - $n, $e];
+	} elsif ($rot == 180) {
+	    $ret->{$id} = [1 - $e, 1 - $s, 1 - $w, 1 - $n];
+	} elsif ($rot == 270) {
+	    $ret->{$id} = [$n, 1 - $e, $s, 1 - $w];
+	} else {		# assume no change
+	    $ret->{$id} = [$w, $n, $e, $s];
+	}
     }
     return $ret;
 }
@@ -508,7 +520,9 @@ sub _wanted {
 	    return unless $info;
 	    return unless $info->{ImageWidth} && $info->{ImageHeight};
 	    my %tags; map { $tags{$_}++ } split /,\s*/,
-	    $info->{Keywords} || $info->{Subject} || '';
+			  $info->{Keywords} || $info->{Subject} || '';
+	    my $or = $info->{Orientation} || '';
+	    my $rot = $or =~ /Rotate (\d+)/i ? $1 : 0;
 	    $this = $db->{pics}{$key} = $odb->{pics}{$key} = {
 		updated	=> $modified,
 		tag	=> \%tags,
@@ -519,9 +533,14 @@ sub _wanted {
 		|| $info->{ModifyDate} || $info->{FileModifyDate} || 0,
 		caption	=> $info->{'Caption-Abstract'}
 		|| $info->{'Description'} || '',
+		rot => $rot,
 	    };
+	    if ($rot == 90 || $rot == 270) {
+		($this->{width}, $this->{height}) = 
+		    ($this->{height}, $this->{width});
+	    }
 	}
-	$this->{face}	= $db->faces($dir, $file); # picasa data for this pic
+	$this->{face}	= $db->faces($dir, $file, $this->{rot}); # picasa data for this pic
 	$this->{album}	= $db->albums($dir, $file);
 	$this->{stars}	= $db->star($dir, $file);
 	$this->{uploads} = $db->uploads($dir, $file);
