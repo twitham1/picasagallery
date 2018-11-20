@@ -1,0 +1,99 @@
+# idea: put Picasa in DB (SQLite)!
+
+# initial notes on the tables needed
+
+# https://www.sqlite.org/
+# http://www.sqlitetutorial.net/
+# http://zetcode.com/db/sqliteperltutorial/
+
+# ------------------------------------------------------------ from
+# https://www.sqlite.org/lang_datefunc.html store all times as INTEGER
+# unixepoch from filsystem or exif, then DB can make them readable:
+strftime("format", 1092941466, 'unixepoch', 'localtime');
+datetime(1092941466, 'unixepoch', 'localtime');
+# current time is:
+SELECT srftime('%s', 'now');
+# ------------------------------------------------------------
+
+# root object is path/to/picture.jpg, indexed for quick lookup
+# Question: should filename be PRIMARY KEY in a WITHOUT ROWID table?
+# Could be half size and twice as fast, when selecting file paths.
+
+#CREATE TABLE IF NOT EXISTS files(
+CREATE TABLE files(
+    fileid NOT NULL INTEGER PRIMARY KEY, # alias to fast: rowid, oid, _rowid_
+    filename TEXT UNIQUE NOT NULL,
+#    FOREIGN KEY(pictureid) REFERENCES pictures(id),
+    );
+CREATE UNIQUE INDEX filenames ON files(filename);
+
+# all pictures have certain attributes, from filesystem or internal
+CREATE TABLE pictures(
+    width	INTEGER,
+    height	INTEGER,
+    bytes	INTEGER,
+    rotation	INTEGER,	# 0, 90, 180, 270 CW
+    updated	INTEGER,	# file timestamp
+    time	INTEGER,	# time picture taken
+    fileid	INTEGER,
+    PRIMARY FOREIGN KEY(fileid) REFERENCES files(fileid),
+    );
+
+# some pictures have more exif attributes that we might want
+CREATE TABLE exif(
+    caption	TEXT,
+    TAG
+    );
+
+TAGINFO
+	tagid
+	text
+
+META				# metadata stored in pictures
+    'caption' => '',
+    'tag' => {},
+    'gps data',
+
+PICASA				# metadata stored in .picasa.ini
+    picture
+      'updated' => 1433256741,	# .picasa.ini timestamp
+      'stars' => 0,		# boolean
+      'uploads' => 0,
+      'faces' => 1,		# needed?  See other tables instead
+      'albums' => 0,
+      'face' => {
+        '5f2912889a37a7e5' => [
+          '0.547607421875',
+          '0.174346923828125',
+          '0.64508056640625',
+          '0.38092041015625'
+        ]
+      },
+      'album' => {},
+	
+FACES
+	picture
+	faceid
+	topx, topy, botx, boty	# (post-rotate, if needed)
+
+FACEINFO	aka CONTACTS
+    '5cfcd48ce02f6add' => {
+      'First [Middle] Last;username@email.address;' => 60,
+      'Some Other Name;someguy@sbcglobal.net;10433123234426691644565' => 2,
+      'twitham@sbcglobal.net_lh,43366f2e8d1709ef' => 101
+    },
+
+ALBUMS
+	picture
+	albumid
+
+ALBUMINFO
+    '181bcc62d89341d346d0516d07d09082' => {
+      'location' => blah blah string',
+      'twitham@sbcglobal.net_lh' => '5445974308945881521',
+      'date' => '2010-03-06T22:43:59-06:00',
+      'name' => 'name on album',
+      'token' => '181bcc62d89341d346d0516d07d09082',
+      'description' => 'description on album'
+    },
+
