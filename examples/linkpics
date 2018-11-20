@@ -1,0 +1,91 @@
+#!/usr/bin/perl
+
+# convert picasa tree to link trees in linux.  I use this to let
+# mythgallery see a tree of different organization.  Run this from the
+# root of the pictures/ and mkdir ../virtual first (or $target below).
+
+# see also picasa.ini.txt
+
+# create albums/<album>/
+# ln [-s] <picture> albums/<album>/<timestamp>
+
+# create faces/<face>/
+# ln [-s] <picture> faces/<face>/<timestamp>
+
+# TODO: getopt where to link to
+# TODO: clean up destination links that are no longer in the source
+
+use warnings;
+use Image::ExifTool qw(:Public);
+use Data::Dumper;
+use Picasa;
+
+my $go = grep /go/, @ARGV;
+my $target = "../virtual";
+my $conf = {
+    debug	=> 0,
+    update	=> \&update,
+#    metadata	=> '.picasagallery_cache.pl', # cache of picture data
+    metadata	=> '.picasagallery.cache', # cache of picture data
+};
+
+for my $dir (qw/stars faces albums/) {
+    my $p = "$target/$dir";
+    mkdir $p unless -d $p;
+}
+
+my $picasa = Picasa->new($conf);
+$picasa->recursedirs('.');	# start finding the pictures
+$Data::Dumper::Indent = 1;
+
+exit;
+
+sub update {
+    return unless $File::Find::name;
+    my($dir, $pic) = Picasa::dirfile($File::Find::name);
+    return unless $pic =~ /.jpg$/i;
+    my $i = 0;
+    my $file = "$dir$pic";
+    (my $key = $file) =~ s@^./@@;
+    my $dt = $picasa->{pics}{$key}{time};
+    $dt =~ s/ /-/g;
+    my $this = $picasa->picasa($dir, $pic);
+    &mylink($file, "$target/stars/$dt.jpg")
+	if $this->{star};
+    for my $id (keys %{$picasa->faces($dir, $pic, 0)}) {
+	if (my $name = $picasa->contact2person($id)) {
+	    &mylink($file, "$target/faces/$name/$dt.jpg");
+	}
+    }
+    for my $id (keys %{$picasa->albums($dir, $pic)}) {
+	if (my $name = $picasa->{album}{$id}{name}) {
+	    &mylink($file, "$target/albums/$name/$dt.jpg");
+	}
+    }
+}
+
+sub mylink {
+    my($src, $dst) = @_;
+    (my $dir = $dst) =~ s@/[^/]+$@@;
+    mkdir $dir unless -d $dir;
+    my @s = stat $src;
+    my @d = stat $dst;
+    if ($s[1] == ($d[1] || 0)) {
+#	print "# $src already linked to $dst\n";
+	return;
+    }
+    unless ($go) {
+	print "# (not) link $src $dst\n";
+	return;
+    }
+    if (-e $dst) {		# backup the original, but only once
+	warn "not clobbering existing $dst with $src\n"
+	    if -t STDIN;
+	return;
+	# my $tmp = $dst . '_original';
+	# rename $dst, $tmp or warn "$0: can't rename $dst $tmp: $!\n";
+    }
+    link $src, $dst or warn "$0: can't link $src $dst: $!\n";
+    $src =~ s/'/\\'/g; $dst =~ s/'/\\'/g;
+    print "ln '$src' '$dst'\n";
+}
