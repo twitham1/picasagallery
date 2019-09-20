@@ -44,13 +44,26 @@ sub create {
     $dbh->do(
 	"
 	CREATE TABLE IF NOT EXISTS files(
-	fileid INTEGER NOT NULL PRIMARY KEY, -- alias to fast: rowid, oid, _rowid_
+	fileid INTEGER PRIMARY KEY NOT NULL, -- alias to fast: rowid, oid, _rowid_
 	filename TEXT UNIQUE NOT NULL
-	-- FOREIGN KEY(pictureid) REFERENCES pictures(id),
 	);
 	CREATE UNIQUE INDEX filenames ON files(filename);
 	");
-    $dbh->commit;
+    $dbh->do(
+	"
+	CREATE TABLE IF NOT EXISTS pictures(
+	width	INTEGER,
+	height	INTEGER,
+	bytes	INTEGER,
+	rotation INTEGER,	-- 0, 90, 180, 270 CW
+	updated	INTEGER,	-- file timestamp
+	time	INTEGER,	-- time picture taken (0 or updated if unknown?)
+	fileid	INTEGER,
+	FOREIGN KEY(fileid) REFERENCES files(fileid)
+	);
+	");
+
+#    $dbh->commit;
 }
 
 1;				# LPDB.pm

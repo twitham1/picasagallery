@@ -12,9 +12,13 @@ my $lpdb = new LPDB;
 ok(! defined $lpdb, "no-arg new() returned undef");
 
 $lpdb = new LPDB({dbfile => 'tmp.db'});
-ok(defined $lpdb, "new({dbfile}) returned something");
-ok($lpdb->isa('LPDB'), "   and it's an LPDB");
+isa_ok($lpdb, 'LPDB', "new({dbfile}");
 
 ok($lpdb->create, "created the tables");
+
+my @tables = $lpdb->{dbh}->tables;
+ok (3 == (grep /(files|pictures)/, @tables), # 3 with file index
+    "expected tables exist") or
+    diag("tables found: @tables");
 
 done_testing();
