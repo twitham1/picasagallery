@@ -19,7 +19,6 @@ my $conf = {		       # override any keys in first arg to new
     sortbyfilename => 0,  # boolean: sort by filename rather than time
     metadata	=> 0,	  # filename of Storable from previous run
 };
-my $dbh;
 
 sub new {
     my($class, $hash) = @_;
@@ -32,9 +31,26 @@ sub new {
     }
     $self->{conf} = $conf;
     $conf->{dbfile} or warn "{dbfile} required\n" and return undef;
-    $dbh = DBI->connect("dbi:SQLite:dbname=$conf->{dbfile}",  "", "",
-			{ RaiseError => 1 },) or die $DBI::errstr;
+    my $dbh = DBI->connect("dbi:SQLite:dbname=$conf->{dbfile}",  "", "",
+			   { RaiseError => 1 },) or die $DBI::errstr;
+    $self->{dbh} = $dbh;
     return bless $self, $class;
+}
+
+# create the database
+sub create {
+    my $self = shift;
+    my $dbh = $self->{dbh};
+    $dbh->do(
+	"
+	CREATE TABLE IF NOT EXISTS files(
+	fileid INTEGER NOT NULL PRIMARY KEY, -- alias to fast: rowid, oid, _rowid_
+	filename TEXT UNIQUE NOT NULL
+	-- FOREIGN KEY(pictureid) REFERENCES pictures(id),
+	);
+	CREATE UNIQUE INDEX filenames ON files(filename);
+	");
+    $dbh->commit;
 }
 
 1;				# LPDB.pm

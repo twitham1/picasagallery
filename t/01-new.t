@@ -11,8 +11,10 @@ use Data::Dumper;
 my $lpdb = new LPDB;
 ok(! defined $lpdb, "no-arg new() returned undef");
 
-my $lpdb = new LPDB({dbfile => 'tmp.db'});
+$lpdb = new LPDB({dbfile => 'tmp.db'});
 ok(defined $lpdb, "new({dbfile}) returned something");
 ok($lpdb->isa('LPDB'), "   and it's an LPDB");
+
+ok($lpdb->create, "created the tables");
 
 done_testing();
