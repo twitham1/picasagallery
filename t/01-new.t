@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/perl
 
 # create or read test.db
 
@@ -17,8 +17,10 @@ isa_ok($lpdb, 'LPDB', "new({dbfile}");
 ok($lpdb->create, "created the tables");
 
 my @tables = $lpdb->{dbh}->tables;
-ok (3 == (grep /(files|pictures)/, @tables), # 3 with file index
-    "expected tables exist") or
+ok(3 == (grep /(files|pictures)/, @tables), # includes indexes
+   "expected tables exist") or
     diag("tables found: @tables");
+
+$lpdb->disconnect;
 
 done_testing();

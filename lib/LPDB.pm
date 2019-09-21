@@ -1,10 +1,11 @@
 # LPDB.pm
 
-# ABSTRACT: LPDB = Local Picture Database, like for picasagallery
+# ABSTRACT: LPDB = Local Picture metadata in sqlite
 
 package LPDB;
 use strict;
 use warnings;
+use Carp;
 use DBI;
 # use DBIx::Class;
 
@@ -30,17 +31,22 @@ sub new {
 	$conf = $hash;
     }
     $self->{conf} = $conf;
-    $conf->{dbfile} or warn "{dbfile} required\n" and return undef;
+    $conf->{dbfile} or carp "{dbfile} required" and return undef;
     my $dbh = DBI->connect("dbi:SQLite:dbname=$conf->{dbfile}",  "", "",
-			   { RaiseError => 1 },) or die $DBI::errstr;
+			   { RaiseError => 1, AutoCommit => 0 })
+	or die $DBI::errstr;
     $self->{dbh} = $dbh;
     return bless $self, $class;
+}
+
+sub dbh {
+    return $_[0]->{dbh};
 }
 
 # create the database
 sub create {
     my $self = shift;
-    my $dbh = $self->{dbh};
+    my $dbh = $self->dbh;
     $dbh->do(
 	"
 	CREATE TABLE IF NOT EXISTS files(
@@ -62,8 +68,13 @@ sub create {
 	FOREIGN KEY(fileid) REFERENCES files(fileid)
 	);
 	");
+    $dbh->commit;
+}
 
-#    $dbh->commit;
+sub disconnect {
+    my $self = shift;
+    my $dbh = $self->dbh;
+    $dbh->disconnect;
 }
 
 1;				# LPDB.pm
