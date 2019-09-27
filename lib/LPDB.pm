@@ -33,7 +33,7 @@ sub new {
     $self->{conf} = $conf;
     $conf->{dbfile} or carp "{dbfile} required" and return undef;
     my $dbh = DBI->connect("dbi:SQLite:dbname=$conf->{dbfile}",  "", "",
-			   { RaiseError => 1, AutoCommit => 0 })
+			   { RaiseError => 1, AutoCommit => 1 })
 	or die $DBI::errstr;
     $self->{dbh} = $dbh;
     return bless $self, $class;
@@ -64,7 +64,7 @@ sub create {
 	rotation INTEGER,	-- 0, 90, 180, 270 CW
 	updated	INTEGER,	-- file timestamp
 	time	INTEGER,	-- time picture taken (0 or updated if unknown?)
-	fileid	INTEGER,
+	fileid	INTEGER PRIMARY KEY NOT NULL,
 	FOREIGN KEY(fileid) REFERENCES files(fileid)
 	);
 	");
@@ -75,6 +75,13 @@ sub disconnect {
     my $self = shift;
     my $dbh = $self->dbh;
     $dbh->disconnect;
+}
+
+sub schema {
+    my $self = shift;
+    $self->{schema} or $self->{schema} = LPDB::Schema->connect(
+	sub { $self->dbh });
+    return $self->{schema};
 }
 
 1;				# LPDB.pm
