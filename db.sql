@@ -1,5 +1,7 @@
 -- https://www.sqlitetutorial.net/sqlite-create-table/
 
+PRAGMA foreign_keys = ON;
+
 -- dbicdump automatically includes this documentation in the class output
 CREATE TABLE IF NOT EXISTS table_comments (
    id INTEGER PRIMARY KEY NOT NULL,
@@ -56,6 +58,8 @@ CREATE TABLE IF NOT EXISTS tags (
    tag_id	INTEGER PRIMARY KEY NOT NULL,
    string	TEXT UNIQUE NOT NULL);
 
+CREATE UNIQUE INDEX IF NOT EXISTS tag_strings ON tags (string);
+
 ---------------------------------------- PICTURE TAGS many2many
 INSERT INTO table_comments (table_name, comment_text) VALUES
    ('picture_tags', 'Joins many pictures to many tags');
@@ -65,12 +69,12 @@ CREATE TABLE IF NOT EXISTS picture_tag (
    PRIMARY KEY (file_id, tag_id),
    FOREIGN KEY (file_id) 
       REFERENCES pictures (file_id)
-         ON DELETE CASCADE 	--are these right?
-         ON UPDATE NO ACTION,
+         ON DELETE CASCADE
+         ON UPDATE CASCADE,
    FOREIGN KEY (tag_id) 
       REFERENCES tags (tag_id) 
          ON DELETE CASCADE 
-         ON UPDATE NO ACTION
+         ON UPDATE CASCADE
 );
 
 ---------------------------------------- ALBUMS
@@ -103,12 +107,13 @@ CREATE TABLE IF NOT EXISTS picture_album (
    PRIMARY KEY (file_id, album_id),
    FOREIGN KEY (file_id) 
       REFERENCES pictures (file_id)
-         ON DELETE CASCADE 	--are these right?
-         ON UPDATE NO ACTION,
+         ON DELETE CASCADE
+         ON UPDATE CASCADE,
    FOREIGN KEY (album_id) 
       REFERENCES albums (album_id) 
          ON DELETE CASCADE 
-         ON UPDATE NO ACTION
+         ON UPDATE CASCADE
 );
 
 ---------------------------------------- 
+
