@@ -155,6 +155,21 @@ __PACKAGE__->has_many(
   { cascade_copy => 0, cascade_delete => 0 },
 );
 
+=head2 picture_paths
+
+Type: has_many
+
+Related object: L<LPDB::Schema::Result::PicturePath>
+
+=cut
+
+__PACKAGE__->has_many(
+  "picture_paths",
+  "LPDB::Schema::Result::PicturePath",
+  { "foreign.file_id" => "self.file_id" },
+  { cascade_copy => 0, cascade_delete => 0 },
+);
+
 =head2 picture_tags
 
 Type: has_many
@@ -180,6 +195,16 @@ Composing rels: L</picture_albums> -> album
 
 __PACKAGE__->many_to_many("albums", "picture_albums", "album");
 
+=head2 paths
+
+Type: many_to_many
+
+Composing rels: L</picture_paths> -> path
+
+=cut
+
+__PACKAGE__->many_to_many("paths", "picture_paths", "path");
+
 =head2 tags
 
 Type: many_to_many
@@ -191,8 +216,8 @@ Composing rels: L</picture_tags> -> tag
 __PACKAGE__->many_to_many("tags", "picture_tags", "tag");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-10-14 01:36:29
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:TZ1M4/IQ5jMg0IQXLUgcrQ
+# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-11-13 00:08:28
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:umgxOPXCAdjpqxVXECamfg
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

@@ -44,8 +44,35 @@ CREATE TABLE IF NOT EXISTS pictures (
 CREATE UNIQUE INDEX IF NOT EXISTS filenames ON pictures (filename);
 CREATE INDEX IF NOT EXISTS picture_captions ON pictures (caption);
 
--- INSERT INTO pictures VALUES(1,'hello.jpg',1234,999,888,800,600,0);
--- INSERT INTO pictures VALUES(2,'world.jpg',9876,444,555,1920,1080,0);
+---------------------------------------- Virtual File System
+INSERT INTO table_comments (table_name, comment_text) VALUES
+   ('path', 'Virtual logical collections of pictures');
+
+INSERT INTO column_comments (table_name, column_name, comment_text) VALUES
+   ('path', 'path', 'Logical path to a collection of pictures');
+   
+CREATE TABLE IF NOT EXISTS path (
+   path_id	INTEGER PRIMARY KEY NOT NULL,
+   path		TEXT UNIQUE NOT NULL);
+
+CREATE UNIQUE INDEX IF NOT EXISTS path_paths ON path (path);
+
+---------------------------------------- PICTURE PATH many2many
+INSERT INTO table_comments (table_name, comment_text) VALUES
+   ('picture_path', 'Joins many pictures to many virtual paths');
+CREATE TABLE IF NOT EXISTS picture_path (
+   file_id INTEGER,
+   path_id INTEGER,
+   PRIMARY KEY (file_id, path_id),
+   FOREIGN KEY (file_id) 
+      REFERENCES pictures (file_id)
+         ON DELETE CASCADE
+         ON UPDATE CASCADE,
+   FOREIGN KEY (path_id) 
+      REFERENCES path (path_id) 
+         ON DELETE CASCADE 
+         ON UPDATE CASCADE
+);
 
 ---------------------------------------- TAGS
 INSERT INTO table_comments (table_name, comment_text) VALUES

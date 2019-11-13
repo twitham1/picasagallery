@@ -75,7 +75,7 @@ __PACKAGE__->belongs_to(
   "album",
   "LPDB::Schema::Result::Album",
   { album_id => "album_id" },
-  { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
+  { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
 );
 
 =head2 file
@@ -90,12 +90,12 @@ __PACKAGE__->belongs_to(
   "file",
   "LPDB::Schema::Result::Picture",
   { file_id => "file_id" },
-  { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
+  { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-10-14 00:40:14
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:iHUqvTn2LA+WA9+fA3q5eQ
+# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-11-12 23:13:14
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:is+BIKHpba0hHUg1dq3CGw
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

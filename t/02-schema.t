@@ -24,6 +24,17 @@ isa_ok($schema, 'LPDB::Schema', 'expected schema');
 
 $lpdb->update('./test');
 
+my @w = $lpdb->width('test/simon.jpg');
+print "simon width: @w\n";
+@w = $lpdb->width('test/');
+print "test width: @w\n";
+
+my @tags = $lpdb->tags('test/4faces.jpg');
+print "tags: @tags\n";
+
+@tags = $lpdb->tags('test/gps.jpg');
+print "tags: @tags\n";
+
 $lpdb->disconnect;
 
 done_testing();

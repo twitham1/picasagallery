@@ -12,7 +12,7 @@ use Date::Parse;
 use Image::ExifTool qw(:Public);
 use LPDB::Schema;
 
-# use DBIx::Class;
+$ENV{DBIC_TRACE} = 1;		# DBIx::Class::Storage SQL debug
 
 my $conf = {		       # override any keys in first arg to new
     reject	=> 'PATTERN OF FILES TO REJECT',
@@ -86,6 +86,32 @@ sub schema {
     return $self->{schema};
 }
 
+# it works, but maybe find all stats in one query?
+sub width {
+    my $self = shift;
+    my $root = shift;
+    my $schema = $self->schema;
+    my $rs = $schema->resultset('Picture')->search({
+	filename => $root =~ m{/$} ?
+	{ like => "$root%" }	# directory
+	: $root});		# file
+    my $width = $rs->get_column('width');
+    return $rs->count, $width->sum, $width->min, $width->max;
+}
+
+# tags of 1 picture
+sub tags {
+    my $self = shift;
+    my $file = shift;
+    my $schema = $self->schema;
+    my $rs = $schema->resultset('Picture')->search(
+	{ filename => $file },
+	{ columns => ['file_id']});
+    my $single = $rs->single;
+    my @tags = $single->tags;
+    return map { $_->string } @tags;
+}
+
 my $schema;  # global hack for File::Find !!! but we'll never find
 	     # more than once per process, so this will work
 
@@ -131,16 +157,15 @@ sub _wanted {
 	$key =~ s@\./@@;
 	return unless -f $key and -s $key > 100;
 	my $row = $schema->resultset('Picture')->find_or_create(
-	    {
-		filename	=> $key,
-	    });
+	    { filename => $key },
+	    { columns => [qw/modified/]});
 	return if $row->modified || 0 >= $modified;
 	my $info = $exiftool->ImageInfo($key);
 	return unless $info;
-	return unless $info->{ImageWidth} && $info->{ImageHeight};
+	return unless $info->{ImageWidth} and $info->{ImageHeight};
 	my $or = $info->{Orientation} || '';
 	my $rot = $or =~ /Rotate (\d+)/i ? $1 : 0;
-	my $swap = $rot == 90 || $rot == 270 || 0;
+	my $swap = $rot == 90 || $rot == 270 || 0; # 
 	my $time = $info->{DateTimeOriginal} || $info->{CreateDate}
 	|| $info->{ModifyDate} || $info->{FileModifyDate} || 0;
 	$time = str2time $time;
@@ -157,10 +182,29 @@ sub _wanted {
 	    ? $row->update
 	    : $row->discard_changes;
 
+	my $path = "[Folders]/$dir";
+	# TODO: make this an internal method or function
+	my $rspath = $schema->resultset('Path')->find_or_create(
+	    { path => $path });
+	    $schema->resultset('PicturePath')->find_or_create(
+		{ path_id => $rspath->path_id,
+		  file_id => $row->file_id });
+
 	my %tags; map { $tags{$_}++ } split /,\s*/,
 		      $info->{Keywords} || $info->{Subject} || '';
-	# 	tag	=> \%tags,
-	# 	}
+	for my $tag (keys %tags) {
+	    my $rstag = $schema->resultset('Tag')->find_or_create(
+		{ string => $tag });
+	    $schema->resultset('PictureTag')->find_or_create(
+		{ tag_id => $rstag->tag_id,
+		  file_id => $row->file_id });
+	    my $path = "[Tags]/$tag";
+	    my $rspath = $schema->resultset('Path')->find_or_create(
+		{ path => $path });
+	    $schema->resultset('PicturePath')->find_or_create(
+		{ path_id => $rspath->path_id,
+		  file_id => $row->file_id });
+	}
 	# 	$this->{face}	= $db->faces($dir, $file, $this->{rot}); # picasa data for this pic
 	# 	$this->{album}	= $db->albums($dir, $file);
 	# 	$this->{stars}	= $db->star($dir, $file);
