@@ -35,6 +35,12 @@ print "tags: @tags\n";
 @tags = $lpdb->tags('test/gps.jpg');
 print "tags: @tags\n";
 
+@tags = $lpdb->tags('test/simon.jpg');
+print "tags: @tags\n";
+
+@tags = $lpdb->tagsdir('test/');
+print "tags: @tags\n";
+
 $lpdb->disconnect;
 
 done_testing();

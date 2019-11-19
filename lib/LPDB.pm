@@ -27,7 +27,7 @@ my $conf = {		       # override any keys in first arg to new
 #    metadata	=> 0,	  # filename of Storable from previous run
 };
 
-my $exiftool;	       # for collecting exif data we are interested in
+my $exiftool;	       # global for File::Find's wanted
 
 sub new {
     my($class, $hash) = @_;
@@ -39,14 +39,15 @@ sub new {
 	$conf = $hash;
     }
     $self->{conf} = $conf;
-    $exiftool = new Image::ExifTool;
-    $exiftool->Options(FastScan => 1,
-		       DateFormat => $conf->{datefmt});
     $conf->{dbfile} or carp "{dbfile} required" and return undef;
     my $dbh = DBI->connect("dbi:SQLite:dbname=$conf->{dbfile}",  "", "",
 			   { RaiseError => 1, AutoCommit => 1 })
 	or die $DBI::errstr;
     $self->{dbh} = $dbh;
+    $exiftool = new Image::ExifTool;
+    $exiftool->Options(FastScan => 1,
+		       DateFormat => $conf->{datefmt});
+
     return bless $self, $class;
 }
 
@@ -112,6 +113,73 @@ sub tags {
     return map { $_->string } @tags;
 }
 
+# tags of gallery
+sub tagsdir {
+    my $self = shift;
+    my $root = shift;
+    my $schema = $self->schema;
+    my $rs = $schema->resultset('Picture')->search(
+	{ filename => { like => "$root%" } },
+	{ prefetch => 'picture_tags',
+	  columns => ['file_id']});
+    my %tag;
+    my $tagged = 0;
+    my @pic;
+    for my $pic ($rs->all) {
+	my @tags = map { $_->string } $pic->tags;
+	map { $tag{$_}++ } @tags;
+	print "$pic: @tags\n";
+	@tags and $tagged++;
+    }
+    my $n = keys %tag;
+    print "$n tags in $tagged pics\n";
+    return $tagged, sort keys %tag;
+}
+
+# verbatim from Picasa.pm
+sub dirfile { # similar to fileparse, but leave trailing / on directories
+    my($path) = @_;
+    my $end = $path =~ s@/+$@@ ? '/' : '';
+    my($dir, $file) = ('/', '');
+    ($dir, $file) = ($1, $2) if $path =~ m!(.*/)([^/]+)$!;
+    return "$dir", "$file$end";
+}
+
+# ------------------------------------------------------------
+# twiddle location in the virtual tree and selected node (file):
+# adapted from Picasa.pm
+
+# move to the virtual location of given picture
+sub goto {
+    my($self, $pic) = @_;
+    $pic =~ s@/+@/@g;
+    ($self->{dir}{dir}, $self->{dir}{file}) = dirfile $pic;
+    $self->up;
+}
+
+# given a virtual path, return all data known about it with current filters
+sub filter {
+}
+# TODO: option to automove to next directory if at end of this one
+sub next {
+}
+# TODO: option to automove to prev directory if at beginning of this one
+sub prev {
+}
+# back up into parent directory, with current file selected
+sub up {
+}
+# step into {file} of current {dir}
+sub down {
+}
+# reapply current filters, moving up if needed
+sub filtermove {
+}
+# given a virtual path, return all data known about it with current filters
+sub filter {
+}
+# ------------------------------------------------------------
+
 my $schema;  # global hack for File::Find !!! but we'll never find
 	     # more than once per process, so this will work
 
@@ -119,7 +187,7 @@ my $schema;  # global hack for File::Find !!! but we'll never find
 sub update {
     my $self = shift;
     my $dir = shift || '.';
-    $schema = $self->schema;	# global for File::Find's _wanted !!!
+    $schema = $self->schema;	# global for File::Find's wanted !!!
 #    $db = $self;
     warn "update $dir\n" if $conf->{debug};
     find ({ no_chdir => 1,
@@ -129,13 +197,6 @@ sub update {
 	  }, $dir);
 }
 
-sub dirfile { # similar to fileparse, but leave trailing / on directories
-    my($path) = @_;
-    my $end = $path =~ s@/+$@@ ? '/' : '';
-    my($dir, $file) = ('/', '');
-    ($dir, $file) = ($1, $2) if $path =~ m!(.*/)([^/]+)$!;
-    return "$dir", "$file$end";
-}
 # add a file or directory to the database, adapted from Picasa.pm
 sub _wanted {
     my($dir, $file) = dirfile $_;
