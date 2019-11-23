@@ -28,6 +28,9 @@ isa_ok($schema, 'LPDB::Schema', 'expected schema');
 $lpdb->update('./test');
 
 $lpdb->filter('/');
+$lpdb->filter('/[Tags]/');
+$lpdb->filter('/[Tags]/Simon/');
+$lpdb->filter('/[Tags]/Simon/2018/06-07-09:27:36.4faces.jpg');
 $lpdb->disconnect;
 done_testing();
 exit;

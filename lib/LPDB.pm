@@ -86,6 +86,8 @@ sub create {
     }
     warn "create: running sqlite3 $file < $sql\n";
     print `sqlite3 $file < $sql`; # hack!!! any smarter way?
+    $sql =~ s/.sql/-views.sql/;
+    print `sqlite3 $file < $sql`; # add the views
     return 1;
 }
 
@@ -119,7 +121,7 @@ sub width {
 	: (0, 0, 0, 0, 0, 0, 0);
 }
 
-# stats of given file ids
+# stats of given result set
 sub stats {
     my $self = shift;
     my $rs = shift;
@@ -144,103 +146,31 @@ sub stats {
     };
 }
 
-# tags of 1 picture
-sub tags {
-    my $self = shift;
-    my $file = shift;
-    my $schema = $self->schema;
-    my $rs = $schema->resultset('Picture')->search(
-	{ filename => $file },
-	{ columns => ['file_id']});
-    my $single = $rs->single;
-    my @tags = $single->tags;
-    return map { $_->string } @tags;
-}
+# # tags of 1 picture
+# sub tags {
+#     my $self = shift;
+#     my $file = shift;
+#     my $schema = $self->schema;
+#     my $rs = $schema->resultset('Picture')->search(
+# 	{ filename => $file },
+# 	{ columns => ['file_id']});
+#     my $single = $rs->single;
+#     my @tags = $single->tags;
+#     return map { $_->string } @tags;
+# }
 
-# tags of gallery
-sub tagsdir {
-    my $self = shift;
-    my $root = shift;
-    my $schema = $self->schema;
-    my $rs = $schema->resultset('Picture')->search(
-	{ filename => { like => "$root%" } },
-	{ prefetch => 'picture_tags',
-	  columns => ['file_id']});
-    my %tag;
-    my $tagged = 0;
-    while (my $pic = $rs->next) {
-	my @tags = map { $_->string } $pic->tags;
-	map { $tag{$_}++ } @tags;
-	print "$pic: @tags\n";
-	@tags and $tagged++;
-    }
-    my $n = keys %tag;
-    print "$n tags in $tagged pics\n";
-    return $tagged, sort keys %tag;
-}
-sub tagsvir {
-    my $self = shift;
-    my $root = shift;
-    my $schema = $self->schema;
-
-    my $path = $schema->resultset('Path')->search(
-	{ path => { like => "$root%" } },
-	# {
-	#     prefetch => 'picture_paths',
-	# }
-	);
-    my @pathids = map { $_->path_id } $path->all;
-    print "pathids: @pathids\n";
-
-    # for my $each ($path->all) {
-    # 	print "\t$each\n";	# children: paths
-    # 	for my $pic ($each->picture_paths) {
-    # 	    print "\t\t$pic\n";
-    # 	    for my $this ($pic->file_id) {
-    # 		print "\t\t\t$this\n";
-    # 	    }
-    # 	}
-    # }
-
-    my $files = $schema->resultset('PicturePath')->search(
-    	{ path_id => \@pathids },
-	{ group_by => [ 'file_id' ] }
-    	);
-    my @fileids = map { $_->file_id } $files->all;
-    print "fileids: @fileids\n";
-
-    my $pics = $schema->resultset('Picture')->search(
-    	{ file_id => \@fileids },
-    	);
-    my @pics = $pics->all;
-    print "pics: @pics\n";
-
-    my $tags = $schema->resultset('PictureTag')->search(
-    	{ file_id => \@fileids },
-	{ group_by => [ 'tag_id' ] }
-    	);
-    my @tagids = map { $_->tag_id } $tags->all;
-    print "tagids: @tagids\n";
-
-    my $strings = $schema->resultset('Tag')->search(
-    	{ tag_id => \@tagids },
-	{ group_by => [ 'tag_id' ] }
-    	);
-    my @tags = map { $_->string } $strings->all;
-    print "tags: @tags\n";
-
-#     # 	my $id = $ref->path_id;
-#     # 	print "id: $id\n";
-#     # }
-#     # { prefetch => 'picture_paths',
-#     #   columns => ['file_id', 'path_id']});
+# # tags of gallery
+# sub tagsdir {
+#     my $self = shift;
+#     my $root = shift;
+#     my $schema = $self->schema;
+#     my $rs = $schema->resultset('Picture')->search(
+# 	{ filename => { like => "$root%" } },
+# 	{ prefetch => 'picture_tags',
+# 	  columns => ['file_id']});
 #     my %tag;
 #     my $tagged = 0;
-# #    for my $path ($rs->
-#     for my $pic ($rs->files) {
-# 	my $one = $pic->tags;
-# 	warn "ppath: $one\n";
-# 	next;
+#     while (my $pic = $rs->next) {
 # 	my @tags = map { $_->string } $pic->tags;
 # 	map { $tag{$_}++ } @tags;
 # 	print "$pic: @tags\n";
@@ -249,7 +179,79 @@ sub tagsvir {
 #     my $n = keys %tag;
 #     print "$n tags in $tagged pics\n";
 #     return $tagged, sort keys %tag;
-}
+# }
+# sub tagsvir {
+#     my $self = shift;
+#     my $root = shift;
+#     my $schema = $self->schema;
+
+#     my $path = $schema->resultset('Path')->search(
+# 	{ path => { like => "$root%" } },
+# 	# {
+# 	#     prefetch => 'picture_paths',
+# 	# }
+# 	);
+#     my @pathids = map { $_->path_id } $path->all;
+#     print "pathids: @pathids\n";
+
+#     # for my $each ($path->all) {
+#     # 	print "\t$each\n";	# children: paths
+#     # 	for my $pic ($each->picture_paths) {
+#     # 	    print "\t\t$pic\n";
+#     # 	    for my $this ($pic->file_id) {
+#     # 		print "\t\t\t$this\n";
+#     # 	    }
+#     # 	}
+#     # }
+
+#     my $files = $schema->resultset('PicturePath')->search(
+#     	{ path_id => \@pathids },
+# 	{ group_by => [ 'file_id' ] }
+#     	);
+#     my @fileids = map { $_->file_id } $files->all;
+#     print "fileids: @fileids\n";
+
+#     my $pics = $schema->resultset('Picture')->search(
+#     	{ file_id => \@fileids },
+#     	);
+#     my @pics = $pics->all;
+#     print "pics: @pics\n";
+
+#     my $tags = $schema->resultset('PictureTag')->search(
+#     	{ file_id => \@fileids },
+# 	{ group_by => [ 'tag_id' ] }
+#     	);
+#     my @tagids = map { $_->tag_id } $tags->all;
+#     print "tagids: @tagids\n";
+
+#     my $strings = $schema->resultset('Tag')->search(
+#     	{ tag_id => \@tagids },
+# 	{ group_by => [ 'tag_id' ] }
+#     	);
+#     my @tags = map { $_->string } $strings->all;
+#     print "tags: @tags\n";
+
+# #     # 	my $id = $ref->path_id;
+# #     # 	print "id: $id\n";
+# #     # }
+# #     # { prefetch => 'picture_paths',
+# #     #   columns => ['file_id', 'path_id']});
+# #     my %tag;
+# #     my $tagged = 0;
+# # #    for my $path ($rs->
+# #     for my $pic ($rs->files) {
+# # 	my $one = $pic->tags;
+# # 	warn "ppath: $one\n";
+# # 	next;
+# # 	my @tags = map { $_->string } $pic->tags;
+# # 	map { $tag{$_}++ } @tags;
+# # 	print "$pic: @tags\n";
+# # 	@tags and $tagged++;
+# #     }
+# #     my $n = keys %tag;
+# #     print "$n tags in $tagged pics\n";
+# #     return $tagged, sort keys %tag;
+# }
 
 # verbatim from Picasa.pm
 sub dirfile { # similar to fileparse, but leave trailing / on directories
@@ -285,7 +287,7 @@ sub filter {
     }
     $opt or $opt = 0;
     my $data = {};
-    my @files;			# files of this parent, to find center
+#    my @files;			# files of this parent, to find center
     my %child;			# children of this parent
     my %face;			# faces in this path
     my %album;			# albums in this path
@@ -298,8 +300,11 @@ sub filter {
 
     my $sort;
     @$sort = keys %{$self->{root}};
-    for (@$sort) {
-	$child{$1}++ if m{^$path([^/]+/)};
+    for my $str (@$sort) {
+	next unless 0 == index($str, $path); # match
+	my $rest = substr $str, length $path;
+	$rest =~ s!/.*!/!;
+	$rest and $child{$rest}++; # entries in this directory
     }
     $data->{children} = [ sort keys %child ];
     my $virt = $schema->resultset('PicturePathView')->search(
@@ -307,18 +312,32 @@ sub filter {
 	{ group_by => 'file_id', # count each file only once
 	  order_by => 'time' }); # in time order
 
-    $data->{stats} = $self->stats($virt);
+    my $stats = $data->{stats} = $self->stats($virt);
 
     my $caps = $virt->search({ caption => {'!=', ''} });
-    $data->{stats}{captions} = $caps->count;
-#    $data->{stats}{caption} = [$caps->caption];
+    $stats->{captioned} = $caps->count;
 
-    # my $tags = $schema->resultset('PathTagView')->search(
-    # 	{ path => { like => "$path%" } },
-    # 	{ group_by => 'file_id',
-    # 	  order_by => 'string' });
-    # my @tags = $caps->strings;
+    # maybe optional?  Don't need to display these for directories..
+#    if ($stats->{files} == 1)
+    {
+	$caps = $virt->search({ caption => {'!=', ''} },
+			      { group_by => 'caption' });
+	$caps = $caps->get_column('caption');
+	my @all = $caps->all;
+	$stats->{caption} = \@all;
+    }
 
+    my $tags = $schema->resultset('PathTagView')->search(
+    	{ path => { like => "$path%" } },
+    	{ group_by => 'filename' });
+    $stats->{tagged} = $tags->count;
+    $tags = $tags->search(
+	undef,
+	{ group_by => 'string',
+	  order_by => 'string'});
+    $tags = $tags->get_column('string');
+    my @tags = $tags->all;
+    $stats->{tag} = \@tags;
 
     print Dumper $data;
 #     my $begin = $conf->{filter}{age} ? strftime $conf->{datefmt},

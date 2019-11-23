@@ -42,3 +42,20 @@ CREATE VIEW PathTagView AS
       pictures.file_id = picture_path.file_id
       AND
       path.path_id = picture_path.path_id;
+
+
+-- all in one - I think it multiplies too much, not yet used....
+DROP VIEW IF EXISTS AllView;
+DROP VIEW IF EXISTS PathView;
+
+CREATE VIEW PathView AS
+   SELECT
+      path.*,
+      pictures.*,
+      tags.*
+   FROM
+      path
+   LEFT JOIN picture_path ON path.path_id = picture_path.path_id
+   LEFT JOIN pictures ON pictures.file_id = picture_path.file_id
+   LEFT JOIN picture_tag on pictures.file_id = picture_tag.file_id
+   LEFT JOIN tags on tags.tag_id = picture_tag.tag_id;
