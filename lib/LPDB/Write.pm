@@ -77,6 +77,7 @@ sub _wanted {
 	my $swap = $rot == 90 || $rot == 270 || 0; # 
 	my $time = $info->{DateTimeOriginal} || $info->{CreateDate}
 	|| $info->{ModifyDate} || $info->{FileModifyDate} || 0;
+	$time =~ s/: /:0/g;	# fix corrupt: 2008:04:23 19:21: 4
 	$time = str2time $time;
 	
 	$row->bytes(-s $_);

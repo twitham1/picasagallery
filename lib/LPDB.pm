@@ -122,11 +122,7 @@ sub width {
 # stats of given file ids
 sub stats {
     my $self = shift;
-    my $list = shift;		# ref to list of file_id
-    my $schema = $self->schema;
-    my $rs = $schema->resultset('Picture')->search(
-	{ file_id => $list },
-	{ order_by => 'time'} );
+    my $rs = shift;
     my $num = $rs->count
 	or return {};
     my($first, $middle, $last) = map { $_->filename }
@@ -305,28 +301,26 @@ sub filter {
     for (@$sort) {
 	$child{$1}++ if m{^$path([^/]+/)};
     }
-    $data->{children} = [ keys %child ];
-    my $virt = $schema->resultset('Path')->search(
+    $data->{children} = [ sort keys %child ];
+    my $virt = $schema->resultset('PicturePathView')->search(
 	{ path => { like => "$path%" } },
-	{ prefetch => 'picture_paths' }
-	);
-    my %files;
-    map { $files{$_->file_id}++ } map { $_->picture_paths } $virt->all;
-    $data->{files} = keys %files;
-    $data->{stats} = [ $self->stats([keys %files]) ];
+	{ group_by => 'file_id', # count each file only once
+	  order_by => 'time' }); # in time order
+
+    $data->{stats} = $self->stats($virt);
+
+    my $caps = $virt->search({ caption => {'!=', ''} });
+    $data->{stats}{captions} = $caps->count;
+#    $data->{stats}{caption} = [$caps->caption];
+
+    # my $tags = $schema->resultset('PathTagView')->search(
+    # 	{ path => { like => "$path%" } },
+    # 	{ group_by => 'file_id',
+    # 	  order_by => 'string' });
+    # my @tags = $caps->strings;
+
 
     print Dumper $data;
-
-	# my $pics = $schema->resultset('Picture')->search(
-	#     { filename => { like => "$path%" }
-	#     { join => 'picture_paths' }
-	# 						  }
-	# while (my $one = $paths->next) {
-	#     $self->{root}{$one->path} = $one->path_id;
-	# }
-
-	# $self->width(
-    
 #     my $begin = $conf->{filter}{age} ? strftime $conf->{datefmt},
 #     localtime time - $conf->{filter}{age} : 0;
 #     if (!$sort or !$self->{done} or $self->{done} and !$done) {
