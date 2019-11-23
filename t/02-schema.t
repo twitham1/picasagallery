@@ -9,7 +9,10 @@ use LPDB;
 use LPDB::Schema;
 use Data::Dumper;
 
-my $lpdb = new LPDB({dbfile => 'tmp.db'});
+my $lpdb = new LPDB({dbfile => 'tmp.db',
+		     sqltrace => 1,
+		     debug => 1,
+		    });
 my $schema = $lpdb->schema;
 
 isa_ok($schema, 'LPDB::Schema', 'expected schema');
@@ -23,6 +26,11 @@ isa_ok($schema, 'LPDB::Schema', 'expected schema');
 # isa_ok($row, 'LPDB::Schema::Result::Picture', 'expected picture row');
 
 $lpdb->update('./test');
+
+$lpdb->filter('/');
+$lpdb->disconnect;
+done_testing();
+exit;
 
 my @w = $lpdb->width('test/simon.jpg');
 print "simon width: @w\n";
@@ -41,8 +49,12 @@ print "tags: @tags\n";
 @tags = $lpdb->tagsdir('test/');
 print "tags: @tags\n";
 
-$lpdb->disconnect;
+for my $path (qw{[Tags]/ [Tags]/Simon [Folders]/}) {
+    print "\n\ttags $path:\n";
+    @tags = $lpdb->tagsvir($path);
+}
 
+$lpdb->disconnect;
 done_testing();
 __END__
 # $row->update(
