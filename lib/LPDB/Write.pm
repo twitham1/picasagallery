@@ -44,7 +44,8 @@ sub update {
 # add a file or directory to the database, adapted from Picasa.pm
 sub _wanted {
     my($dir, $file) = LPDB::dirfile $_;
-    my $modified = (stat $_)[9]; 
+    my $modified = (stat $_)[9];
+    $dir =~ s@\./@@;
     #    $dir = '' if $dir eq '.';
     #    warn "checking: $modified\t$_\n";
     if ($file eq '.picasa.ini' or $file eq 'Picasa.ini') {
@@ -59,6 +60,7 @@ sub _wanted {
 #    my $guard = $schema->txn_scope_guard; # DBIx::Class::Storage::TxnScopeGuard
     unless (++$i % 1000) {
 	$schema->txn_commit;
+	warn "committed $i   \n"; # fix this!!! make configurable...
 	$schema->txn_begin;
     }
     if (-f $_) {
@@ -88,7 +90,7 @@ sub _wanted {
 	$row->height($swap ? $info->{ImageWidth} : $info->{ImageHeight});
 	$row->time($time);
 	$row->caption($info->{'Caption-Abstract'}
-		      || $info->{'Description'} || '');
+		      || $info->{'Description'} || undef);
 	$row->is_changed
 	    ? $row->update
 	    : $row->discard_changes;

@@ -307,37 +307,37 @@ sub filter {
 	$rest and $child{$rest}++; # entries in this directory
     }
     $data->{children} = [ sort keys %child ];
-    my $virt = $schema->resultset('PicturePathView')->search(
-	{ path => { like => "$path%" } },
+#    my $virt = $schema->resultset('PicturePathView')->search(
+    my $virt = $schema->resultset('PathView')->search(
+	{ path => { like => "$path%" },
+	  # string => { '!=' => undef }, # example filtering
+	  # caption => { '!=' => undef }, # user will toggle these!
+	},
 	{ group_by => 'file_id', # count each file only once
 	  order_by => 'time' }); # in time order
 
     my $stats = $data->{stats} = $self->stats($virt);
 
-    my $caps = $virt->search({ caption => {'!=', ''} });
-    $stats->{captioned} = $caps->count;
-
-    # maybe optional?  Don't need to display these for directories..
-#    if ($stats->{files} == 1)
     {
-	$caps = $virt->search({ caption => {'!=', ''} },
-			      { group_by => 'caption' });
+	my $caps = $virt->search({ caption => {'!=', undef} });
+	$stats->{captioned} = $caps->count;
+	$caps = $caps->search(undef,
+			      { group_by => 'caption',
+				order_by => 'caption' });
 	$caps = $caps->get_column('caption');
-	my @all = $caps->all;
-	$stats->{caption} = \@all;
+	my @caps = $caps->all;
+	$stats->{caption} = \@caps;
     }
-
-    my $tags = $schema->resultset('PathTagView')->search(
-    	{ path => { like => "$path%" } },
-    	{ group_by => 'filename' });
-    $stats->{tagged} = $tags->count;
-    $tags = $tags->search(
-	undef,
-	{ group_by => 'string',
-	  order_by => 'string'});
-    $tags = $tags->get_column('string');
-    my @tags = $tags->all;
-    $stats->{tag} = \@tags;
+    {
+	my $tags = $virt->search({ string => { '!=', undef }});
+	$stats->{tagged} = $tags->count;
+	$tags = $tags->search(undef,
+			      { group_by => 'string',
+				order_by => 'string' });
+	$tags = $tags->get_column('string');
+	my @tags = $tags->all;
+	$stats->{tag} = \@tags;
+    }
 
     print Dumper $data;
 #     my $begin = $conf->{filter}{age} ? strftime $conf->{datefmt},
