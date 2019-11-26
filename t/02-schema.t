@@ -10,60 +10,25 @@ use LPDB::Schema;
 use Data::Dumper;
 
 my $lpdb = new LPDB({dbfile => 'tmp.db',
-		     sqltrace => 1,
-		     debug => 1,
+		     # sqltrace => 1,
+		     # debug => 1,
 		    });
 my $schema = $lpdb->schema;
 
 isa_ok($schema, 'LPDB::Schema', 'expected schema');
 
-# my $rs = $schema->resultset('Picture');
-# my $row = $rs->find_or_create(
-#     {
-# 	filename => 'hello_world9',
-#     }
-#     );
-# isa_ok($row, 'LPDB::Schema::Result::Picture', 'expected picture row');
-
-$lpdb->update('./test');
-
-$lpdb->filter('/');
-$lpdb->filter('/[Tags]/');
-$lpdb->filter('/[Tags]/Simon/');
-$lpdb->filter('/[Tags]/Simon/2018/06-07-09:27:36.4faces.jpg');
+$lpdb->update('test');
+$lpdb->goto('/');
+is($lpdb->files, 10, 'total file count');
+my $children = $lpdb->children('dir');
+is("@$children", "[Folders]/ [Tags]/", 'Virtual FS root');
+is($lpdb->bytes, 18847967, 'bytes of [Folders]/');
+$lpdb->next;			# move to Tags
+$lpdb->down;			# step in, now Gracelyn
+is($lpdb->width, 10047, 'Tags/Gracelyn width');
+$lpdb->goto('/[Tags]/Simon/');
+print Dumper $lpdb->{file};
+is($lpdb->height, 7931, 'Tags/Simon height');
 $lpdb->disconnect;
 done_testing();
 exit;
-
-my @w = $lpdb->width('test/simon.jpg');
-print "simon width: @w\n";
-@w = $lpdb->width('test/');
-print "test width: @w\n";
-
-my @tags = $lpdb->tags('test/4faces.jpg');
-print "tags: @tags\n";
-
-@tags = $lpdb->tags('test/gps.jpg');
-print "tags: @tags\n";
-
-@tags = $lpdb->tags('test/simon.jpg');
-print "tags: @tags\n";
-
-@tags = $lpdb->tagsdir('test/');
-print "tags: @tags\n";
-
-for my $path (qw{[Tags]/ [Tags]/Simon [Folders]/}) {
-    print "\n\ttags $path:\n";
-    @tags = $lpdb->tagsvir($path);
-}
-
-$lpdb->disconnect;
-done_testing();
-__END__
-# $row->update(
-#     {    
-# 	width => 800,
-# 	height => 600,
-# 	time => 123456,
-#     }
-#     );

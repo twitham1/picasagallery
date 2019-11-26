@@ -35,7 +35,9 @@ my $conf = {		       # override any keys in first arg to new
 
 sub new {
     my($class, $hash) = @_;
-    my $self = { };
+    my $self = {
+	dir => { qw(dir / file /) },
+    };
     if (ref $hash) {		# switch to user's conf + my defaults
 	while (my($k, $v) = each %$conf) {
 	    $hash->{$k} = $v unless $hash->{$k};
@@ -142,99 +144,26 @@ sub stats {
 #     return map { $_->tag } @tags;
 # }
 
-# # tags of gallery
-# sub tagsdir {
-#     my $self = shift;
-#     my $root = shift;
-#     my $schema = $self->schema;
-#     my $rs = $schema->resultset('Picture')->search(
-# 	{ filename => { like => "$root%" } },
-# 	{ prefetch => 'picture_tags',
-# 	  columns => ['file_id']});
-#     my %tag;
-#     my $tagged = 0;
-#     while (my $pic = $rs->next) {
-# 	my @tags = map { $_->tag } $pic->tags;
-# 	map { $tag{$_}++ } @tags;
-# 	print "$pic: @tags\n";
-# 	@tags and $tagged++;
-#     }
-#     my $n = keys %tag;
-#     print "$n tags in $tagged pics\n";
-#     return $tagged, sort keys %tag;
-# }
-# sub tagsvir {
-#     my $self = shift;
-#     my $root = shift;
-#     my $schema = $self->schema;
+# pass stat name and 'dir' to get the parent, else get the 'file'
+sub stat {
+    my $self = shift;
+    my $stat = shift || 'files';
+    my $which = shift || 'file';
+    return $self->{$which}{stats}{$stat} || 0,
+	$self->{$which}{stats}{$stat} || 0,
+}
+sub bytes { shift->stat('bytes', @_) }
+sub files { shift->stat('files', @_) }
+sub width { shift->stat('width', @_) }
+sub height { shift->stat('height', @_) }
+sub tagged { shift->stat('tagged', @_) }
+sub captioned { shift->stat('captioned', @_) }
 
-#     my $path = $schema->resultset('Path')->search(
-# 	{ path => { like => "$root%" } },
-# 	# {
-# 	#     prefetch => 'picture_paths',
-# 	# }
-# 	);
-#     my @pathids = map { $_->path_id } $path->all;
-#     print "pathids: @pathids\n";
-
-#     # for my $each ($path->all) {
-#     # 	print "\t$each\n";	# children: paths
-#     # 	for my $pic ($each->picture_paths) {
-#     # 	    print "\t\t$pic\n";
-#     # 	    for my $this ($pic->file_id) {
-#     # 		print "\t\t\t$this\n";
-#     # 	    }
-#     # 	}
-#     # }
-
-#     my $files = $schema->resultset('PicturePath')->search(
-#     	{ path_id => \@pathids },
-# 	{ group_by => [ 'file_id' ] }
-#     	);
-#     my @fileids = map { $_->file_id } $files->all;
-#     print "fileids: @fileids\n";
-
-#     my $pics = $schema->resultset('Picture')->search(
-#     	{ file_id => \@fileids },
-#     	);
-#     my @pics = $pics->all;
-#     print "pics: @pics\n";
-
-#     my $tags = $schema->resultset('PictureTag')->search(
-#     	{ file_id => \@fileids },
-# 	{ group_by => [ 'tag_id' ] }
-#     	);
-#     my @tagids = map { $_->tag_id } $tags->all;
-#     print "tagids: @tagids\n";
-
-#     my $tags = $schema->resultset('Tag')->search(
-#     	{ tag_id => \@tagids },
-# 	{ group_by => [ 'tag_id' ] }
-#     	);
-#     my @tags = map { $_->tag } $tags->all;
-#     print "tags: @tags\n";
-
-# #     # 	my $id = $ref->path_id;
-# #     # 	print "id: $id\n";
-# #     # }
-# #     # { prefetch => 'picture_paths',
-# #     #   columns => ['file_id', 'path_id']});
-# #     my %tag;
-# #     my $tagged = 0;
-# # #    for my $path ($rs->
-# #     for my $pic ($rs->files) {
-# # 	my $one = $pic->tags;
-# # 	warn "ppath: $one\n";
-# # 	next;
-# # 	my @tags = map { $_->tag } $pic->tags;
-# # 	map { $tag{$_}++ } @tags;
-# # 	print "$pic: @tags\n";
-# # 	@tags and $tagged++;
-# #     }
-# #     my $n = keys %tag;
-# #     print "$n tags in $tagged pics\n";
-# #     return $tagged, sort keys %tag;
-# }
+sub children {			# pass dir or file
+    my $self = shift;
+    my $which = shift || 'file';
+    return $self->{$which}{children} || [];
+}
 
 # verbatim from Picasa.pm
 sub dirfile { # similar to fileparse, but leave trailing / on directories
@@ -246,16 +175,7 @@ sub dirfile { # similar to fileparse, but leave trailing / on directories
 }
 
 # ------------------------------------------------------------
-# twiddle location in the virtual tree and selected node (file):
 # adapted from Picasa.pm
-
-# move to the virtual location of given picture
-sub goto {
-    my($self, $pic) = @_;
-    $pic =~ s@/+@/@g;
-    ($self->{dir}{dir}, $self->{dir}{file}) = dirfile $pic;
-    $self->up;
-}
 
 # given a virtual path, return all data known about it with current filters
 sub filter {
@@ -303,25 +223,26 @@ sub filter {
     {
 	my $caps = $virt->search({ caption => {'!=', undef} });
 	$stats->{captioned} = $caps->count;
-	$caps = $caps->search(undef,
-			      { group_by => 'caption',
-				order_by => 'caption' });
-	$caps = $caps->get_column('caption');
-	my @caps = $caps->all;
-	$stats->{caption} = \@caps;
+	# $caps = $caps->search(undef,
+	# 		      { group_by => 'caption',
+	# 			order_by => 'caption' });
+	# $caps = $caps->get_column('caption');
+	# my @caps = $caps->all;
+	# $stats->{caption} = \@caps;
     }
     {
 	my $tags = $virt->search({ tag => { '!=', undef }});
 	$stats->{tagged} = $tags->count;
-	$tags = $tags->search(undef,
-			      { group_by => 'tag',
-				order_by => 'tag' });
-	$tags = $tags->get_column('tag');
-	my @tags = $tags->all;
-	$stats->{tag} = \@tags;
+	# $tags = $tags->search(undef,
+	# 		      { group_by => 'tag',
+	# 			order_by => 'tag' });
+	# $tags = $tags->get_column('tag');
+	# my @tags = $tags->all;
+	# $stats->{tag} = \@tags;
     }
 
-    print Dumper $data;
+    #    print Dumper $data;
+    
 #     my $begin = $conf->{filter}{age} ? strftime $conf->{datefmt},
 #     localtime time - $conf->{filter}{age} : 0;
 #     if (!$sort or !$self->{done} or $self->{done} and !$done) {
@@ -409,22 +330,79 @@ sub filter {
 #     $data->{tag}   or $data->{tag}   = \%tag;
 #     warn "filtered $path: ", Dumper $data if $conf->{debug} > 2;
 
-#     return $data;
+    return $data;
 }
+
+# twiddle location in the virtual tree and selected node (file):
+
+# nearly verbatim from Picasa.pm
+
+# move to the virtual location of given picture
+sub goto {
+    my($self, $pic) = @_;
+    $pic =~ s@/+@/@g;
+    ($self->{dir}{dir}, $self->{dir}{file}) = dirfile $pic;
+    $self->up;
+}
+
 # TODO: option to automove to next directory if at end of this one
 sub next {
+    my($self, $n, $pindexdone) = @_;
+    $self->{pindex} = $self->{index} unless $pindexdone;
+    $self->{index} += defined $n ? $n : 1;
+    my @child = @{$self->{dir}{children}};
+    my $child = @child;
+    $self->{index} = $child - 1 if $self->{index} >= $child;
+    $self->{index} = 0 if $self->{index} < 0;
+    $self->{file} = $self->
+	filter("$self->{dir}{dir}$self->{dir}{file}$child[$self->{index}]");
 }
 # TODO: option to automove to prev directory if at beginning of this one
 sub prev {
+    my($self, $n) = @_;
+    $self->{pindex} = $self->{index};
+    $self->{index} -= defined $n ? $n : 1;
+    my @child = @{$self->{dir}{children}};
+    $self->{index} = 0 if $self->{index} < 0;
+    $self->{file} = $self->
+	filter("$self->{dir}{dir}$self->{dir}{file}$child[$self->{index}]");
 }
 # back up into parent directory, with current file selected
 sub up {
+    my($self) = @_;
+    my $file = $self->{dir}{file}; # current location should be selected after up
+    warn "chdir $self->{dir}{dir}\n" if $conf->{debug};
+    $self->{dir} = $self->filter("$self->{dir}{dir}");
+    my $index = 0;
+    for my $c (@{$self->{dir}{children}}) {
+	last if $c eq $file and $file = '!file found!';
+	$index++;
+    }
+    $index = 0 if $file ne '!file found!';
+    $self->{pindex} = $self->{index};
+    $self->{index} = $index;
+    $self->next(0, 1);
 }
 # step into {file} of current {dir}
 sub down {
+    my($self) = @_;
+    return 0 unless $self->{file}{file} =~ m!/$!;
+    warn "chdir $self->{file}{dir}$self->{file}{file}\n" if $conf->{debug};
+    $self->{dir} = $self->filter("$self->{file}{dir}$self->{file}{file}");
+    $self->{index} = -1;
+    $self->next;
+    return 1;
 }
+
 # reapply current filters, moving up if needed
 sub filtermove {
+    my($self) = @_;
+    while (($self->{dir} = $self->filter("$self->{dir}{dir}$self->{dir}{file}")
+	    and !$self->{dir}{files})) {
+	$self->up;
+	last if $self->{dir}{file} eq '/';
+    }
+    $self->next(0, 1);
 }
 
 1;				# LPDB.pm
