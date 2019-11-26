@@ -139,7 +139,7 @@ sub stats {
 # 	{ columns => ['file_id']});
 #     my $single = $rs->single;
 #     my @tags = $single->tags;
-#     return map { $_->string } @tags;
+#     return map { $_->tag } @tags;
 # }
 
 # # tags of gallery
@@ -154,7 +154,7 @@ sub stats {
 #     my %tag;
 #     my $tagged = 0;
 #     while (my $pic = $rs->next) {
-# 	my @tags = map { $_->string } $pic->tags;
+# 	my @tags = map { $_->tag } $pic->tags;
 # 	map { $tag{$_}++ } @tags;
 # 	print "$pic: @tags\n";
 # 	@tags and $tagged++;
@@ -207,11 +207,11 @@ sub stats {
 #     my @tagids = map { $_->tag_id } $tags->all;
 #     print "tagids: @tagids\n";
 
-#     my $strings = $schema->resultset('Tag')->search(
+#     my $tags = $schema->resultset('Tag')->search(
 #     	{ tag_id => \@tagids },
 # 	{ group_by => [ 'tag_id' ] }
 #     	);
-#     my @tags = map { $_->string } $strings->all;
+#     my @tags = map { $_->tag } $tags->all;
 #     print "tags: @tags\n";
 
 # #     # 	my $id = $ref->path_id;
@@ -226,7 +226,7 @@ sub stats {
 # # 	my $one = $pic->tags;
 # # 	warn "ppath: $one\n";
 # # 	next;
-# # 	my @tags = map { $_->string } $pic->tags;
+# # 	my @tags = map { $_->tag } $pic->tags;
 # # 	map { $tag{$_}++ } @tags;
 # # 	print "$pic: @tags\n";
 # # 	@tags and $tagged++;
@@ -292,7 +292,7 @@ sub filter {
     $data->{children} = [ sort keys %child ];
     my $virt = $schema->resultset('PathView')->search(
 	{ path => { like => "$path%" },
-	  # string => { '!=' => undef }, # example filtering
+	  # tag => { '!=' => undef }, # example filtering
 	  # caption => { '!=' => undef }, # user will toggle these!
 	},
 	{ group_by => 'file_id', # count each file only once
@@ -311,12 +311,12 @@ sub filter {
 	$stats->{caption} = \@caps;
     }
     {
-	my $tags = $virt->search({ string => { '!=', undef }});
+	my $tags = $virt->search({ tag => { '!=', undef }});
 	$stats->{tagged} = $tags->count;
 	$tags = $tags->search(undef,
-			      { group_by => 'string',
-				order_by => 'string' });
-	$tags = $tags->get_column('string');
+			      { group_by => 'tag',
+				order_by => 'tag' });
+	$tags = $tags->get_column('tag');
 	my @tags = $tags->all;
 	$stats->{tag} = \@tags;
     }

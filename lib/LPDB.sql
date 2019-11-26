@@ -16,19 +16,19 @@ CREATE TABLE IF NOT EXISTS column_comments (
 
 ---------------------------------------- PICTURES
 INSERT INTO table_comments (table_name, comment_text) VALUES
-   ('pictures',	  'Picture files that hold images');
+   ('Pictures',	  'Picture files that hold images');
 
 INSERT INTO column_comments (table_name, column_name, comment_text) VALUES
-   ('pictures', 'filename', 'Path to the image file contents'),
-   ('pictures', 'bytes',    'Size of the image file in bytes'),
-   ('pictures', 'modified', 'Last modified timestamp of the image file'),
-   ('pictures', 'time',     'Time image was taken if known from EXIF, else file create or modify time'),
-   ('pictures', 'rotation', 'Stored clockwise rotation of the image in degrees: 0, 90, 180, 270'),
-   ('pictures', 'width',    'Displayed horizontal width of the image in pixels'),
-   ('pictures', 'height',   'Displayed vertical height of the image in pixels'),
-   ('pictures', 'caption',  'EXIF caption or description');
+   ('Pictures', 'filename', 'Path to the image file contents'),
+   ('Pictures', 'bytes',    'Size of the image file in bytes'),
+   ('Pictures', 'modified', 'Last modified timestamp of the image file'),
+   ('Pictures', 'time',     'Time image was taken if known from EXIF, else file create or modify time'),
+   ('Pictures', 'rotation', 'Stored clockwise rotation of the image in degrees: 0, 90, 180, 270'),
+   ('Pictures', 'width',    'Displayed horizontal width of the image in pixels'),
+   ('Pictures', 'height',   'Displayed vertical height of the image in pixels'),
+   ('Pictures', 'caption',  'EXIF caption or description');
 
-CREATE TABLE IF NOT EXISTS pictures (
+CREATE TABLE IF NOT EXISTS Pictures (
    file_id	INTEGER PRIMARY KEY NOT NULL, -- alias to fast: rowid, oid, _rowid_
    filename	TEXT UNIQUE NOT NULL,
    bytes	INTEGER,
@@ -41,106 +41,105 @@ CREATE TABLE IF NOT EXISTS pictures (
    );
 -- length	INTEGER,	-- support video files this way?
 
-CREATE UNIQUE INDEX IF NOT EXISTS filenames ON pictures (filename);
-CREATE INDEX IF NOT EXISTS picture_captions ON pictures (caption);
+CREATE UNIQUE INDEX IF NOT EXISTS filename_index ON Pictures (filename);
+CREATE INDEX IF NOT EXISTS caption_index ON Pictures (caption);
 
 ---------------------------------------- Virtual File System
 INSERT INTO table_comments (table_name, comment_text) VALUES
-   ('path', 'Virtual logical collections of pictures');
+   ('Paths', 'Virtual logical collections of pictures');
 
 INSERT INTO column_comments (table_name, column_name, comment_text) VALUES
-   ('path', 'path', 'Logical path to a collection of pictures');
+   ('Paths', 'path', 'Logical path to a collection of pictures');
    
-CREATE TABLE IF NOT EXISTS path (
+CREATE TABLE IF NOT EXISTS Paths (
    path_id	INTEGER PRIMARY KEY NOT NULL,
    path		TEXT UNIQUE NOT NULL);
 
-CREATE UNIQUE INDEX IF NOT EXISTS path_paths ON path (path);
+CREATE UNIQUE INDEX IF NOT EXISTS path_index ON Paths (path);
 
 ---------------------------------------- PICTURE PATH many2many
 INSERT INTO table_comments (table_name, comment_text) VALUES
-   ('picture_path', 'Joins many pictures to many virtual paths');
-CREATE TABLE IF NOT EXISTS picture_path (
+   ('PicturePath', 'Joins many pictures to many virtual paths');
+CREATE TABLE IF NOT EXISTS PicturePath (
    file_id INTEGER,
    path_id INTEGER,
    PRIMARY KEY (file_id, path_id),
    FOREIGN KEY (file_id) 
-      REFERENCES pictures (file_id)
+      REFERENCES Pictures (file_id)
          ON DELETE CASCADE
          ON UPDATE CASCADE,
    FOREIGN KEY (path_id) 
-      REFERENCES path (path_id) 
+      REFERENCES Paths (path_id) 
          ON DELETE CASCADE 
          ON UPDATE CASCADE
 );
 
 ---------------------------------------- TAGS
 INSERT INTO table_comments (table_name, comment_text) VALUES
-   ('tags', 'Tags in pictures (EXIF keywords or subject)');
+   ('Tags', 'Tags in pictures (EXIF keywords or subject)');
 
 INSERT INTO column_comments (table_name, column_name, comment_text) VALUES
-   ('tags', 'string', 'Unique text of one tag');
+   ('Tags', 'tag', 'Unique text of one tag');
    
-CREATE TABLE IF NOT EXISTS tags (
+CREATE TABLE IF NOT EXISTS Tags (
    tag_id	INTEGER PRIMARY KEY NOT NULL,
-   string	TEXT UNIQUE NOT NULL);
+   tag		TEXT UNIQUE NOT NULL);
 
-CREATE UNIQUE INDEX IF NOT EXISTS tag_strings ON tags (string);
+CREATE UNIQUE INDEX IF NOT EXISTS tag_index ON Tags (tag);
 
 ---------------------------------------- PICTURE TAGS many2many
 INSERT INTO table_comments (table_name, comment_text) VALUES
-   ('picture_tags', 'Joins many pictures to many tags');
-CREATE TABLE IF NOT EXISTS picture_tag (
+   ('PictureTag', 'Joins many pictures to many tags');
+CREATE TABLE IF NOT EXISTS PictureTag (
    file_id INTEGER,
    tag_id INTEGER,
    PRIMARY KEY (file_id, tag_id),
    FOREIGN KEY (file_id) 
-      REFERENCES pictures (file_id)
+      REFERENCES Pictures (file_id)
          ON DELETE CASCADE
          ON UPDATE CASCADE,
    FOREIGN KEY (tag_id) 
-      REFERENCES tags (tag_id) 
+      REFERENCES Tags (tag_id) 
          ON DELETE CASCADE 
          ON UPDATE CASCADE
 );
 
 ---------------------------------------- ALBUMS
 INSERT INTO table_comments (table_name, comment_text) VALUES
-   ('albums', 'Logical collections of pictures');
+   ('Albums', 'Logical collections of pictures');
 
 INSERT INTO column_comments (table_name, column_name, comment_text) VALUES
-   ('albums', 'name',        'Name of the Photo Album'),
-   ('albums', 'date',        'Date of the Photo Album'),
-   ('albums', 'place',       'Place Taken (optional)'),
-   ('albums', 'description', 'Description (optional)');
+   ('Albums', 'name',        'Name of the Photo Album'),
+   ('Albums', 'date',        'Date of the Photo Album'),
+   ('Albums', 'place',       'Place Taken (optional)'),
+   ('Albums', 'description', 'Description (optional)');
    
-CREATE TABLE IF NOT EXISTS albums (
+CREATE TABLE IF NOT EXISTS Albums (
    album_id	INTEGER PRIMARY KEY NOT NULL,
    name		TEXT UNIQUE NOT NULL,
    date		INTEGER,	-- YYMMDD, or epoch, or DateTime?
    place	TEXT,
    description	TEXT);
 
-CREATE UNIQUE INDEX IF NOT EXISTS album_names ON albums (name);
-CREATE INDEX IF NOT EXISTS album_places ON albums (place);
-CREATE INDEX IF NOT EXISTS album_descriptions ON albums (description);
+CREATE UNIQUE INDEX IF NOT EXISTS album_name_index ON Albums (name);
+CREATE INDEX IF NOT EXISTS album_place_index ON Albums (place);
+CREATE INDEX IF NOT EXISTS album_description_index ON Albums (description);
 
 ---------------------------------------- PICTURE ALBUM many2many
 INSERT INTO table_comments (table_name, comment_text) VALUES
-   ('picture_album', 'Joins many pictures to many albums');
-CREATE TABLE IF NOT EXISTS picture_album (
+   ('PictureAlbum', 'Joins many pictures to many albums');
+CREATE TABLE IF NOT EXISTS PictureAlbum (
    file_id INTEGER,
    album_id INTEGER,
    PRIMARY KEY (file_id, album_id),
    FOREIGN KEY (file_id) 
-      REFERENCES pictures (file_id)
+      REFERENCES Pictures (file_id)
          ON DELETE CASCADE
          ON UPDATE CASCADE,
    FOREIGN KEY (album_id) 
-      REFERENCES albums (album_id) 
+      REFERENCES Albums (album_id) 
          ON DELETE CASCADE 
          ON UPDATE CASCADE
 );
 
 ---------------------------------------- 
-

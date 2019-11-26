@@ -6,7 +6,7 @@ package LPDB::Schema::Result::PictureTag;
 
 =head1 NAME
 
-LPDB::Schema::Result::PictureTag
+LPDB::Schema::Result::PictureTag - Joins many pictures to many tags
 
 =cut
 
@@ -18,11 +18,11 @@ use MooseX::NonMoose;
 use MooseX::MarkAsMethods autoclean => 1;
 extends 'DBIx::Class::Core';
 
-=head1 TABLE: C<picture_tag>
+=head1 TABLE: C<PictureTag>
 
 =cut
 
-__PACKAGE__->table("picture_tag");
+__PACKAGE__->table("PictureTag");
 
 =head1 ACCESSORS
 
@@ -94,8 +94,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-11-12 23:13:14
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:VTZoUMOEyAkfszG4pjH5kQ
+# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-11-25 18:39:31
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:VyZVVU3Z1qvivZiELAGYeg
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

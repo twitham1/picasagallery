@@ -18,11 +18,11 @@ use MooseX::NonMoose;
 use MooseX::MarkAsMethods autoclean => 1;
 extends 'DBIx::Class::Core';
 
-=head1 TABLE: C<albums>
+=head1 TABLE: C<Albums>
 
 =cut
 
-__PACKAGE__->table("albums");
+__PACKAGE__->table("Albums");
 
 =head1 ACCESSORS
 
@@ -129,8 +129,8 @@ Composing rels: L</picture_albums> -> file
 __PACKAGE__->many_to_many("files", "picture_albums", "file");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-10-14 00:40:14
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:qFyGnnZgPzACdpzwAIeYeg
+# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-11-25 18:39:31
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:cVmIkhWFep3u82jLSyApew
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

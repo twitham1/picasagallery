@@ -87,7 +87,7 @@ __PACKAGE__->table("PathView");
   data_type: 'integer'
   is_nullable: 1
 
-=head2 string
+=head2 tag
 
   data_type: 'text'
   is_nullable: 1
@@ -119,13 +119,13 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "tag_id",
   { data_type => "integer", is_nullable => 1 },
-  "string",
+  "tag",
   { data_type => "text", is_nullable => 1 },
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-11-23 16:51:22
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:avW/fR5XS8LKnp1N2nW0+A
+# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-11-25 18:44:02
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ZDzI8LA7QEHABFsU9xRj+A
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

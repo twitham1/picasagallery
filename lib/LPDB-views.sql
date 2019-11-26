@@ -6,15 +6,15 @@ DROP VIEW IF EXISTS PathView;
 
 CREATE VIEW PathView AS
    SELECT
-      path.*,
-      pictures.*,
-      tags.*
+      Paths.*,
+      Pictures.*,
+      Tags.*
    FROM
-      path
-   LEFT JOIN picture_path ON path.path_id = picture_path.path_id
-   LEFT JOIN pictures ON pictures.file_id = picture_path.file_id
-   LEFT JOIN picture_tag ON pictures.file_id = picture_tag.file_id
-   LEFT JOIN tags ON tags.tag_id = picture_tag.tag_id;
+      Paths
+   LEFT JOIN PicturePath ON Paths.path_id = PicturePath.path_id
+   LEFT JOIN Pictures ON Pictures.file_id = PicturePath.file_id
+   LEFT JOIN PictureTag ON Pictures.file_id = PictureTag.file_id
+   LEFT JOIN Tags ON Tags.tag_id = PictureTag.tag_id;
    -- TODO: add joins to picasa metadata here
 
 -- original experimental views below no longer used

@@ -113,7 +113,7 @@ sub _wanted {
 		      $info->{Keywords} || $info->{Subject} || '';
 	for my $tag (keys %tags) {
 	    my $rstag = $schema->resultset('Tag')->find_or_create(
-		{ string => $tag });
+		{ tag => $tag });
 	    $schema->resultset('PictureTag')->find_or_create(
 		{ tag_id => $rstag->tag_id,
 		  file_id => $row->file_id });

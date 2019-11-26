@@ -18,11 +18,11 @@ use MooseX::NonMoose;
 use MooseX::MarkAsMethods autoclean => 1;
 extends 'DBIx::Class::Core';
 
-=head1 TABLE: C<pictures>
+=head1 TABLE: C<Pictures>
 
 =cut
 
-__PACKAGE__->table("pictures");
+__PACKAGE__->table("Pictures");
 
 =head1 ACCESSORS
 
@@ -216,8 +216,8 @@ Composing rels: L</picture_tags> -> tag
 __PACKAGE__->many_to_many("tags", "picture_tags", "tag");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-11-13 00:08:28
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:umgxOPXCAdjpqxVXECamfg
+# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-11-25 18:33:17
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:iAHT/q2mJsqkp0PzpGl5IA
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
