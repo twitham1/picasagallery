@@ -12,11 +12,9 @@ use strict;
 use warnings;
 use Carp;
 use DBI;
-use File::Find;
-use Date::Parse;
 use Image::ExifTool qw(:Public);
-use LPDB::Schema;
-use LPDB::Write;
+use LPDB::Schema;		# from dbicdump dbicdump.conf
+use LPDB::Filesystem qw(update);
 use Data::Dumper;
 
 my $conf = {		       # override any keys in first arg to new
@@ -59,9 +57,11 @@ sub new {
     return bless $self, $class;
 }
 
-sub conf {		    # return value of given key, or whole hash
+sub conf {	     # return whole config, or key, or set key's value
     my($self, $key, $value) = @_;
     if (defined $value) {
+	$key eq 'sqltrace'
+	    and $ENV{DBIC_TRACE} = $value;
 	return $self->{conf}{$key} = $value;
     } elsif ($key) {
 	return $self->{conf}{$key} || undef;
@@ -102,23 +102,6 @@ sub schema {
     $self->{schema} or $self->{schema} = LPDB::Schema->connect(
 	sub { $self->dbh });
     return $self->{schema};
-}
-
-# it works, but maybe find all stats in one query?
-sub width {
-    my $self = shift;
-    my $root = shift;
-    my $schema = $self->schema;
-    my $rs = $schema->resultset('Picture')->search({
-	filename => $root =~ m{/$} ?
-	{ like => "$root%" }	# directory
-	: $root});		# file
-    my $width = $rs->get_column('width');
-    my $height = $rs->get_column('height');
-    return $rs->count
-	? ($rs->count, $width->sum, $width->min, $width->max,
-	   $height->sum, $height->min, $height->max)
-	: (0, 0, 0, 0, 0, 0, 0);
 }
 
 # stats of given result set
@@ -307,7 +290,6 @@ sub filter {
 	$rest and $child{$rest}++; # entries in this directory
     }
     $data->{children} = [ sort keys %child ];
-#    my $virt = $schema->resultset('PicturePathView')->search(
     my $virt = $schema->resultset('PathView')->search(
 	{ path => { like => "$path%" },
 	  # string => { '!=' => undef }, # example filtering

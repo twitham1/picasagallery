@@ -1,24 +1,27 @@
-package LPDB;
+package LPDB::Filesystem;
 
 =head1 NAME
 
-LPDB::Write - write local picture metadata to sqlite
+LPDB::Filesystem - update sqlite from local picture metadata
 
 =cut
 
+# TODO: maybe split to Files / Pictures (exif)
+
 use strict;
 use warnings;
-use DBI;
 use File::Find;
 use Date::Parse;
 use POSIX qw/strftime/;
 use Image::ExifTool qw(:Public);
 use LPDB::Schema;
+use base 'Exporter::Tiny';
+our @EXPORT = qw(update);
 
-my $exiftool;	  # global hacks for File::Find !!! but we'll never
-my $schema;	  # find more than once per process, so this will work
+my $exiftool;	  # global hacks for File::Find !!!  We'll never
+my $schema;	  # find more than once per process, so this is OK.
 my $conf;
-my $i = 0;
+my $done = 0;			# records processed
 
 # recursively add given directory or . to picasa database
 sub update {
@@ -58,9 +61,9 @@ sub _wanted {
     }
     $File::Find::prune = 1, return if $file =~ /$conf->{reject}/;
 #    my $guard = $schema->txn_scope_guard; # DBIx::Class::Storage::TxnScopeGuard
-    unless (++$i % 1000) {
+    unless (++$done % 1000) {
 	$schema->txn_commit;
-	warn "committed $i   \n"; # fix this!!! make configurable...
+	warn "committed $done   \n"; # fix this!!! make configurable...
 	$schema->txn_begin;
     }
     if (-f $_) {
@@ -104,7 +107,7 @@ sub _wanted {
 		  file_id => $row->file_id });
 
 	my $tsfile = strftime "%Y/%m-%d-%H:%M:%S.$file",
-	    localtime $time;	# made-up file!!!
+	    localtime $time;	# made-up file!!!  configurable?
 
 	my %tags; map { $tags{$_}++ } split /,\s*/,
 		      $info->{Keywords} || $info->{Subject} || '';
@@ -178,4 +181,4 @@ sub _wanted {
     &{$conf->{update}};
 }
 
-1;				# LPDB.pm
+1;				# LPDB::Filesystem.pm
