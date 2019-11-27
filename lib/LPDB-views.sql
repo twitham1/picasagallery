@@ -1,6 +1,6 @@
--- single all in one view enables filter/group/sort by anything!
-
--- query code must be careful to group_by the interesting thing
+-- This magic single all in one view completes the many-to-many
+-- relationships.  This enables navigate/filter/group/sort by
+-- anything!  Query code must be careful to group_by what is needed
 
 DROP VIEW IF EXISTS PathView;
 
@@ -8,6 +8,7 @@ CREATE VIEW PathView AS
    SELECT
       Paths.*,
       Pictures.*,
+      (Pictures.width * Pictures.height) AS pixels,
       Tags.*
    FROM
       Paths
@@ -18,6 +19,7 @@ CREATE VIEW PathView AS
    -- TODO: add joins to picasa metadata here
 
 -- original experimental views below no longer used
+-- TODO: remove all this if it is not valuable
 
 DROP VIEW IF EXISTS AllView;
 

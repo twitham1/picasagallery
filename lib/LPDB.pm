@@ -106,29 +106,34 @@ sub schema {
     return $self->{schema};
 }
 
-# stats of given result set
+# stats of given result set moves values from DB to perl object
 sub stats {
     my $self = shift;
     my $rs = shift;
     my $num = $rs->count
 	or return {};
-    my($first, $middle, $last) = map { $_->filename }
-    ($rs->all)[0, $num/2, -1];	# smarter way to get these?
+    my($first, $middle, $last) =  ($rs->all)[0, $num/2, -1];
     my $bytes = $rs->get_column('bytes');
     my $width = $rs->get_column('width');
     my $height = $rs->get_column('height');
+    my $pixels = $rs->get_column('pixels');
     my $time = $rs->get_column('time');
-    return {
+    return (
 	files => $num,
 	bytes => $bytes->sum,
 	width => $width->sum,
 	height => $height->sum,
+	pixels => $pixels->sum,
+	time => $time->sum,
 	begintime => $time->min,
 	endtime => $time->max,
-	first => $first,
-	middle => $middle,
-	last => $last,
-    };
+	first => $first->file_id,   # thumbnail generator can use
+	middle => $middle->file_id, # first-middle-last as key for
+	last => $last->file_id,	    # automated updates
+	firstname => $first->filename,	 # thumbnail generator could
+	middlename => $middle->filename, # look these up but might as
+	lastname => $last->filename,	 # well do it while here
+    );
 }
 
 # # tags of 1 picture
@@ -144,20 +149,52 @@ sub stats {
 #     return map { $_->tag } @tags;
 # }
 
-# pass stat name and 'dir' to get the parent, else get the 'file'
+# return value of named stat, 0=sum,1=mean, 0=file,1=dir
 sub stat {
     my $self = shift;
     my $stat = shift || 'files';
-    my $which = shift || 'file';
-    return $self->{$which}{stats}{$stat} || 0,
-	$self->{$which}{stats}{$stat} || 0,
+    my $avg = shift ? 1 : 0;
+    my $which = shift ? 'dir' : 'file';
+    return $avg			# mean average, as integer:
+	? int($self->{$which}{$stat} / ($self->{$which}{files} || 1) + 0.5)
+	: $self->{$which}{$stat}; # default = sum
 }
-sub bytes { shift->stat('bytes', @_) }
 sub files { shift->stat('files', @_) }
+sub bytes { shift->stat('bytes', @_) }
 sub width { shift->stat('width', @_) }
 sub height { shift->stat('height', @_) }
+sub pixels { shift->stat('pixels', @_) }
 sub tagged { shift->stat('tagged', @_) }
 sub captioned { shift->stat('captioned', @_) }
+
+sub sums {
+    my $self = shift;
+    my $this = $self->{file};
+    return sprintf "%.0f MB (%.0f MP) in %d files",
+	$this->{bytes} / 1024 / 1024,
+	$this->{pixels} / 1000 / 1000,
+	$this->{files};
+}
+
+# see stats in picasagallery for more options!!!
+sub averages {
+    my($self, $x, $y, $scale) = @_;
+    my $this = $self->{file};
+    my $files = $this->{files};
+    my $w = $this->{width} / $files;
+    my $h = $this->{height} / $files;
+    my $str = sprintf "%.0f KB (%.0f KP) %.0f x %.0f (%.3f)",
+	$this->{bytes} / 1024 / $files,
+	$this->{pixels} / 1000 / $files,
+	$w, $h, $w / $h;
+    if ($scale or $x and $y) {	# scale of displayed pictures
+	$scale = $x / $w < $y / $h ? $x / $w : $y / $h
+	    unless $scale;
+	$scale *= 2 / 3 if $this->{file} =~ m!/$!;
+	$str .= sprintf " %.0f%%", 100 * $scale;
+    }
+    return $str;
+}
 
 sub children {			# pass dir or file
     my $self = shift;
@@ -189,17 +226,26 @@ sub filter {
 #	print Dumper $self->{root};
     }
     $opt or $opt = 0;
-    my $data = {};
 #    my @files;			# files of this parent, to find center
     my %child;			# children of this parent
-    my %face;			# faces in this path
-    my %album;			# albums in this path
+    # my %face;			# faces in this path
+    # my %album;			# albums in this path
     my %tag;			# tags in this path
     my %done;			# files that have been processed
     my @ss;			# slide show pictures
     $path =~ s@/+@/@g;
-    ($data->{dir}, $data->{file}) = dirfile $path;
     warn "filter:$path\n" if $conf->{debug};
+
+        my $virt = $schema->resultset('PathView')->search(
+	{ path => { like => "$path%" },
+	  # tag => { '!=' => undef }, # example filtering
+	  # caption => { '!=' => undef }, # user will toggle these!
+	},
+	{ group_by => 'file_id', # count each file only once
+	  order_by => 'time' }); # in time order -- needed???!!!
+
+    my $data = { $self->stats($virt) };
+    ($data->{dir}, $data->{file}) = dirfile $path;
 
     my $sort;
     @$sort = keys %{$self->{root}};
@@ -210,35 +256,26 @@ sub filter {
 	$rest and $child{$rest}++; # entries in this directory
     }
     $data->{children} = [ sort keys %child ];
-    my $virt = $schema->resultset('PathView')->search(
-	{ path => { like => "$path%" },
-	  # tag => { '!=' => undef }, # example filtering
-	  # caption => { '!=' => undef }, # user will toggle these!
-	},
-	{ group_by => 'file_id', # count each file only once
-	  order_by => 'time' }); # in time order
-
-    my $stats = $data->{stats} = $self->stats($virt);
 
     {
 	my $caps = $virt->search({ caption => {'!=', undef} });
-	$stats->{captioned} = $caps->count;
+	$data->{captioned} = $caps->count;
 	# $caps = $caps->search(undef,
 	# 		      { group_by => 'caption',
 	# 			order_by => 'caption' });
 	# $caps = $caps->get_column('caption');
 	# my @caps = $caps->all;
-	# $stats->{caption} = \@caps;
+	# $data->{caption} = \@caps;
     }
     {
 	my $tags = $virt->search({ tag => { '!=', undef }});
-	$stats->{tagged} = $tags->count;
+	$data->{tagged} = $tags->count;
 	# $tags = $tags->search(undef,
 	# 		      { group_by => 'tag',
 	# 			order_by => 'tag' });
 	# $tags = $tags->get_column('tag');
 	# my @tags = $tags->all;
-	# $stats->{tag} = \@tags;
+	# $data->{tag} = \@tags;
     }
 
     #    print Dumper $data;

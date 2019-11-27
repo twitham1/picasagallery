@@ -82,6 +82,11 @@ __PACKAGE__->table("PathView");
   data_type: 'text'
   is_nullable: 1
 
+=head2 pixels
+
+  data_type: (empty string)
+  is_nullable: 1
+
 =head2 tag_id
 
   data_type: 'integer'
@@ -117,6 +122,8 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_nullable => 1 },
   "caption",
   { data_type => "text", is_nullable => 1 },
+  "pixels",
+  { data_type => "", is_nullable => 1 },
   "tag_id",
   { data_type => "integer", is_nullable => 1 },
   "tag",
@@ -124,8 +131,8 @@ __PACKAGE__->add_columns(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-11-25 18:44:02
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ZDzI8LA7QEHABFsU9xRj+A
+# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-11-26 19:33:03
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:6GWyi2TBkfvwYrb5PTknOw
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
