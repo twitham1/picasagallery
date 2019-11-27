@@ -6,6 +6,14 @@ package LPDB;
 
 LPDB - Local Picture metadata in sqlite
 
+=head1 SYNOPSIS
+
+use LPDB;
+
+=head1 DESCRIPTION
+
+B<LPDB> stores local picture metadata in a sqlite database.
+
 =cut
 
 use strict;
@@ -36,7 +44,7 @@ my $conf = {		       # override any keys in first arg to new
 sub new {
     my($class, $hash) = @_;
     my $self = {
-	dir => { qw(dir / file /) },
+	index => 0, # dir => { qw(dir / file /) },
     };
     if (ref $hash) {		# switch to user's conf + my defaults
 	while (my($k, $v) = each %$conf) {
@@ -52,11 +60,9 @@ sub new {
 			   { RaiseError => 1, AutoCommit => 1 })
 	or die $DBI::errstr;
     $self->{dbh} = $dbh;
-    # $exiftool = new Image::ExifTool;
-    # $exiftool->Options(FastScan => 1,
-    # 		       DateFormat => $conf->{datefmt});
-
-    return bless $self, $class;
+    bless $self, $class;
+    $self->{dir} = $self->{file} = $self->filter('/');
+    return $self;
 }
 
 sub conf {	     # return whole config, or key, or set key's value
@@ -127,12 +133,14 @@ sub stats {
 	time => $time->sum,
 	begintime => $time->min,
 	endtime => $time->max,
-	first => $first->file_id,   # thumbnail generator can use
-	middle => $middle->file_id, # first-middle-last as key for
-	last => $last->file_id,	    # automated updates
-	firstname => $first->filename,	 # thumbnail generator could
-	middlename => $middle->filename, # look these up but might as
-	lastname => $last->filename,	 # well do it while here
+	firstid => $first->file_id,   # thumbnail generator can use
+	middleid => $middle->file_id, # first-middle-last as key for
+	lastid => $last->file_id,	    # automated updates
+	first => $first->filename,	 # thumbnail generator could
+	middle => $middle->filename, # look these up but might as
+	last => $last->filename,	 # well do it while here
+	physical => $middle->filename,	 # hack!!! for picasagallery
+	mtime => $time->max,
     );
 }
 
@@ -165,7 +173,7 @@ sub width { shift->stat('width', @_) }
 sub height { shift->stat('height', @_) }
 sub pixels { shift->stat('pixels', @_) }
 sub tagged { shift->stat('tagged', @_) }
-sub captioned { shift->stat('captioned', @_) }
+sub captioned { shift->stat('caption', @_) }
 
 sub sums {
     my $self = shift;
@@ -236,7 +244,7 @@ sub filter {
     $path =~ s@/+@/@g;
     warn "filter:$path\n" if $conf->{debug};
 
-        my $virt = $schema->resultset('PathView')->search(
+    my $virt = $schema->resultset('PathView')->search(
 	{ path => { like => "$path%" },
 	  # tag => { '!=' => undef }, # example filtering
 	  # caption => { '!=' => undef }, # user will toggle these!
@@ -259,7 +267,8 @@ sub filter {
 
     {
 	my $caps = $virt->search({ caption => {'!=', undef} });
-	$data->{captioned} = $caps->count;
+#	$data->{captioned} = $caps->count;
+	$data->{caption} = $caps->count;
 	# $caps = $caps->search(undef,
 	# 		      { group_by => 'caption',
 	# 			order_by => 'caption' });
@@ -367,6 +376,18 @@ sub filter {
 #     $data->{tag}   or $data->{tag}   = \%tag;
 #     warn "filtered $path: ", Dumper $data if $conf->{debug} > 2;
 
+    return $data;
+}
+
+# return metadata of given physical path
+sub pics {
+    my($self, $filename) = @_;
+    my $virt = $self->schema->resultset('PathView')->search(
+	{ filename => $filename },
+	{ group_by => 'file_id' }); # TODO: replace with ->single
+    my $data = { $self->stats($virt) };
+    $data->{rot} = $virt->get_column('rotation')->sum;
+    ($data->{dir}, $data->{file}) = dirfile $filename;
     return $data;
 }
 

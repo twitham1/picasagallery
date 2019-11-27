@@ -41,18 +41,23 @@ use Time::Local;		 # for age calculations
 use Image::ExifTool qw(:Public); # for picture metadata
 use Image::Magick;		 # for picture conversions
 use Picasa;			 # for groking Picasa data!
+use lib 'lib';			 # hack, remove this!!!
+use LPDB;			 # use new LPDB instead of storables!
 
 # config file can override any settings here (Picasa.pm also uses a few):
 our $conf = {
+    fast	=> 2, # 0 = scan for changes, 1 = use cache, 2 = read only LPDB
     config	=> '.picasagallery_conf.pl', # config to require, if present
     metadata	=> '.picasagallery.cache',   # cache of picture data
+    dbfile	=> 'tmp.db',		     # LPDB filename!!!
     metaperl	=> 0,	 # filename for cache in perl format, 0 = none
     cache	=> '.thumbcache', # where to put thumbnails
     keep	=> '(?i)\.(jpe?g|gif|x[pb]m|png|bmp|tiff?|nef)$',
     reject	=> '(?i)\b(\.?thumb(nail)?s?(.db)?)\b',
-    datefmt	=> '%Y-%m-%d %H:%M:%S %a', # must be sortable w/year first
+#    datefmt	=> '%Y-%m-%d %H:%M:%S %a', # must be sortable w/year first
+    datefmt	=> undef,	# for LPDB!!!
     update	=> \&update,	# don't change this (GUI updates)
-    debug	=> 0,		# debug to STDERR?
+    debug	=> 1,		# debug to STDERR?
     info	=> 0,		# overlay metadata on images?
     width	=> 1920, # initial size also determines thumbnail size
     height	=> 1080,
@@ -77,7 +82,6 @@ our $conf = {
     pan		=> 0, # 0 = full picture, 1 = 1D pan, 2 == 2D pan (100%)
     thumbcrops	=> 0,		# 1 = zoom (crop) thumbnails to fill tiles
     facecrops	=> 1,		# 1 = face thumnails in [People] paths
-    fast	=> 0,		# 0 = scan for changes, 1 = use cache only
     overlay	=> 0,		# 0 = replace, 1 = overlay pictures
     attrs	=> 0,		# prate attribute hash {file}{n,a}
     variable	=> 1,		# variable speed show (if n ratings in attrs)
@@ -88,10 +92,13 @@ require $conf->{config} if -f $conf->{config};
 
 # command line can override config file and above defaults:
 map { /^(\w+)=(.*)$/ and $conf->{$1} = $2 } @ARGV;
--f $conf->{metadata} or $conf->{fast} = 0;
+-f ($conf->{fast} == 2 ? $conf->{dbfile} : $conf->{metadata})
+    or $conf->{fast} = 0;
 
 #  rebuild all data since prior run, using previous cache until finished
-my $picasa = Picasa->new($conf);
+my $picasa = $conf->{fast} ? LPDB->new($conf) : Picasa->new($conf);
+print Dumper $picasa->{dir}, $picasa->{file};
+# exit;
 
 my @ss;			   # slide show picture list
 my $ssindex = 0;	   # slide show index
@@ -601,7 +608,7 @@ sub picmove {			# pan picture with view indicators
     my($x, $y) = $canvas->coords('image');
     my $this = $picasa->{file} or return;
     my $pf = $this->{physical} or return;
-    my $data = $picasa->{pics}{$pf} or return; # data of this picture
+    my $data = $picasa->pics($pf) or return; # data of this picture
     my $w = $data->{width} * $scale or return;
     my $h = $data->{height} * $scale or return;
     my $left = 0 - $x;		# pixels off-screen, negative == none
@@ -869,7 +876,7 @@ sub newdir {		 # replace all thumbnails in current directory
         my $child = "$now$img";
 	my $this = $picasa->filter($child, 'nofilter');
 	my $pf = $this->{physical};
-	my $data = $picasa->{pics}{$pf};
+	my $data = $picasa->pics($pf);
 	my $row = int($index / $tnx) + 1, # Table index begins at 1, not 0!
 	my $col = $index % $tnx + 1,
 	my $w;
@@ -919,7 +926,7 @@ sub newpic {	     # replace the full picture with current selection
 	return;
     }
     my $pf = $this->{physical} or return;
-    my $data = $picasa->{pics}{$pf} or return; # data of this picture
+    my $data = $picasa->pics($pf) or return; # data of this picture
     my $x = $data->{width} or return;
     my $y = $data->{height} or return;
     $scale = $conf->{pan} ?
@@ -1120,7 +1127,7 @@ sub cropface {
     $conf->{facecrops} or return '';
     $path =~ m@\[People\]/([^/]+)@ or return '';
     my $face = $1;
-    my $this = $picasa->{pics}{$file} or return '';
+    my $this = $picasa->pics($file) or return '';
     unless ($cache{$file}{$face}) {
 	$cache{$file}{$face} = [0, ''];
 #	warn "cropface: $file for $path ($face)\n";
@@ -1146,7 +1153,7 @@ sub cropface {
 sub cropthumb {
     my($file, $x, $y) = @_;
     $conf->{thumbcrops} or return '';
-    my $this = $picasa->{pics}{$file} or return '';
+    my $this = $picasa->pics($file) or return '';
     my $geo = "$x-$y";
     unless ($cache{$file}{$geo}) {
 	my($w, $h) = ($this->{width}, $this->{height});
@@ -1247,7 +1254,7 @@ sub StackXYthumb {
 	for my $p (grep !$uniq{$_}++, @pic) {
 	    $im->Composite(gravity => shift @pos, image =>
 			   &image($p . &cropfile($p, $f, $x, $y, \$id),
-				  size => $geo, rot => $picasa->{pics}{$p}{rot}));
+				  size => $geo, rot => $picasa->pics($p)->{rot}));
 	}
 	$im->Composite(qw/gravity center image/ =>
 		       &image("caption:$label",
