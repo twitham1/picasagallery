@@ -12,7 +12,6 @@
 # TODO: directory/file sort options: name, date, reverse
 # TODO: config file should be able to auto-start a {slideshow} = /root/path
 # TODO: speed up thumbnail rebuild option (don't reload whole directory)
-# TODO: documentation?
 
 # to extract thumbnails from videos (1 frame @ 60 seconds):
 # ffmpeg -ss 60 -vframes 1 -i $video [-s 640x480] $file.jpg
@@ -40,24 +39,26 @@ use File::Path;			 # for creating thumbnail paths
 use Time::Local;		 # for age calculations
 use Image::ExifTool qw(:Public); # for picture metadata
 use Image::Magick;		 # for picture conversions
-use Picasa;			 # for groking Picasa data!
 use lib 'lib';			 # hack, remove this!!!
+use Picasa;			 # for groking Picasa data!
 use LPDB;			 # use new LPDB instead of storables!
 
 # config file can override any settings here (Picasa.pm also uses a few):
 our $conf = {
-    fast	=> 2, # 0 = scan for changes, 1 = use cache, 2 = read only LPDB
-    config	=> '.picasagallery_conf.pl', # config to require, if present
+    config	=> './.picasagallery_conf.pl', # config to require, if present
+    lpdb	=> 0,	 # 0 = Picasa {metadata}, 1 = LPDB {dbfile}
     metadata	=> '.picasagallery.cache',   # cache of picture data
-    dbfile	=> 'tmp.db',		     # LPDB filename!!!
-    metaperl	=> 0,	 # filename for cache in perl format, 0 = none
+    metaperl	=> 0,	     # optional cache in perl format, 0 = none
+    dbfile	=> 'tmp.db', # LPDB filename, used if {lpdb}=1
+    fast	=> 0,	# 0 = scan for changes, 1 = read-only cache/DB
+    roots	=> ['.'], # root directories of all pictures to update
     cache	=> '.thumbcache', # where to put thumbnails
     keep	=> '(?i)\.(jpe?g|gif|x[pb]m|png|bmp|tiff?|nef)$',
     reject	=> '(?i)\b(\.?thumb(nail)?s?(.db)?)\b',
-#    datefmt	=> '%Y-%m-%d %H:%M:%S %a', # must be sortable w/year first
-    datefmt	=> undef,	# for LPDB!!!
+    datefmt	=> '%Y-%m-%d %H:%M:%S %a', # must be sortable w/year first
+    strftime	=> '%Y-%m-%d %H:%M:%S %a', # for {lpdb}=1 formatting
     update	=> \&update,	# don't change this (GUI updates)
-    debug	=> 1,		# debug to STDERR?
+    debug	=> 0,		# debug to STDERR?
     info	=> 0,		# overlay metadata on images?
     width	=> 1920, # initial size also determines thumbnail size
     height	=> 1080,
@@ -92,12 +93,36 @@ require $conf->{config} if -f $conf->{config};
 
 # command line can override config file and above defaults:
 map { /^(\w+)=(.*)$/ and $conf->{$1} = $2 } @ARGV;
--f ($conf->{fast} == 2 ? $conf->{dbfile} : $conf->{metadata})
+-f ($conf->{lpdb} ? $conf->{dbfile} : $conf->{metadata})
     or $conf->{fast} = 0;
 
+# fork DB updater in the background.  TODO: {sofar} progress
+if ($conf->{lpdb} and !$conf->{fast}) {
+    $SIG{CHLD} = 'IGNORE';
+    if (my $pid = fork) {	# parent
+	warn "$$ forked $pid to update $conf->{dbfile}\n";
+	sleep 1;		# let child create DB
+    } elsif (defined $pid) {	# child
+	warn "$$ new:\n";
+	my $lpdb = LPDB->new($conf);
+	warn "$$ create:\n";
+	$lpdb->create;
+	warn "$$ updating @{$conf->{roots}}\n";
+	$lpdb->update(@{$conf->{roots}});
+	$lpdb->disconnect;
+	exit 0;
+    } else {
+	die "fork error: $!\n";
+    }
+}
+
 #  rebuild all data since prior run, using previous cache until finished
-my $picasa = $conf->{fast} ? LPDB->new($conf) : Picasa->new($conf);
-print Dumper $picasa->{dir}, $picasa->{file};
+my $picasa = $conf->{lpdb} ? LPDB->new($conf) : Picasa->new($conf);
+if ($conf->{lpdb}) {		# build initial data structures
+    $picasa->{dir} = $picasa->{file} = $picasa->filter('/');
+}
+
+# print Dumper $picasa->{dir}, $picasa->{file};
 # exit;
 
 my @ss;			   # slide show picture list
@@ -560,15 +585,17 @@ for my $w ($mw, $full) {	# both windows have same key bindings
 }
 
 # all metadata is updated in the background at each startup ----------------
-warn "starting Picasa recursion\n" if $conf->{debug};
 $mw->after(1500, sub {		# show browser after we have some data
     $mw->eventGenerate('<Return>');
     $tg->eventGenerate('<Configure>'); });
 $conf->{tweakdata} and &{$conf->{tweakdata}}($picasa);
 if ($conf->{fast}) {		# shortcut - use cached data only
     $picasa->{done} = 1;
+} elsif ($conf->{lpdb}) {	# fork LPDB updater in the background
 } else {		     # search for changes, write out new cache
-    $picasa = $picasa->recursedirs('.'); # updates GUI via $conf->{update}
+    warn "starting Picasa recursion\n" if $conf->{debug};
+    # updates GUI via $conf->{update}:
+    $picasa = $picasa->recursedirs(@{$conf->{roots}});
     if ($picasa->{done}) {		 # save current updated cache
 	if ($conf->{metadata}) {	 # nstored cache
 	    warn "saving $conf->{metadata}...\n" if $conf->{debug};
@@ -593,11 +620,11 @@ if ($conf->{fast}) {		# shortcut - use cached data only
 	}
     }
     $conf->{tweakdata} and &{$conf->{tweakdata}}($picasa);
+    warn "Picasa recursion done!\n" if $conf->{debug};
 }
 
 &update(1);			   # update stats one last time
 $pg->value($pg->cget('-to') + 10); # empty the progress bar
-warn "Picasa recursion done!\n" if $conf->{debug};
 
 MainLoop;			# never returns
 Tk::exit;			# should never get here
@@ -734,8 +761,10 @@ BEGIN {	# filtering for stats is expensive, so we update GUI only once a second
     sub update {
 	my($force) = @_;
 	$force and $updated = 1;
+	$mw or return;
 	$mw->update;		# let GUI work while we are busy
 	time > $updated or return;
+#	$conf->{lpdb} and $picasa->filter('/'); # update from DB!!! doesn't work
 	$picasa->{root} and $picasa->{file} or return;
 
 	# warn "updating $File::Find::name\n" if $conf->{debug};
@@ -1395,14 +1424,14 @@ picasagallery - .picasa.ini aware keyboard driven picture browser
 
 =head1 SYNOPSIS
 
-picasagallery [field=value]
+picasagallery [field=value] ...
 
 =head1 DESCRIPTION
 
 B<picasagallery> presents local pictures (optionally managed by
 Picasa) in a keyboard (or remote) controlled browser, similar to
 mythgallery of mythtv.  It does so by caching picture metadata from
-the filesystem and presenting a "virtual filesystem" as a grid of
+the filesystem and presenting a "virtual filesystem" tree as a grid of
 thumbnail images for navigation.  The goal is to have access to more
 picture metadata including several ways to organize and filter the
 images.
@@ -1412,10 +1441,10 @@ images.
 The main window is a grid of thumnail images.  Directories are
 represented by a stack of three images: the oldest, center and
 youngest picture in the directories below that point in the tree.
-Arrow keys move around the grid while the B<Enter> key presents a
-single picture or moves into a subdirectory and the B<Escape> key
-moves back up to the parent.  Metadata about the selected tile is
-displayed above and below the grid.
+Arrow keys move around the grid while the B<Enter> key moves into a
+subdirectory or presents a single picture and the B<Escape> key moves
+back up to the parent.  Metadata about the selected tile is displayed
+above and below the grid.
 
 The top level virtual directories are:
 
@@ -1427,7 +1456,7 @@ literal filesystem layout of picture files
 
 =item [Tags]
 
-tag strings found in Exif picture metadata
+tag strings found in EXIF picture metadata
 
 =item [Albums]
 
@@ -1448,11 +1477,11 @@ pictures marked with stars as favorites (Picasa only)
 A second window opens when hitting B<Enter> on an image from the grid.
 This displays one picture at maximum size for the window.  B<Enter>
 again will zoom to maximize width or height or zoom to original size.
-Scrol with the arrow keys for images larger than the window.
+Scroll with the arrow keys for images larger than the window.
 B<Escape> then returns to the thumbnail browser.
 
 The B<i> "info" key cycles through metadata overlay levels.  This
-draws named rectables around all recognized faces and presents common
+draws named rectangles around all recognized faces and presents common
 camera metadata in the corners.
 
 =head1 OPTIONS
@@ -1465,32 +1494,50 @@ be given on the command line or in the config file.
 
 =head1 FILES
 
+=head2 .picasagallery_conf.pl
+
+perl config file must set key value pairs in $conf->{}; see the top of
+bin/picasagallery for all configurable options.  Examples:
+
 =over
 
-=item .picasapgallery_conf.pl
+=item $conf->{ldpb}=1;
 
-perl config file must return a reference to a configuration hash; see
-the top of bin/picasagallery for startup options.
+Use new sqlite database via LPDB.pm instead of original storable via
+Picasa.pm.  The new LPDB should be faster and smaller than the
+original Picasa.
+
+=item $conf->{fullscreen}=1;
+
+Go fullscreen with no window decorations (hit F11 to toggle this)
+
+=item $conf->{birthday} = { 'My Contact Name' => '2000/01/01' };
+
+Set birth dates for Picasa contacts to add ages to faces.
 
 =back
-
+ 
 =head1 CAVEATS / WARNINGS
 
-This is currently works-for-me-ware which may not work for you.  It is
-incomplete and inefficient for very large picture collections.  I hope
-to resolve this someday with a re-write including a SQLite database
-backend and a Prima GUI frontend.  This should reduce the memory
-footprint and improve the interface.
+This is currently works-for-me-ware which may not work for you.
+Original Picasa was inefficient for very large picture collections.
+So new lpdb=1 might work better.  I hope to someday re-write this as a
+Prima GUI frontend.
 
 =head1 EXAMPLES
 
-picasagallery
+=over
 
-picasagallery fast=1
+=item picasagallery
+
+=item picasagallery lpdb=1 fast=1
+
+Use the LPDB database but don't update it from the filesystem.
+
+=back
 
 =head1 SEE ALSO
-
-https://en.wikipedia.org/wiki/Picasa
+L<Picasa>, L<LPDB>, https://en.wikipedia.org/wiki/Picasa
 
 =head1 AUTHOR
 
@@ -1498,7 +1545,7 @@ Timothy D Witham <twitham@sbcglobal.net>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2013-2018 Timothy D Witham.
+Copyright 2013-2020 Timothy D Witham.
 
 This program is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

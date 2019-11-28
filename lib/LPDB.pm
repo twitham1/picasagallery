@@ -22,14 +22,14 @@ use Carp;
 use DBI;
 use Image::ExifTool qw(:Public);
 use LPDB::Schema;		# from dbicdump dbicdump.conf
-use LPDB::Filesystem qw(update);
+use LPDB::Filesystem qw(update create);
 use Data::Dumper;
 
 my $conf = {		       # override any keys in first arg to new
     reject	=> 'PATTERN OF FILES TO REJECT',
     keep	=> '(?i)\.jpe?g$',	# pattern of files to keep
     # datefmt	=> '%Y-%m-%d.%H:%M:%S', # must be sortable order
-    datefmt	=> undef,		# undef == EXIF format
+#    datefmt	=> undef,		# undef == EXIF format
     update	=> sub {},  # callback after each directory is scanned
     debug	=> 0,	    # diagnostics to STDERR
     filter	=> {},	    # filters
@@ -61,7 +61,6 @@ sub new {
 	or die $DBI::errstr;
     $self->{dbh} = $dbh;
     bless $self, $class;
-    $self->{dir} = $self->{file} = $self->filter('/');
     return $self;
 }
 
@@ -79,24 +78,6 @@ sub conf {	     # return whole config, or key, or set key's value
 
 sub dbh {
     return $_[0]->{dbh};
-}
-
-# create the database
-sub create {
-    my $self = shift;
-    my $file = $self->conf('dbfile');
-    -s $file and return 1;
-    my $sql = 'LPDB.sql';
-    for (@INC) {
-	my $this = "$_/$sql";
-	warn "testing $this\n";
-	-f $this and $sql = $this and last;
-    }
-    warn "create: running sqlite3 $file < $sql\n";
-    print `sqlite3 $file < $sql`; # hack!!! any smarter way?
-    $sql =~ s/.sql/-views.sql/;
-    print `sqlite3 $file < $sql`; # add the views
-    return 1;
 }
 
 sub disconnect {
@@ -379,14 +360,14 @@ sub filter {
     return $data;
 }
 
-# return metadata of given physical path
+# return metadata of given picture filename
 sub pics {
     my($self, $filename) = @_;
-    my $virt = $self->schema->resultset('PathView')->search(
+    my $rs = $self->schema->resultset('PathView')->search(
 	{ filename => $filename },
-	{ group_by => 'file_id' }); # TODO: replace with ->single
-    my $data = { $self->stats($virt) };
-    $data->{rot} = $virt->get_column('rotation')->sum;
+	{ group_by => 'file_id' });
+    my $data = { $self->stats($rs) };
+    $data->{rot} = $rs->get_column('rotation')->min;
     ($data->{dir}, $data->{file}) = dirfile $filename;
     return $data;
 }

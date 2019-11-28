@@ -1,6 +1,6 @@
 # Picasa.pm
 
-# ABSTRACT: perl access to local Picasa picture database (faces, albums, stars, etc.)
+# ABSTRACT: perl access to local Picasa picture data (faces, albums, stars, etc.)
 
 # by twitham@sbcglobal.net, 2013-06
 
@@ -303,10 +303,17 @@ sub dirs {
 }
 
 # return the pictures of given directory
-sub pics {
-    my $self = shift;
+sub pictures { # renamed from pics 2019/11, could break old scripts!!!
+    my $self = shift;		# but apparently I never used this...
     my $dir = shift or return ();
     return grep !/^[\[<]/, keys %{$self->{dirs}{$dir}};
+}
+
+# return the metadata of given picture path
+sub pics {
+    my $self = shift;
+    my $file = shift or return {};
+    return $self->{pics}{$file} || {};
 }
 
 # return all contacts of the database
@@ -777,8 +784,7 @@ to code.  See the source code and example directory for more.
 
 =head1 TODO
 
-I hope to someday replace or extend this with a more efficient SQLite
-database.  See the TODO file in the source for more on this idea.
+Some of this is now obsoleted by an L<LPDB> SQLite database.
 
 =head1 SEE ALSO
 
@@ -790,7 +796,7 @@ Timothy D Witham <twitham@sbcglobal.net>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2013-2018 Timothy D Witham.
+Copyright 2013-2020 Timothy D Witham.
 
 This program is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

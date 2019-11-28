@@ -16,31 +16,48 @@ use POSIX qw/strftime/;
 use Image::ExifTool qw(:Public);
 use LPDB::Schema;
 use base 'Exporter::Tiny';
-our @EXPORT = qw(update);
+our @EXPORT = qw(update create);
 
 my $exiftool;	  # global hacks for File::Find !!!  We'll never
 my $schema;	  # find more than once per process, so this is OK.
 my $conf;
 my $done = 0;			# records processed
 
+# create the database
+sub create {
+    my $self = shift;
+    my $file = $self->conf('dbfile');
+    -s $file and return 1;
+    my $sql = 'LPDB.sql';
+    for (@INC) {
+	my $this = "$_/$sql";
+	-f $this and $sql = $this and last;
+    }
+    warn "create: running sqlite3 $file < $sql\n";
+    print `sqlite3 $file < $sql`; # hack!!! any smarter way?
+    $sql =~ s/.sql/-views.sql/;
+    warn "create: running sqlite3 $file < $sql\n";
+    print `sqlite3 $file < $sql`; # add the views
+    return 1;
+}
+
 # recursively add given directory or . to picasa database
 sub update {
-    my $self = shift;
-    my $dir = shift || '.';
+    my($self, @dirs) = @_;
+    @dirs or @dirs = ('.');
     $schema = $self->schema;
     $conf = $self->conf;
     unless ($exiftool) {
 	$exiftool = new Image::ExifTool;
-	$exiftool->Options(FastScan => 1,
-			   DateFormat => $conf->{datefmt});
+	$exiftool->Options(FastScan => 1);
     }
-    warn "update $dir\n" if $conf->{debug};
+    warn "update @dirs\n" if $conf->{debug};
     $schema->txn_begin;
     find ({ no_chdir => 1,
 	    preprocess => sub { sort @_ },
 	    wanted => \&_wanted,
 #	    postprocess => $conf->{update},
-	  }, $dir);
+	  }, @dirs);
     $schema->txn_commit;
 }
 
