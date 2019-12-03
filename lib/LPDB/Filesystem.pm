@@ -78,7 +78,7 @@ sub _wanted {
     }
     $File::Find::prune = 1, return if $file =~ /$conf->{reject}/;
 #    my $guard = $schema->txn_scope_guard; # DBIx::Class::Storage::TxnScopeGuard
-    unless (++$done % 1000) {
+    unless (++$done % 100) {
 	$schema->txn_commit;
 	warn "committed $done   \n"; # fix this!!! make configurable...
 	$schema->txn_begin;
@@ -91,7 +91,7 @@ sub _wanted {
 	my $row = $schema->resultset('Picture')->find_or_create(
 	    { filename => $key },
 	    { columns => [qw/modified/]});
-	return if $row->modified || 0 >= $modified;
+	return if $row->modified || 0 >= $modified; # unchanged
 	my $info = $exiftool->ImageInfo($key);
 	return unless $info;
 	return unless $info->{ImageWidth} and $info->{ImageHeight};

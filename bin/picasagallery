@@ -591,7 +591,8 @@ $mw->after(1500, sub {		# show browser after we have some data
 $conf->{tweakdata} and &{$conf->{tweakdata}}($picasa);
 if ($conf->{fast}) {		# shortcut - use cached data only
     $picasa->{done} = 1;
-} elsif ($conf->{lpdb}) {	# fork LPDB updater in the background
+} elsif ($conf->{lpdb}) {	# update from background LPDB updater
+    $mw->repeat(3000, \&update);
 } else {		     # search for changes, write out new cache
     warn "starting Picasa recursion\n" if $conf->{debug};
     # updates GUI via $conf->{update}:

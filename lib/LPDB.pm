@@ -21,6 +21,7 @@ use warnings;
 use Carp;
 use DBI;
 use Image::ExifTool qw(:Public);
+use POSIX qw/strftime/;
 use LPDB::Schema;		# from dbicdump dbicdump.conf
 use LPDB::Filesystem qw(update create);
 use Data::Dumper;
@@ -60,6 +61,8 @@ sub new {
 			   { RaiseError => 1, AutoCommit => 1 })
 	or die $DBI::errstr;
     $self->{dbh} = $dbh;
+    $self->{mtime} = 0;	# modify time of dbfile, for detecting updates
+    $self->{sofar} = 0;	# hack!!! for picasagallery, fix this...
     bless $self, $class;
     return $self;
 }
@@ -105,15 +108,17 @@ sub stats {
     my $height = $rs->get_column('height');
     my $pixels = $rs->get_column('pixels');
     my $time = $rs->get_column('time');
+    my $fmt = $self->conf('datefmt');
     return (
 	files => $num,
 	bytes => $bytes->sum,
 	width => $width->sum,
 	height => $height->sum,
 	pixels => $pixels->sum,
-	time => $time->sum,
-	begintime => $time->min,
-	endtime => $time->max,
+	# picasagallery needs formatted times, else return raw times
+	time => $fmt ? strftime($fmt, localtime $time->min) : $time->sum,
+	begintime => $fmt ? strftime($fmt, localtime $time->min) : $time->min,
+	endtime => $fmt ? strftime($fmt, localtime $time->max) : $time->max,
 	firstid => $first->file_id,   # thumbnail generator can use
 	middleid => $middle->file_id, # first-middle-last as key for
 	lastid => $last->file_id,	    # automated updates
@@ -207,21 +212,18 @@ sub dirfile { # similar to fileparse, but leave trailing / on directories
 sub filter {
     my($self, $path, $opt) = @_;
     my $schema = $self->schema;
-    unless ($self->{root}) {
+    my $mtime = (CORE::stat $self->conf('dbfile'))[9];
+    if ($mtime > $self->{mtime}) {
+	$self->{root} = {};	# discard and rebuild all paths
 	my $paths = $schema->resultset('Path')->search();
 	while (my $one = $paths->next) {
 	    $self->{root}{$one->path} = $one->path_id;
 	}
-#	print Dumper $self->{root};
+	#	print Dumper $self->{root};
+	$self->{mtime} = $mtime;
     }
     $opt or $opt = 0;
-#    my @files;			# files of this parent, to find center
     my %child;			# children of this parent
-    # my %face;			# faces in this path
-    # my %album;			# albums in this path
-    my %tag;			# tags in this path
-    my %done;			# files that have been processed
-    my @ss;			# slide show pictures
     $path =~ s@/+@/@g;
     warn "filter:$path\n" if $conf->{debug};
 
@@ -248,18 +250,26 @@ sub filter {
 
     {
 	my $caps = $virt->search({ caption => {'!=', undef} });
-#	$data->{captioned} = $caps->count;
-	$data->{caption} = $caps->count;
-	# $caps = $caps->search(undef,
-	# 		      { group_by => 'caption',
-	# 			order_by => 'caption' });
-	# $caps = $caps->get_column('caption');
-	# my @caps = $caps->all;
-	# $data->{caption} = \@caps;
+	#	$data->{captioned} = $caps->count;
+	if ($caps->count > 1) {
+	    $data->{caption} = $caps->count;
+	} else {
+	    $caps = $caps->search(undef,
+				  { group_by => 'caption',
+				    order_by => 'caption' });
+	    $caps = $caps->get_column('caption');
+	    my @caps = $caps->all;
+	    if (@caps > 1) {	# should not happen
+		$data->{caption} = 1 * @caps;
+	    } else {		# should always be exactly 1
+		$data->{caption} = $caps[0] || 0;
+	    }
+	}
     }
     {
 	my $tags = $virt->search({ tag => { '!=', undef }});
 	$data->{tagged} = $tags->count;
+	$data->{tags} = $tags->count; # hack!!! for picasagallery
 	# $tags = $tags->search(undef,
 	# 		      { group_by => 'tag',
 	# 			order_by => 'tag' });
