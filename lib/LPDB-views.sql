@@ -18,6 +18,19 @@ CREATE VIEW PathView AS
    LEFT JOIN Tags ON Tags.tag_id = PictureTag.tag_id;
    -- TODO: add joins to picasa metadata here
 
+-- experimental stats in 1 view
+DROP VIEW IF EXISTS PathStats;
+
+CREATE VIEW PathStats AS
+   SELECT
+      path AS path,
+      MIN(time) AS mintime,
+      MAX(time) AS maxtime,
+      SUM(bytes) AS totalbytes,
+      SUM(pixels) AS totalpixels
+   FROM
+      Pathview;
+
 -- original experimental views below no longer used
 -- TODO: remove all this if it is not valuable
 

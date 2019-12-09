@@ -24,6 +24,7 @@ use Image::ExifTool qw(:Public);
 use POSIX qw/strftime/;
 use LPDB::Schema;		# from dbicdump dbicdump.conf
 use LPDB::Filesystem qw(update create);
+use Time::HiRes qw(gettimeofday tv_interval); # for profiling
 use Data::Dumper;
 
 my $conf = {		       # override any keys in first arg to new
@@ -60,6 +61,9 @@ sub new {
     my $dbh = DBI->connect("dbi:SQLite:dbname=$conf->{dbfile}",  "", "",
 			   { RaiseError => 1, AutoCommit => 1 })
 	or die $DBI::errstr;
+    # Default is no enforcement, and must be set per connection.  But
+    # this doesn't appear to enforce either:
+    $dbh->do('PRAGMA foreign_keys = ON;');
     $self->{dbh} = $dbh;
     $self->{mtime} = 0;	# modify time of dbfile, for detecting updates
     $self->{sofar} = 0;	# hack!!! for picasagallery, fix this...
@@ -86,6 +90,8 @@ sub dbh {
 sub disconnect {
     my $self = shift;
     my $dbh = $self->dbh;
+    # print all currently cached prepared statements
+#    print "cache>>>$_<<<\n" for keys %{$dbh->{CachedKids}};
     $dbh->disconnect;
 }
 
@@ -97,37 +103,97 @@ sub schema {
 }
 
 # stats of given result set moves values from DB to perl object
-sub stats {
+sub plstats {
     my $self = shift;
     my $rs = shift;
+    my $path = shift;
+    my $t0 = [gettimeofday];
+    my @cols = qw/bytes pixels width height time modified/;
+    my $data = {};
+    my $n = $rs->count;
+    $n or return {};
+    my $half = int($n / 2);
+    while (my $row = $rs->next) { # gather all info in 1 quick loop
+	my %this = $row->get_columns;
+#	print Dumper \%this;
+	$data->{files}++;	# DB already ordered by file_id
+	for my $num (@cols) {	# sums
+	    $data->{$num} += $this{$num};
+	}
+	$data->{last} = $this{filename}; # ends of time
+	$data->{endtime} = $this{time};
+	$data->{lastid} = $this{file_id};
+
+	$this{tag} and $data->{tags}++; # flags
+	$this{caption} and $data->{caption}++;
+
+	$data->{physical} and next; # shortcut second half
+	$data->{files} >= $half and
+	    $data->{physical} = $this{filename} and
+	    $data->{middleid} = $this{file_id};
+
+	$data->{first} and next; # shortcurt after first
+	$data->{first} = $this{filename};
+	$data->{begintime} = $this{time};
+	$data->{firstid} = $this{file_id};
+    }
+    my $fmt = $self->conf('datefmt'); # for picasagallery only
+    if ($fmt) {			# hacks!!! for picasagallery
+	$data->{mtime} = $data->{modified} / $data->{files};
+	$data->{begintime} = $data->{time} =
+	    strftime($fmt, localtime $data->{begintime});
+	$data->{endtime} = strftime($fmt, localtime $data->{endtime});
+    }
+    my $elap = tv_interval($t0);
+    warn "plstats $path took $elap\n" if $conf->{debug};
+    return $data;
+}
+
+# stats of given result set moves values from DB to perl object
+sub dbstats {
+    my $self = shift;
+    my $rs = shift;
+    my $path = shift;
+    my $t0 = [gettimeofday];
     my $num = $rs->count
 	or return {};
-    my($first, $middle, $last) =  ($rs->all)[0, $num/2, -1];
+    my $half = int($num/2);
+    warn "stats on $num\n";
+    my($first, $middle, $last) =  (
+	$rs->slice(0, 0),
+	$rs->slice($half, $half),
+	$rs->slice($num - 1, $num - 1));
     my $bytes = $rs->get_column('bytes');
     my $width = $rs->get_column('width');
     my $height = $rs->get_column('height');
     my $pixels = $rs->get_column('pixels');
     my $time = $rs->get_column('time');
     my $fmt = $self->conf('datefmt');
-    return (
+    my $data = {
 	files => $num,
 	bytes => $bytes->sum,
 	width => $width->sum,
 	height => $height->sum,
 	pixels => $pixels->sum,
+
 	# picasagallery needs formatted times, else return raw times
 	time => $fmt ? strftime($fmt, localtime $time->min) : $time->sum,
 	begintime => $fmt ? strftime($fmt, localtime $time->min) : $time->min,
 	endtime => $fmt ? strftime($fmt, localtime $time->max) : $time->max,
+
 	firstid => $first->file_id,   # thumbnail generator can use
 	middleid => $middle->file_id, # first-middle-last as key for
 	lastid => $last->file_id,	    # automated updates
-	first => $first->filename,	 # thumbnail generator could
-	middle => $middle->filename, # look these up but might as
-	last => $last->filename,	 # well do it while here
-	physical => $middle->filename,	 # hack!!! for picasagallery
+
+	first => $first->filename,     # thumbnail generator could
+	physical => $middle->filename, # look these up but might as
+	last => $last->filename,       # well do it while here
+
 	mtime => $time->max,
-    );
+    };
+    my $elap = tv_interval($t0);
+    warn "dbstats $path took $elap\n" if $conf->{debug};
+    return $data;
 }
 
 # # tags of 1 picture
@@ -211,6 +277,7 @@ sub dirfile { # similar to fileparse, but leave trailing / on directories
 # given a virtual path, return all data known about it with current filters
 sub filter {
     my($self, $path, $opt) = @_;
+    my $t0 = [gettimeofday];
     my $schema = $self->schema;
     my $mtime = (CORE::stat $self->conf('dbfile'))[9];
     if ($mtime > $self->{mtime}) {
@@ -223,60 +290,84 @@ sub filter {
 	$self->{mtime} = $mtime;
     }
     $opt or $opt = 0;
-    my %child;			# children of this parent
     $path =~ s@/+@/@g;
-    warn "filter:$path\n" if $conf->{debug};
+    # warn "filter:$path\n" if $conf->{debug};
 
-    my $virt = $schema->resultset('PathView')->search(
+    my @filter;			# filter the pictures - set by the UI
+    $conf->{filter}{Tags}     and push @filter, (tag => { '!=' => undef });
+    $conf->{filter}{Captions} and push @filter, (caption => { '!=' => undef });
+    $conf->{filter}{age} and
+	push @filter, (time => { '>' => $conf->{filter}{age} });
+    my $rs = $schema->resultset('PathView')->search(
 	{ path => { like => "$path%" },
-	  # tag => { '!=' => undef }, # example filtering
-	  # caption => { '!=' => undef }, # user will toggle these!
+	  @filter,		# user toggles these on GUI
 	},
 	{ group_by => 'file_id', # count each file only once
-	  order_by => 'time' }); # in time order -- needed???!!!
+	  order_by => 'time', # time order needed for first/middle/last
+	  cache => 1,	      # faster if rows are checked > once
+	}) or return {};
 
-    my $data = { $self->stats($virt) };
+#    my $data = $self->dbstats($rs, $path); # 2X slower than perl
+    my $data = $self->plstats($rs, $path); # 2X faster than DB
+
     ($data->{dir}, $data->{file}) = dirfile $path;
 
+
+    my $t00 = [gettimeofday];
+    my $lp = length $path;
+    my %child;			# children of this parent
     my $sort;
     @$sort = keys %{$self->{root}};
     for my $str (@$sort) {
-	next unless 0 == index($str, $path); # match
-	my $rest = substr $str, length $path;
-	$rest =~ s!/.*!/!;
-	$rest and $child{$rest}++; # entries in this directory
+    	next unless 0 == index($str, $path); # match
+    	my $rest = substr $str, $lp;
+    	$rest =~ s!/.*!/!;
+    	$rest and $child{$rest}++; # entries in this directory
     }
+    # DB too slow, use cache in perl instead...
+    # my $paths = $schema->resultset('Path')->search();
+    # my $lp = length $path;
+    # while (my $one = $paths->next) {
+    # 	my $str = $one->path;
+    # 	next unless 0 == index($str, $path); # match
+    # 	my $rest = substr $str, $lp;
+    # 	$rest =~ s!/.*!/!;
+    # 	$rest and $child{$rest}++; # entries in this directory
+    # }
+    my $elapsed0 = tv_interval($t00);
+    warn "virtual $path took $elapsed0\n" if $conf->{debug};
     $data->{children} = [ sort keys %child ];
 
-    {
-	my $caps = $virt->search({ caption => {'!=', undef} });
-	#	$data->{captioned} = $caps->count;
-	if ($caps->count > 1) {
-	    $data->{caption} = $caps->count;
-	} else {
-	    $caps = $caps->search(undef,
-				  { group_by => 'caption',
-				    order_by => 'caption' });
-	    $caps = $caps->get_column('caption');
-	    my @caps = $caps->all;
-	    if (@caps > 1) {	# should not happen
-		$data->{caption} = 1 * @caps;
-	    } else {		# should always be exactly 1
-		$data->{caption} = $caps[0] || 0;
-	    }
-	}
-    }
-    {
-	my $tags = $virt->search({ tag => { '!=', undef }});
-	$data->{tagged} = $tags->count;
-	$data->{tags} = $tags->count; # hack!!! for picasagallery
-	# $tags = $tags->search(undef,
-	# 		      { group_by => 'tag',
-	# 			order_by => 'tag' });
-	# $tags = $tags->get_column('tag');
-	# my @tags = $tags->all;
-	# $data->{tag} = \@tags;
-    }
+    # {
+    # 	my $caps = $rs->search({ caption => {'!=', undef} });
+    # 	#	$data->{captioned} = $caps->count;
+    # 	if ((my $n = $caps->count) > 1) {
+    # 	    $data->{caption} = $n;
+    # 	} else {
+    # 	    $caps = $caps->search(undef,
+    # 				  { group_by => 'caption',
+    # 				    order_by => 'caption' });
+    # 	    $caps = $caps->get_column('caption');
+    # 	    my @caps = $caps->all;
+    # 	    if (@caps > 1) {	# should not happen
+    # 		$data->{caption} = 1 * @caps;
+    # 	    } else {		# should always be exactly 1
+    # 		$data->{caption} = $caps[0] || 0;
+    # 	    }
+    # 	}
+    # }
+    # {
+    # 	my $tags = $rs->search({ tag => { '!=', undef }});
+    # 	$data->{tags} = $data->{tagged} = $tags->count;
+    # 	# hack!!! {tags} is for picasagallery
+
+    # 	# $tags = $tags->search(undef,
+    # 	# 		      { group_by => 'tag',
+    # 	# 			order_by => 'tag' });
+    # 	# $tags = $tags->get_column('tag');
+    # 	# my @tags = $tags->all;
+    # 	# $data->{tag} = \@tags;
+    # }
 
     #    print Dumper $data;
     
@@ -367,6 +458,8 @@ sub filter {
 #     $data->{tag}   or $data->{tag}   = \%tag;
 #     warn "filtered $path: ", Dumper $data if $conf->{debug} > 2;
 
+    my $elapsed = tv_interval($t0);
+    warn "filter $path took $elapsed\n" if $conf->{debug};
     return $data;
 }
 
@@ -376,7 +469,7 @@ sub pics {
     my $rs = $self->schema->resultset('PathView')->search(
 	{ filename => $filename },
 	{ group_by => 'file_id' });
-    my $data = { $self->stats($rs) };
+    my $data = $self->plstats($rs, $filename);
     $data->{rot} = $rs->get_column('rotation')->min;
     ($data->{dir}, $data->{file}) = dirfile $filename;
     return $data;

@@ -24,6 +24,7 @@ use Image::ExifTool qw(:Public);
 use Data::Dumper;
 use Storable;			# for optional metadata cache
 use POSIX qw/strftime/;
+use Time::HiRes qw(gettimeofday tv_interval); # for profiling
 
 my $db;	    # picasa database pointer needed for File::Find's _wanted.
 my $odb;    # old cached db from last run, if any - TODO!!!
@@ -187,6 +188,7 @@ sub goto {
 sub filter {
     my($self, $path, $opt) = @_;
     $self->{root} or return;
+    my $t0 = [gettimeofday];
     $opt or $opt = 0;
     my $data = {};
     my @files;			# files of this parent, to find center
@@ -198,7 +200,7 @@ sub filter {
     my @ss;			# slide show pictures
     $path =~ s@/+@/@g;
     ($data->{dir}, $data->{file}) = dirfile $path;
-    warn "filter:$path\n" if $conf->{debug};
+#    warn "filter:$path\n" if $conf->{debug};
     my $begin = $conf->{filter}{age} ? strftime $conf->{datefmt},
     localtime time - $conf->{filter}{age} : 0;
     if (!$sort or !$self->{done} or $self->{done} and !$done) {
@@ -272,6 +274,8 @@ sub filter {
     	    if $data->{physical} eq $data->{first} or 
     	    $data->{physical} eq $data->{last};
     }
+    my $elapsed = tv_interval($t0);
+    warn "filter $path took $elapsed\n" if $conf->{debug};
     if ($opt eq 'nofilter') {
 	$data->{mtime} and $data->{mtime} =
 	    int($data->{mtime} / $data->{files});

@@ -1,5 +1,6 @@
 -- https://www.sqlitetutorial.net/sqlite-create-table/
 
+-- this is per-connection so TODO: get LPDB to have this also:
 PRAGMA foreign_keys = ON;
 
 -- dbicdump automatically includes this documentation in the class output
@@ -43,6 +44,7 @@ CREATE TABLE IF NOT EXISTS Pictures (
 
 CREATE UNIQUE INDEX IF NOT EXISTS filename_index ON Pictures (filename);
 CREATE INDEX IF NOT EXISTS caption_index ON Pictures (caption);
+CREATE INDEX IF NOT EXISTS time_index ON Pictures (time);
 
 ---------------------------------------- Virtual File System
 INSERT INTO table_comments (table_name, comment_text) VALUES
@@ -54,8 +56,7 @@ INSERT INTO column_comments (table_name, column_name, comment_text) VALUES
 CREATE TABLE IF NOT EXISTS Paths (
    path_id	INTEGER PRIMARY KEY NOT NULL,
    path		TEXT UNIQUE NOT NULL);
-
-CREATE UNIQUE INDEX IF NOT EXISTS path_index ON Paths (path);
+CREATE INDEX IF NOT EXISTS path_index ON Paths (path, path_id);
 
 ---------------------------------------- PICTURE PATH many2many
 INSERT INTO table_comments (table_name, comment_text) VALUES
@@ -72,7 +73,9 @@ CREATE TABLE IF NOT EXISTS PicturePath (
       REFERENCES Paths (path_id) 
          ON DELETE CASCADE 
          ON UPDATE CASCADE
-);
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS pp_pid_index ON PicturePath (path_id,file_id);
+CREATE INDEX IF NOT EXISTS pp_fid_index ON PicturePath (file_id,path_id);
 
 ---------------------------------------- TAGS
 INSERT INTO table_comments (table_name, comment_text) VALUES
@@ -102,7 +105,9 @@ CREATE TABLE IF NOT EXISTS PictureTag (
       REFERENCES Tags (tag_id) 
          ON DELETE CASCADE 
          ON UPDATE CASCADE
-);
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS pt_tid_index ON PictureTag (tag_id,file_id);
+CREATE INDEX IF NOT EXISTS pt_fid_index ON PictureTag (file_id,tag_id);
 
 ---------------------------------------- ALBUMS
 INSERT INTO table_comments (table_name, comment_text) VALUES
@@ -140,6 +145,8 @@ CREATE TABLE IF NOT EXISTS PictureAlbum (
       REFERENCES Albums (album_id) 
          ON DELETE CASCADE 
          ON UPDATE CASCADE
-);
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS pa_aid_index ON PictureTag (album_id,file_id);
+CREATE INDEX IF NOT EXISTS pa_fid_index ON PictureTag (file_id,album_id);
 
 ---------------------------------------- 
