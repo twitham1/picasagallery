@@ -16,10 +16,10 @@ isa_ok($lpdb, 'LPDB', "new({dbfile}");
 
 ok($lpdb->create, "created the tables");
 
-my @tables = $lpdb->dbh->tables;
-ok(4 < (grep /(pictures)/i, @tables), # includes indexes
-   "expected tables exist") or
-    diag("tables found: @tables");
+# my @tables = $lpdb->dbh->tables;
+# ok(4 < (grep /(pictures)/i, @tables), # includes indexes
+#    "expected tables exist") or
+#     diag("tables found: @tables");
 
 $lpdb->disconnect;
 

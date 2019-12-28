@@ -31,7 +31,8 @@ INSERT INTO column_comments (table_name, column_name, comment_text) VALUES
 
 CREATE TABLE IF NOT EXISTS Pictures (
    file_id	INTEGER PRIMARY KEY NOT NULL, -- alias to fast: rowid, oid, _rowid_
-   filename	TEXT UNIQUE NOT NULL,
+   basename	TEXT NOT NULL,
+   dir_id	INTEGER,
    bytes	INTEGER,
    modified	INTEGER,
    time		INTEGER,
@@ -42,9 +43,25 @@ CREATE TABLE IF NOT EXISTS Pictures (
    );
 -- length	INTEGER,	-- support video files this way?
 
-CREATE UNIQUE INDEX IF NOT EXISTS filename_index ON Pictures (filename);
+CREATE INDEX IF NOT EXISTS basename_index ON Pictures (basename);
 CREATE INDEX IF NOT EXISTS caption_index ON Pictures (caption);
 CREATE INDEX IF NOT EXISTS time_index ON Pictures (time);
+
+---------------------------------------- Directories of pictures
+INSERT INTO table_comments (table_name, comment_text) VALUES
+   ('Directories', 'Physical collections of pictures');
+
+INSERT INTO column_comments (table_name, column_name, comment_text) VALUES
+   ('Directories', 'directory', 'Physical path to a collection of pictures'),
+   ('Directories', 'parent_id', 'ID of parent directory');
+   
+CREATE TABLE IF NOT EXISTS Directories (
+   dir_id	INTEGER PRIMARY KEY NOT NULL,
+   directory	TEXT UNIQUE NOT NULL,
+   parent_id	INTEGER
+   );
+CREATE INDEX IF NOT EXISTS dir_index ON Directories (directory, dir_id);
+INSERT INTO Directories (directory, parent_id) VALUES ('/', 0);
 
 ---------------------------------------- Virtual File System
 INSERT INTO table_comments (table_name, comment_text) VALUES
@@ -146,7 +163,7 @@ CREATE TABLE IF NOT EXISTS PictureAlbum (
          ON DELETE CASCADE 
          ON UPDATE CASCADE
 ) WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS pa_aid_index ON PictureTag (album_id,file_id);
-CREATE INDEX IF NOT EXISTS pa_fid_index ON PictureTag (file_id,album_id);
+CREATE INDEX IF NOT EXISTS pa_aid_index ON PictureAlbum (album_id,file_id);
+CREATE INDEX IF NOT EXISTS pa_fid_index ON PictureAlbum (file_id,album_id);
 
 ---------------------------------------- 

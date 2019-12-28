@@ -9,11 +9,13 @@ CREATE VIEW PathView AS
       Paths.*,
       Pictures.*,
       (Pictures.width * Pictures.height) AS pixels,
+      (Directories.directory || Pictures.basename) AS filename,
       Tags.*
    FROM
       Paths
    LEFT JOIN PicturePath ON Paths.path_id = PicturePath.path_id
    LEFT JOIN Pictures ON Pictures.file_id = PicturePath.file_id
+   LEFT JOIN Directories ON Pictures.dir_id = Directories.dir_id
    LEFT JOIN PictureTag ON Pictures.file_id = PictureTag.file_id
    LEFT JOIN Tags ON Tags.tag_id = PictureTag.tag_id;
    -- TODO: add joins to picasa metadata here

@@ -61,6 +61,26 @@ sub update {
     $schema->txn_commit;
 }
 
+# add a directory and its parents to the Directories table
+{
+    my %id;
+    sub _savedirs {
+	my($this) = @_;
+	$this =~ m@/$@ or return;
+	unless ($id{$this}) {
+	    warn "saving dir $this\n";
+	    my $obj = $schema->resultset('Directory')->find_or_new(
+		{ directory => $this });
+	    unless ($obj->in_storage) { # pre-existing?
+		my($dir, $file) = LPDB::dirfile $this;
+		$obj->parent_id(&_savedirs($dir));
+		$obj->insert;
+	    }
+	    $id{$this} = $obj->dir_id;
+	}
+	return $id{$this};
+    }
+}
 # add a file or directory to the database, adapted from Picasa.pm
 sub _wanted {
     my($dir, $file) = LPDB::dirfile $_;
@@ -72,11 +92,12 @@ sub _wanted {
 	# &_understand($db, _readfile($_));
 	# $db->{dirs}{$dir}{'<<updated>>'} = $modified;
 	return;
-    } elsif ($file =~ /^\..+/ or $file eq 'Originals') { # ignore hidden files
+    } elsif ($file =~ /^\..+/ or # ignore hidden files, and:
+	     $file eq 'Originals' or
+	     $file =~ /$conf->{reject}/) { 
 	$File::Find::prune = 1;
 	return;
     }
-    $File::Find::prune = 1, return if $file =~ /$conf->{reject}/;
 #    my $guard = $schema->txn_scope_guard; # DBIx::Class::Storage::TxnScopeGuard
     unless (++$done % 100) {
 	$schema->txn_commit;
@@ -88,8 +109,10 @@ sub _wanted {
 	my $key = $_;
 	$key =~ s@\./@@;
 	return unless -f $key and -s $key > 100;
+	my $dir_id = &_savedirs($dir);
 	my $row = $schema->resultset('Picture')->find_or_create(
-	    { filename => $key },
+	    { dir_id => $dir_id,
+	      basename => $file },
 	    { columns => [qw/modified/]});
 	return if $row->modified || 0 >= $modified; # unchanged
 	my $info = $exiftool->ImageInfo($key);
@@ -119,9 +142,9 @@ sub _wanted {
 	# TODO: make this an internal method or function
 	my $rspath = $schema->resultset('Path')->find_or_create(
 	    { path => $path });
-	    $schema->resultset('PicturePath')->find_or_create(
-		{ path_id => $rspath->path_id,
-		  file_id => $row->file_id });
+	$schema->resultset('PicturePath')->find_or_create(
+	    { path_id => $rspath->path_id,
+	      file_id => $row->file_id });
 
 	my $tsfile = strftime "%Y/%m-%d-%H:%M:%S.$file",
 	    localtime $time;	# made-up file!!!  configurable?

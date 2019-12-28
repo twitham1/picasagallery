@@ -32,12 +32,15 @@ __PACKAGE__->table("Pictures");
   is_auto_increment: 1
   is_nullable: 0
 
-=head2 filename
+=head2 basename
 
   data_type: 'text'
   is_nullable: 0
 
-Path to the image file contents
+=head2 dir_id
+
+  data_type: 'integer'
+  is_nullable: 1
 
 =head2 bytes
 
@@ -94,8 +97,10 @@ EXIF caption or description
 __PACKAGE__->add_columns(
   "file_id",
   { data_type => "integer", is_auto_increment => 1, is_nullable => 0 },
-  "filename",
+  "basename",
   { data_type => "text", is_nullable => 0 },
+  "dir_id",
+  { data_type => "integer", is_nullable => 1 },
   "bytes",
   { data_type => "integer", is_nullable => 1 },
   "modified",
@@ -123,20 +128,6 @@ __PACKAGE__->add_columns(
 =cut
 
 __PACKAGE__->set_primary_key("file_id");
-
-=head1 UNIQUE CONSTRAINTS
-
-=head2 C<filename_unique>
-
-=over 4
-
-=item * L</filename>
-
-=back
-
-=cut
-
-__PACKAGE__->add_unique_constraint("filename_unique", ["filename"]);
 
 =head1 RELATIONS
 
@@ -216,8 +207,8 @@ Composing rels: L</picture_tags> -> tag
 __PACKAGE__->many_to_many("tags", "picture_tags", "tag");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-11-25 18:33:17
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:iAHT/q2mJsqkp0PzpGl5IA
+# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-12-28 14:47:55
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:L29jQdAB5D3ueumlDuWB0Q
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
