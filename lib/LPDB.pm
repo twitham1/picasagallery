@@ -113,10 +113,13 @@ sub plstats {
     my $n = $rs->count;
     $n or return {};
     my $half = int($n / 2);
+    my %dir;
     while (my $row = $rs->next) { # gather all info in 1 quick loop
 	my %this = $row->get_columns;
 #	print Dumper \%this;
 	$data->{files}++;	# DB already ordered by file_id
+	$dir{$this{dir_id}}++
+	    or $data->{dirs}++;
 	for my $num (@cols) {	# sums
 	    $data->{$num} += $this{$num};
 	}
@@ -220,6 +223,7 @@ sub stat {
 	: $self->{$which}{$stat}; # default = sum
 }
 sub files { shift->stat('files', @_) }
+sub dirs { shift->stat('dirs', @_) }
 sub bytes { shift->stat('bytes', @_) }
 sub width { shift->stat('width', @_) }
 sub height { shift->stat('height', @_) }
@@ -230,10 +234,10 @@ sub captioned { shift->stat('caption', @_) }
 sub sums {
     my $self = shift;
     my $this = $self->{file};
-    return sprintf "%.0f MB (%.0f MP) in %d files",
+    return sprintf "%.0f MB (%.0f MP) in %d files in %d dirs",
 	$this->{bytes} / 1024 / 1024,
 	$this->{pixels} / 1000 / 1000,
-	$this->{files};
+	$this->{files}, $this->{dirs};
 }
 
 # see stats in picasagallery for more options!!!

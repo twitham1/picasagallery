@@ -24,6 +24,7 @@ my $top = {
 	    'test/'
 	],
 	'dir' => '/',
+	'dirs' => 1,
 	'endtime' => 1572035220,
 	'file' => '[Folders]/',
 	'files' => 10,
@@ -49,10 +50,10 @@ $lpdb->goto('/');		# in /, sitting at [Folders]/
 is_deeply($lpdb->{file}, $top,
 	  'total stat data structure')
     or diag explain $lpdb->{file};
-is($lpdb->files, 10,
-   'total file count');
+is($lpdb->files, 10, 'total file count');
+is($lpdb->dirs, 1, 'total directory count');
 is($lpdb->stat('time', 1), 1527644615, 'average time of all files');
-is($lpdb->sums, '18 MB (62 MP) in 10 files', 'overall sums');
+is($lpdb->sums, '18 MB (62 MP) in 10 files in 1 dirs', 'overall sums');
 is($lpdb->averages, "1841 KB (6195 KP) 3135 x 2026 (1.547)",
    'Folders averages');
 my $children = $lpdb->children('dir');
