@@ -20,7 +20,6 @@ use strict;
 use warnings;
 use Carp;
 use DBI;
-use Image::ExifTool qw(:Public);
 use POSIX qw/strftime/;
 use LPDB::Schema;		# from dbicdump dbicdump.conf
 use LPDB::Filesystem qw(update create);
@@ -37,11 +36,7 @@ my $conf = {		       # override any keys in first arg to new
     filter	=> {},	    # filters
     sqltrace	=> 0,	    # SQL to STDERR from DBIx::Class::Storage
     editpath	=> 0,	# optional sub to return modified virtual path
-#    sortbyfilename => 0,  # boolean: sort by filename rather than time
-#    metadata	=> 0,	  # filename of Storable from previous run
 };
-
-# my $exiftool;	       # global for File::Find's wanted
 
 sub new {
     my($class, $hash) = @_;
@@ -57,12 +52,12 @@ sub new {
     $ENV{DBIC_TRACE} = $conf->{sqltrace} || 0;
 
     $self->{conf} = $conf;
-    $conf->{dbfile} or carp "{dbfile} required" and return undef;
+    $conf->{dbfile} or
+	carp "{dbfile} required" and return undef;
     my $dbh = DBI->connect("dbi:SQLite:dbname=$conf->{dbfile}",  "", "",
 			   { RaiseError => 1, AutoCommit => 1 })
 	or die $DBI::errstr;
-    # Default is no enforcement, and must be set per connection.  But
-    # this doesn't appear to enforce either:
+    # Default is no enforcement, and must be set per connection.
     $dbh->do('PRAGMA foreign_keys = ON;');
     $self->{dbh} = $dbh;
     $self->{mtime} = 0;	# modify time of dbfile, for detecting updates

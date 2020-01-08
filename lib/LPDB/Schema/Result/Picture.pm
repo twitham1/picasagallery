@@ -40,6 +40,7 @@ __PACKAGE__->table("Pictures");
 =head2 dir_id
 
   data_type: 'integer'
+  is_foreign_key: 1
   is_nullable: 1
 
 =head2 bytes
@@ -69,21 +70,21 @@ Time image was taken if known from EXIF, else file create or modify time
   default_value: 0
   is_nullable: 1
 
-Stored clockwise rotation of the image in degrees: 0, 90, 180, 270
+Orientation of the camera in degrees: 0, 90, 180, 270
 
 =head2 width
 
   data_type: 'integer'
   is_nullable: 1
 
-Displayed horizontal width of the image in pixels
+Displayed horizontal width of the image in pixels, after rotation correction
 
 =head2 height
 
   data_type: 'integer'
   is_nullable: 1
 
-Displayed vertical height of the image in pixels
+Displayed vertical height of the image in pixels, after rotation correction
 
 =head2 caption
 
@@ -100,7 +101,7 @@ __PACKAGE__->add_columns(
   "basename",
   { data_type => "text", is_nullable => 0 },
   "dir_id",
-  { data_type => "integer", is_nullable => 1 },
+  { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
   "bytes",
   { data_type => "integer", is_nullable => 1 },
   "modified",
@@ -130,6 +131,26 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("file_id");
 
 =head1 RELATIONS
+
+=head2 dir
+
+Type: belongs_to
+
+Related object: L<LPDB::Schema::Result::Directory>
+
+=cut
+
+__PACKAGE__->belongs_to(
+  "dir",
+  "LPDB::Schema::Result::Directory",
+  { dir_id => "dir_id" },
+  {
+    is_deferrable => 0,
+    join_type     => "LEFT",
+    on_delete     => "CASCADE",
+    on_update     => "CASCADE",
+  },
+);
 
 =head2 picture_albums
 
@@ -176,6 +197,21 @@ __PACKAGE__->has_many(
   { cascade_copy => 0, cascade_delete => 0 },
 );
 
+=head2 thumbs
+
+Type: has_many
+
+Related object: L<LPDB::Schema::Result::Thumb>
+
+=cut
+
+__PACKAGE__->has_many(
+  "thumbs",
+  "LPDB::Schema::Result::Thumb",
+  { "foreign.file_id" => "self.file_id" },
+  { cascade_copy => 0, cascade_delete => 0 },
+);
+
 =head2 albums
 
 Type: many_to_many
@@ -207,8 +243,8 @@ Composing rels: L</picture_tags> -> tag
 __PACKAGE__->many_to_many("tags", "picture_tags", "tag");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-12-28 14:47:55
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:L29jQdAB5D3ueumlDuWB0Q
+# Created by DBIx::Class::Schema::Loader v0.07048 @ 2020-01-07 16:03:51
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:qB077qvRV6MWUATO8eA4cQ
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

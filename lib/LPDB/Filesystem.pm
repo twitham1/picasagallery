@@ -35,13 +35,16 @@ sub create {
     }
     warn "create: running sqlite3 $file < $sql\n";
     print `sqlite3 $file < $sql`; # hack!!! any smarter way?
-    $sql =~ s/.sql/-views.sql/;
+    $sql =~ s/.sql/-thumbs.sql/;
+    warn "create: running sqlite3 $file < $sql\n";
+    print `sqlite3 $file < $sql`; # add the views
+    $sql =~ s/-thumbs.sql/-views.sql/;
     warn "create: running sqlite3 $file < $sql\n";
     print `sqlite3 $file < $sql`; # add the views
     return 1;
 }
 
-# recursively add given directory or . to picasa database
+# recursively add given directory or . to LPDB
 sub update {
     my($self, @dirs) = @_;
     @dirs or @dirs = ('.');
@@ -63,8 +66,8 @@ sub update {
 
 # add a directory and its parents to the Directories table
 {
-    my %id;
-    sub _savedirs {
+    my %id;			# cache: {path} = id
+    sub _savedirs {		# recursive up to root /
 	my($this) = @_;
 	$this =~ m@/$@ or return;
 	unless ($id{$this}) {

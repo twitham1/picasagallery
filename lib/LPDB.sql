@@ -1,3 +1,7 @@
+-- LPDB: local picture metadata in sqlite
+
+-- by twitham@sbcglobal.net, 2019/11
+
 -- https://www.sqlitetutorial.net/sqlite-create-table/
 
 -- this is per-connection so TODO: get LPDB to have this also:
@@ -24,9 +28,9 @@ INSERT INTO column_comments (table_name, column_name, comment_text) VALUES
    ('Pictures', 'bytes',    'Size of the image file in bytes'),
    ('Pictures', 'modified', 'Last modified timestamp of the image file'),
    ('Pictures', 'time',     'Time image was taken if known from EXIF, else file create or modify time'),
-   ('Pictures', 'rotation', 'Stored clockwise rotation of the image in degrees: 0, 90, 180, 270'),
-   ('Pictures', 'width',    'Displayed horizontal width of the image in pixels'),
-   ('Pictures', 'height',   'Displayed vertical height of the image in pixels'),
+   ('Pictures', 'rotation', 'Orientation of the camera in degrees: 0, 90, 180, 270'),
+   ('Pictures', 'width',    'Displayed horizontal width of the image in pixels, after rotation correction'),
+   ('Pictures', 'height',   'Displayed vertical height of the image in pixels, after rotation correction'),
    ('Pictures', 'caption',  'EXIF caption or description');
 
 CREATE TABLE IF NOT EXISTS Pictures (
@@ -39,7 +43,11 @@ CREATE TABLE IF NOT EXISTS Pictures (
    rotation	INTEGER DEFAULT 0,
    width	INTEGER,
    height	INTEGER,
-   caption	TEXT
+   caption	TEXT,
+   FOREIGN KEY (dir_id)
+      REFERENCES Directories (dir_id)
+         ON DELETE CASCADE
+         ON UPDATE CASCADE
    );
 -- length	INTEGER,	-- support video files this way?
 
@@ -91,8 +99,8 @@ CREATE TABLE IF NOT EXISTS PicturePath (
          ON DELETE CASCADE 
          ON UPDATE CASCADE
 ) WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS pp_pid_index ON PicturePath (path_id,file_id);
-CREATE INDEX IF NOT EXISTS pp_fid_index ON PicturePath (file_id,path_id);
+CREATE INDEX IF NOT EXISTS pp_pid_index ON PicturePath (path_id, file_id);
+CREATE INDEX IF NOT EXISTS pp_fid_index ON PicturePath (file_id, path_id);
 
 ---------------------------------------- TAGS
 INSERT INTO table_comments (table_name, comment_text) VALUES
@@ -123,8 +131,8 @@ CREATE TABLE IF NOT EXISTS PictureTag (
          ON DELETE CASCADE 
          ON UPDATE CASCADE
 ) WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS pt_tid_index ON PictureTag (tag_id,file_id);
-CREATE INDEX IF NOT EXISTS pt_fid_index ON PictureTag (file_id,tag_id);
+CREATE INDEX IF NOT EXISTS pt_tid_index ON PictureTag (tag_id, file_id);
+CREATE INDEX IF NOT EXISTS pt_fid_index ON PictureTag (file_id, tag_id);
 
 ---------------------------------------- ALBUMS
 INSERT INTO table_comments (table_name, comment_text) VALUES
@@ -163,7 +171,23 @@ CREATE TABLE IF NOT EXISTS PictureAlbum (
          ON DELETE CASCADE 
          ON UPDATE CASCADE
 ) WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS pa_aid_index ON PictureAlbum (album_id,file_id);
-CREATE INDEX IF NOT EXISTS pa_fid_index ON PictureAlbum (file_id,album_id);
+CREATE INDEX IF NOT EXISTS pa_aid_index ON PictureAlbum (album_id, file_id);
+CREATE INDEX IF NOT EXISTS pa_fid_index ON PictureAlbum (file_id, album_id);
 
----------------------------------------- 
+---------------------------------------- CONTACTS
+INSERT INTO table_comments (table_name, comment_text) VALUES
+   ('Contacts', 'Known people in pictures');
+
+INSERT INTO column_comments (table_name, column_name, comment_text) VALUES
+   ('Contacts', 'name',		'Name of the person'),
+   ('Contacts', 'email',        'Email address of the person');
+
+CREATE TABLE IF NOT EXISTS Contacts (
+   contact_id	INTEGER PRIMARY KEY NOT NULL,
+   name		TEXT UNIQUE NOT NULL,
+   email	TEXT);
+
+CREATE UNIQUE INDEX IF NOT EXISTS contact_name_index ON Contacts (name);
+CREATE INDEX IF NOT EXISTS contact_email_index ON Contacts (email);
+INSERT INTO Contacts (contact_id, name, email) VALUES
+   (0, '', '');
