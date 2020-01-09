@@ -1,0 +1,94 @@
+=pod
+
+=head1 NAME
+
+lpgallery - remote-control (keyboard) driven local picture browser
+
+=head1 FEATURES
+
+UNDER CONSTRUCTION - for getting Prima LPDB browser up and running,
+similar to picasagallery or mythgallery, like for mythtv
+
+=cut
+
+# by twitham@sbcglobal.net, 2020-01 based on picasagallery
+
+use strict;
+use warnings;
+use Prima qw(Application);
+use LPDB::Prima::GridList;
+
+my $g;				# GridList
+my $w = Prima::MainWindow->create(
+    text => 'Local Picture Gallery',
+    packPropagate => 0,
+    menuItems => [
+	['~Options' => [
+	     ['*dhg', 'Draw HGrid'=> sub { $g-> drawHGrid( $_[0]-> menu-> toggle( $_[1])) }],
+	     ['*dvg', 'Draw VGrid'=> sub { $g-> drawVGrid( $_[0]-> menu-> toggle( $_[1])) }],
+	     ['bigger', 'Zoom ~In' => sub { $g-> bigger } ],
+	     ['smaller', 'Zoom ~Out' => sub { $g-> smaller } ],
+	     ['quit', '~Quit' => sub { exit; } ],
+	 ]
+	]],
+    );
+$w->font->name('bitstream charter'); # hack!!!! how to find best font?
+#$w->font->height(20);
+#$w->font->style(fs::Italic);
+
+#print sort map {"$_->{name}\n"} @{$::application-> fonts}; # see available fonts!!!
+
+my $im = Prima::Image->new;
+$im->load('thumb.jpg');		# hack!!! TODO: read each tile from DB
+
+# $w->insert(ImageViewer => size => [ $w->size ],
+# 	   image => $im, zoom => 3);
+# run Prima;
+
+sub scale {	    # return maximum x,y of im, retaining aspect ratio
+    my($im, $x, $y) = @_;
+    my($w, $h) = ($im->width, $im->height);
+    my $af = $w / $h;		# aspect full
+    my $at = $x / $y;		# aspect thumb
+    if ($af > $at) {		# wider than thumb
+	return $x, $y / $af;
+    } else {			# taller than thumb
+	return $x * $af, $y;
+    }
+}
+
+$g = $w-> insert(
+    'LPDB::Prima::GridList',
+    onDrawCell => sub {
+	my ( $self, $canvas,
+	     $col, $row, $type,
+	     $x1, $y1, $x2, $y2,
+	     $X1, $Y1, $X2, $Y2,
+	     $sel, $foc, $pre) = @_;
+
+	#	warn "onDrawCell: @_\n";
+	my $bk = $sel ? $self-> hiliteBackColor :
+	    ( $type ? $self-> indentCellBackColor : cl::Back);
+	$bk = $self-> prelight_color($bk) if $pre;
+	$canvas-> backColor( $bk );
+	$canvas-> clear( $x1, $y1, $x2, $y2);
+	$canvas-> color( $sel ? $self-> hiliteColor :
+			 ( $type ? $self-> indentCellColor : cl::Fore));
+	my($x, $y) = &scale($im, $X2 - $X1 - 20, $Y2 - $Y1 - 20);
+	$canvas->put_image_indirect($im, $X1 + 10, $Y2 - $y - 10, 0, 0, $x, $y,
+				    $im->width, $im->height, $self->rop)
+	    or warn "put_image failed: $@\n";
+	my $n = $self->columns * $row + $col;
+	$canvas-> text_out( "$n: $col.$row", $X1+10, $Y1+10);
+	$canvas-> text_out( "hello world", $X1+5, ($Y1+$Y2)/2);
+	$canvas-> rect_focus( $x1, $y1, $x2, $y2 ) if $foc;
+    },
+    onMouseClick => sub {
+	print $_[0]-> get_cell_text( $_[0]-> focusedCell), " is selected\n";
+    },
+    pack => { expand => 1, fill => 'both' },
+    );
+$g-> columns(7);
+$g-> rows(10000);
+
+run Prima;
