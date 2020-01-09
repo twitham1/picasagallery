@@ -42,8 +42,6 @@ sub profile_default
 	onSize => sub {
 	    my ( $self, $ox, $oy, $x, $y) = @_;
 	    my $idx = $self->cell2index($self->focusedCell);
-	    my $data = $self->{cells};
-	    my $len = @$data;
 	    my $n = int($x / $self->constantCellWidth);
 	    $n > 1 or $n = 1;
 	    $self->columns($n);
@@ -66,7 +64,19 @@ sub init
     return %profile;
 }
 
-# new for GridList:
+# new properties for GridList:
+
+sub items {
+    return $_[0]->{items} unless $#_;
+    my($self, @items) = @_;
+    @items = @{$items[0]} if @items == 1 && ref($items[0]) eq 'ARRAY';
+    @items > 0 or warn "items < 1, ignoring" and return;
+    $self->{items} = \@items;
+    $self->rows(int scalar(@{$self->{items}}) / $self->{columns} + 1);
+    warn $self->rows, " rows";
+}
+
+# new methods for GridList:
 
 sub smaller {
     my($self) = @_;

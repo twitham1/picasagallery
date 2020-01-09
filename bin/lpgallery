@@ -11,7 +11,7 @@ similar to picasagallery or mythgallery, like for mythtv
 
 =cut
 
-# by twitham@sbcglobal.net, 2020-01 based on picasagallery
+# by twitham@sbcglobal.net in 2020 based on picasagallery of 2013
 
 use strict;
 use warnings;
@@ -28,6 +28,7 @@ my $w = Prima::MainWindow->create(
 	     ['*dvg', 'Draw VGrid'=> sub { $g-> drawVGrid( $_[0]-> menu-> toggle( $_[1])) }],
 	     ['bigger', 'Zoom ~In' => sub { $g-> bigger } ],
 	     ['smaller', 'Zoom ~Out' => sub { $g-> smaller } ],
+	     ['rand', '~Random Items' => sub { $g->items([ 0 .. rand 1000]); } ],
 	     ['quit', '~Quit' => sub { exit; } ],
 	 ]
 	]],
@@ -57,7 +58,7 @@ sub scale {	    # return maximum x,y of im, retaining aspect ratio
     }
 }
 
-$g = $w-> insert(
+$g = $w->insert(
     'LPDB::Prima::GridList',
     onDrawCell => sub {
 	my ( $self, $canvas,
@@ -88,7 +89,6 @@ $g = $w-> insert(
     },
     pack => { expand => 1, fill => 'both' },
     );
-$g-> columns(7);
-$g-> rows(10000);
+$g->items([ 0 .. rand 1000]);
 
 run Prima;
