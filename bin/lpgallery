@@ -18,18 +18,28 @@ use warnings;
 use Prima qw(Application);
 use LPDB::Prima::GridList;
 
+# my $tb = $::application->get_system_value(sv::YTitleBar);
+# warn "tb: $tb";
+# # $w->size([1600+10, 900+$tb]);
+# # $w->frameOrigin(-10, -10);
+
 my $g;				# GridList
 my $w = Prima::MainWindow->create(
     text => 'Local Picture Gallery',
+
+    # frameOrigin => [-20, +100],
+    # borderStyle => bs::None,
+    # size => [1600 + 10, 900 + $tb],
+
     packPropagate => 0,
     menuItems => [
 	['~Options' => [
-	     ['*dhg', 'Draw HGrid'=> sub { $g-> drawHGrid( $_[0]-> menu-> toggle( $_[1])) }],
-	     ['*dvg', 'Draw VGrid'=> sub { $g-> drawVGrid( $_[0]-> menu-> toggle( $_[1])) }],
-	     ['bigger', 'Zoom ~In' => sub { $g-> bigger } ],
-	     ['smaller', 'Zoom ~Out' => sub { $g-> smaller } ],
+	     ['*dhg', 'Draw HGrid' => sub { $g-> drawHGrid( $_[0]-> menu-> toggle( $_[1])) }],
+	     ['*dvg', 'Draw VGrid' => sub { $g-> drawVGrid( $_[0]-> menu-> toggle( $_[1])) }],
+	     ['bigger', 'Zoom ~In', '=', ord '=' => sub { $g-> bigger } ],
+	     ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $g-> smaller } ],
 	     ['rand', '~Random Items' => sub { $g->items([ 0 .. rand 1000]); } ],
-	     ['quit', '~Quit' => sub { exit; } ],
+	     ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
 	 ]
 	]],
     );
@@ -46,20 +56,24 @@ $im->load('thumb.jpg');		# hack!!! TODO: read each tile from DB
 # 	   image => $im, zoom => 3);
 # run Prima;
 
-sub scale {	    # return maximum x,y of im, retaining aspect ratio
+sub scale { # return maximum x, y, offsets of im, retaining aspect ratio
     my($im, $x, $y) = @_;
     my($w, $h) = ($im->width, $im->height);
-    my $af = $w / $h;		# aspect full
-    my $at = $x / $y;		# aspect thumb
-    if ($af > $at) {		# wider than thumb
-	return $x, $y / $af;
-    } else {			# taller than thumb
-	return $x * $af, $y;
+    my $src = $w / $h;		# aspect ratios
+    my $dst = $x / $y;
+    if ($src > $dst) {		# image wider than cell
+	my $h = $x / $src;
+	return $x, $h, 0, int(($y - $h) / 2);
+    } else {			# image taller than cell
+	my $w = $y * $src;
+	return $w, $y, int(($x - $w) / 2), 0;
     }
 }
 
 $g = $w->insert(
     'LPDB::Prima::GridList',
+    constantCellWidth => 270,	# 4:3, should it be configurable?
+    constantCellHeight => 200,
     onDrawCell => sub {
 	my ( $self, $canvas,
 	     $col, $row, $type,
@@ -75,8 +89,9 @@ $g = $w->insert(
 	$canvas-> clear( $x1, $y1, $x2, $y2);
 	$canvas-> color( $sel ? $self-> hiliteColor :
 			 ( $type ? $self-> indentCellColor : cl::Fore));
-	my($x, $y) = &scale($im, $X2 - $X1 - 20, $Y2 - $Y1 - 20);
-	$canvas->put_image_indirect($im, $X1 + 10, $Y2 - $y - 10, 0, 0, $x, $y,
+	my($x, $y, $xoff, $yoff) = &scale($im, $X2 - $X1 - 20, $Y2 - $Y1 - 20);
+	$canvas->put_image_indirect($im, $X1 + 10 + $xoff,
+				    $Y2 - $y - 10 - $yoff, 0, 0, $x, $y,
 				    $im->width, $im->height, $self->rop)
 	    or warn "put_image failed: $@\n";
 	my $n = $self->columns * $row + $col;
@@ -84,11 +99,28 @@ $g = $w->insert(
 	$canvas-> text_out( "hello world", $X1+5, ($Y1+$Y2)/2);
 	$canvas-> rect_focus( $x1, $y1, $x2, $y2 ) if $foc;
     },
-    onMouseClick => sub {
-	print $_[0]-> get_cell_text( $_[0]-> focusedCell), " is selected\n";
+    # onKeyDown => sub {
+    # 	if ($_[2] == ord 'm') {
+    # 	    $w->popup;
+    # 	}
+    # },
+    onClick => sub {
+	print $_[0]-> get_cell_text( $_[0]-> focusedCell), " is clicked\n";
     },
     pack => { expand => 1, fill => 'both' },
     );
+
 $g->items([ 0 .. rand 1000]);
+
+# use Data::Dumper;
+# my @mon = $::application->get_monitor_rects;
+# warn Dumper \@mon;
+# my @where = $w->frameOrigin;
+# warn Dumper \@where;
+
+# my $tb = $::application->get_system_value(sv::YTitleBar);
+# warn "tb: $tb";
+# $w->size([1600+10, 900+$tb]);
+# $w->frameOrigin(-10, -10);
 
 run Prima;
