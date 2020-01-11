@@ -14,25 +14,26 @@ package LPDB::Prima::ListViewer;
 
 use strict;
 use warnings;
-#use Prima;
 use Prima::Lists;
-#use Prima::IntUtils;
 
 use vars qw(@ISA);
 @ISA = qw(Prima::ListViewer);
 
+# rectangular items, vertical scroll only, bright hilite
 sub profile_default {
-    my $def = $_[ 0]-> SUPER::profile_default;
+    my $def = $_[0]-> SUPER::profile_default;
     my %prf = (
+	hiliteBackColor	=> cl::Green,
 	itemWidth	=> 200,
 	itemHeight	=> 150,
-	hiliteBackColor	=> cl::Green,
+	autoHeight	=> 0,
+	autoWidth	=> 0,
 	multiColumn	=> 1,
 	vertical	=> 0,
-	autoWidth	=> 0,
 	drawGrid	=> 0,
 	dragable	=> 0,
 	hScroll		=> 0,
+	autoHScroll	=> 0,
 	);
     @$def{keys %prf} = values %prf;
     return $def;

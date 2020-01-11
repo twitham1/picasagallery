@@ -64,24 +64,27 @@ sub scale { # return maximum x, y, offsets of im, retaining aspect ratio
 
 $l = $w->insert(
     'LPDB::Prima::ListViewer',
-    hScroll => 0,
     itemWidth => 270,		# 4:3, should match thumb size in DB
     itemHeight => 200,		# maybe get these from configuration
     onDrawItem => sub {
     	my ( $self, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col) = @_;
+
+	# TODO: pop selection out with zoom in to larger size
 
     	my $bk = $sel ? $self-> hiliteBackColor : cl::Back;
     	$bk = $self-> prelight_color($bk) if $pre;
     	$canvas-> backColor( $bk );
     	$canvas-> clear( $x1, $y1, $x2, $y2);
 	$canvas-> color( $sel ? $self-> hiliteColor : cl::Fore);
-    	my($x, $y, $xoff, $yoff) = &scale($im, $x2 - $x1 - 20, $y2 - $y1 - 20);
-    	$canvas->put_image_indirect($im, $x1 + 10 + $xoff,
-    				    $y2 - $y - 10 - $yoff, 0, 0, $x, $y,
+	my $o = $sel ? 0 : 20;
+    	my($x, $y, $xoff, $yoff) = &scale($im, $x2-$x1-2*$o, $y2-$y1-2*$o);
+    	$canvas->put_image_indirect($im, $x1 + $o + $xoff,
+    				    $y2 - $y - $o - $yoff, 0, 0, $x, $y,
     				    $im->width, $im->height, $self->rop)
     	    or warn "put_image failed: $@\n";
-    	$canvas-> text_out( $idx, $x1 + 10, $y1 + 10);
-    	$canvas-> text_out( "hello world", $x1+10, ($y1+$y2)/2);
+	$canvas->textOpaque($sel);
+    	$canvas-> text_out( $idx, $x1 + $o, $y1 + $o);
+    	$canvas-> text_out( "hello world", $x1+$o, ($y1+$y2)/2);
     	$canvas-> rect_focus( $x1, $y1, $x2, $y2 ) if $foc;
     },
     # onKeyDown => sub {
