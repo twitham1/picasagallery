@@ -14,9 +14,9 @@ package LPDB::Prima::ListViewer;
 
 use strict;
 use warnings;
-use Prima;
+#use Prima;
 use Prima::Lists;
-use Prima::IntUtils;
+#use Prima::IntUtils;
 
 use vars qw(@ISA);
 @ISA = qw(Prima::ListViewer);
@@ -32,10 +32,19 @@ sub profile_default {
 	autoWidth	=> 0,
 	drawGrid	=> 0,
 	dragable	=> 0,
-	hScroll	=> 0,
+	hScroll		=> 0,
 	);
     @$def{keys %prf} = values %prf;
     return $def;
+}
+sub init {
+    my $self = shift;
+    my %profile = $self-> SUPER::init(@_);
+    $self-> setup_indents;
+    $self->hScroll($profile{hScroll});
+    $self-> reset;
+    $self-> reset_scrolls;
+    return %profile;
 }
 
 =head2 Methods

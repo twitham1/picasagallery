@@ -24,11 +24,10 @@ my $w = Prima::MainWindow->create(
     packPropagate => 0,
     menuItems => [
 	['~Options' => [
-	     ['*dg', 'Draw Grid' => sub { $l-> drawGrid( $_[0]-> menu-> toggle( $_[1])) }],
-	     ['bigger', 'Zoom ~In', '=', ord '=' => sub { $l-> bigger } ],
-	     ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $l-> smaller } ],
+	     ['bigger', 'Zoom ~In', '=', ord '=' => sub { $l->bigger } ],
+	     ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $l->smaller } ],
 	     ['rand', '~Random Items' => sub {
-		 $l->items([ 0 .. rand 1000]);
+		 $l->items([map { rand 1000 } ( 0 .. rand 1000)]);
 		 $l->focusedItem(0);
 		 $l->reset;
 	      } ],
@@ -65,8 +64,9 @@ sub scale { # return maximum x, y, offsets of im, retaining aspect ratio
 
 $l = $w->insert(
     'LPDB::Prima::ListViewer',
-    itemWidth => 270,		# 4:3, should it be configurable?
-    itemHeight => 200,
+    hScroll => 0,
+    itemWidth => 270,		# 4:3, should match thumb size in DB
+    itemHeight => 200,		# maybe get these from configuration
     onDrawItem => sub {
     	my ( $self, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col) = @_;
 
