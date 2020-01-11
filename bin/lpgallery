@@ -16,29 +16,22 @@ similar to picasagallery or mythgallery, like for mythtv
 use strict;
 use warnings;
 use Prima qw(Application);
-use LPDB::Prima::GridList;
+use LPDB::Prima::ListViewer;
 
-# my $tb = $::application->get_system_value(sv::YTitleBar);
-# warn "tb: $tb";
-# # $w->size([1600+10, 900+$tb]);
-# # $w->frameOrigin(-10, -10);
-
-my $g;				# GridList
+my $l;				# ListViewer
 my $w = Prima::MainWindow->create(
     text => 'Local Picture Gallery',
-
-    # frameOrigin => [-20, +100],
-    # borderStyle => bs::None,
-    # size => [1600 + 10, 900 + $tb],
-
     packPropagate => 0,
     menuItems => [
 	['~Options' => [
-	     ['*dhg', 'Draw HGrid' => sub { $g-> drawHGrid( $_[0]-> menu-> toggle( $_[1])) }],
-	     ['*dvg', 'Draw VGrid' => sub { $g-> drawVGrid( $_[0]-> menu-> toggle( $_[1])) }],
-	     ['bigger', 'Zoom ~In', '=', ord '=' => sub { $g-> bigger } ],
-	     ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $g-> smaller } ],
-	     ['rand', '~Random Items' => sub { $g->items([ 0 .. rand 1000]); } ],
+	     ['*dg', 'Draw Grid' => sub { $l-> drawGrid( $_[0]-> menu-> toggle( $_[1])) }],
+	     ['bigger', 'Zoom ~In', '=', ord '=' => sub { $l-> bigger } ],
+	     ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $l-> smaller } ],
+	     ['rand', '~Random Items' => sub {
+		 $l->items([ 0 .. rand 1000]);
+		 $l->focusedItem(0);
+		 $l->reset;
+	      } ],
 	     ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
 	 ]
 	]],
@@ -70,34 +63,26 @@ sub scale { # return maximum x, y, offsets of im, retaining aspect ratio
     }
 }
 
-$g = $w->insert(
-    'LPDB::Prima::GridList',
-    constantCellWidth => 270,	# 4:3, should it be configurable?
-    constantCellHeight => 200,
-    onDrawCell => sub {
-	my ( $self, $canvas,
-	     $col, $row, $type,
-	     $x1, $y1, $x2, $y2,
-	     $X1, $Y1, $X2, $Y2,
-	     $sel, $foc, $pre) = @_;
+$l = $w->insert(
+    'LPDB::Prima::ListViewer',
+    itemWidth => 270,		# 4:3, should it be configurable?
+    itemHeight => 200,
+    onDrawItem => sub {
+    	my ( $self, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col) = @_;
 
-	#	warn "onDrawCell: @_\n";
-	my $bk = $sel ? $self-> hiliteBackColor :
-	    ( $type ? $self-> indentCellBackColor : cl::Back);
-	$bk = $self-> prelight_color($bk) if $pre;
-	$canvas-> backColor( $bk );
-	$canvas-> clear( $x1, $y1, $x2, $y2);
-	$canvas-> color( $sel ? $self-> hiliteColor :
-			 ( $type ? $self-> indentCellColor : cl::Fore));
-	my($x, $y, $xoff, $yoff) = &scale($im, $X2 - $X1 - 20, $Y2 - $Y1 - 20);
-	$canvas->put_image_indirect($im, $X1 + 10 + $xoff,
-				    $Y2 - $y - 10 - $yoff, 0, 0, $x, $y,
-				    $im->width, $im->height, $self->rop)
-	    or warn "put_image failed: $@\n";
-	my $n = $self->columns * $row + $col;
-	$canvas-> text_out( "$n: $col.$row", $X1+10, $Y1+10);
-	$canvas-> text_out( "hello world", $X1+5, ($Y1+$Y2)/2);
-	$canvas-> rect_focus( $x1, $y1, $x2, $y2 ) if $foc;
+    	my $bk = $sel ? $self-> hiliteBackColor : cl::Back;
+    	$bk = $self-> prelight_color($bk) if $pre;
+    	$canvas-> backColor( $bk );
+    	$canvas-> clear( $x1, $y1, $x2, $y2);
+	$canvas-> color( $sel ? $self-> hiliteColor : cl::Fore);
+    	my($x, $y, $xoff, $yoff) = &scale($im, $x2 - $x1 - 20, $y2 - $y1 - 20);
+    	$canvas->put_image_indirect($im, $x1 + 10 + $xoff,
+    				    $y2 - $y - 10 - $yoff, 0, 0, $x, $y,
+    				    $im->width, $im->height, $self->rop)
+    	    or warn "put_image failed: $@\n";
+    	$canvas-> text_out( $idx, $x1 + 10, $y1 + 10);
+    	$canvas-> text_out( "hello world", $x1+10, ($y1+$y2)/2);
+    	$canvas-> rect_focus( $x1, $y1, $x2, $y2 ) if $foc;
     },
     # onKeyDown => sub {
     # 	if ($_[2] == ord 'm') {
@@ -105,22 +90,39 @@ $g = $w->insert(
     # 	}
     # },
     onClick => sub {
-	print $_[0]-> get_cell_text( $_[0]-> focusedCell), " is clicked\n";
+	print $_[0]-> focusedItem, " is clicked\n";
     },
     pack => { expand => 1, fill => 'both' },
     );
 
-$g->items([ 0 .. rand 1000]);
-
-# use Data::Dumper;
-# my @mon = $::application->get_monitor_rects;
-# warn Dumper \@mon;
-# my @where = $w->frameOrigin;
-# warn Dumper \@where;
-
-# my $tb = $::application->get_system_value(sv::YTitleBar);
-# warn "tb: $tb";
-# $w->size([1600+10, 900+$tb]);
-# $w->frameOrigin(-10, -10);
+$l->items([ 0 .. rand 1000]);
+$l->focusedItem(0);
+$l->reset;
 
 run Prima;
+
+exit 0;
+
+=pod
+
+=back
+
+=head1 TODO
+
+Add documenation from picasagallery here!!!
+
+=head1 SEE ALSO
+L<LPDB>, L<picasagallery>, L<Prima>
+
+=head1 AUTHOR
+
+Timothy D Witham <twitham@sbcglobal.net>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2013-2020 Timothy D Witham.
+
+This program is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
+=cut

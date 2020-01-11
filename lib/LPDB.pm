@@ -12,7 +12,8 @@ use LPDB;
 
 =head1 DESCRIPTION
 
-B<LPDB> stores local picture metadata in a sqlite database.
+B<LPDB> stores local picture metadata in a sqlite database.  Methods
+are provided for storage and retrieval.
 
 =cut
 
