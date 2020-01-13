@@ -24,7 +24,8 @@ INSERT INTO table_comments (table_name, comment_text) VALUES
    ('Pictures',	  'Picture files that hold images');
 
 INSERT INTO column_comments (table_name, column_name, comment_text) VALUES
-   ('Pictures', 'filename', 'Path to the image file contents'),
+   ('Pictures', 'basename', 'Base name to the image file contents'),
+   ('Pictures', 'dir_id',   'ID of the directory of the file'),
    ('Pictures', 'bytes',    'Size of the image file in bytes'),
    ('Pictures', 'modified', 'Last modified timestamp of the image file'),
    ('Pictures', 'time',     'Time image was taken if known from EXIF, else file create or modify time'),

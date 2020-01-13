@@ -16,7 +16,13 @@ similar to picasagallery or mythgallery, like for mythtv
 use strict;
 use warnings;
 use Prima qw(Application);
+use Prima::Image::Magick qw/:all/;
+use LPDB;
+use LPDB::Thumbnail;
 use LPDB::Prima::ListViewer;
+
+my $lpdb = new LPDB({dbfile => 'tmp.db'});
+my $th = new LPDB::Thumbnail($lpdb);
 
 my $l;				# ListViewer
 my $w = Prima::MainWindow->create(
@@ -69,14 +75,17 @@ $l = $w->insert(
     onDrawItem => sub {
     	my ( $self, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col) = @_;
 
-	# TODO: pop selection out with zoom in to larger size
-
+#	warn "updating $idx\n";
+	
+	my $thumb = $th->get(1 + $idx % 10);
+	$thumb or return "warn: can't get thumb!\n";
+	my $im = magick_to_prima($thumb);
     	my $bk = $sel ? $self-> hiliteBackColor : cl::Back;
     	$bk = $self-> prelight_color($bk) if $pre;
     	$canvas-> backColor( $bk );
     	$canvas-> clear( $x1, $y1, $x2, $y2);
 	$canvas-> color( $sel ? $self-> hiliteColor : cl::Fore);
-	my $o = $sel ? 0 : 20;
+	my $o = $sel || $foc || $pre ? 0 : 20;
     	my($x, $y, $xoff, $yoff) = &scale($im, $x2-$x1-2*$o, $y2-$y1-2*$o);
     	$canvas->put_image_indirect($im, $x1 + $o + $xoff,
     				    $y2 - $y - $o - $yoff, 0, 0, $x, $y,
@@ -87,16 +96,19 @@ $l = $w->insert(
     	$canvas-> text_out( "hello world", $x1+$o, ($y1+$y2)/2);
     	$canvas-> rect_focus( $x1, $y1, $x2, $y2 ) if $foc;
     },
-    # onKeyDown => sub {
-    # 	if ($_[2] == ord 'm') {
-    # 	    $w->popup;
-    # 	}
-    # },
+    onKeyDown => sub {
+#	warn "@_\n";
+    	# if ($_[2] == ord 'm') {
+    	#     $w->popup;
+    	# }
+    },
     onClick => sub {
 	print $_[0]-> focusedItem, " is clicked\n";
     },
     pack => { expand => 1, fill => 'both' },
     );
+
+warn " brief keys ", $l->briefKeys;
 
 $l->items([ 0 .. rand 1000]);
 $l->focusedItem(0);
