@@ -85,7 +85,7 @@ $l = $w->insert(
     	$canvas-> backColor( $bk );
     	$canvas-> clear( $x1, $y1, $x2, $y2);
 	$canvas-> color( $sel ? $self-> hiliteColor : cl::Fore);
-	my $o = $sel || $foc || $pre ? 0 : 20;
+	my $o = $sel || $foc || $pre ? 0 : int(($x2 - $x1) / 30);
     	my($x, $y, $xoff, $yoff) = &scale($im, $x2-$x1-2*$o, $y2-$y1-2*$o);
     	$canvas->put_image_indirect($im, $x1 + $o + $xoff,
     				    $y2 - $y - $o - $yoff, 0, 0, $x, $y,
@@ -93,7 +93,8 @@ $l = $w->insert(
     	    or warn "put_image failed: $@\n";
 	$canvas->textOpaque($sel);
     	$canvas-> text_out( $idx, $x1 + $o, $y1 + $o);
-    	$canvas-> text_out( "hello world", $x1+$o, ($y1+$y2)/2);
+    	$canvas-> text_out( "hello world", $x1+$o, ($y1+$y2)/2)
+	    if ($x2 - $x1) > 150;
     	$canvas-> rect_focus( $x1, $y1, $x2, $y2 ) if $foc;
     },
     onKeyDown => sub {
