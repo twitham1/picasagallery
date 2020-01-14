@@ -6,7 +6,8 @@ LPDB::Prima::ListViewer - resizable cells for Prima::Listviewer
 
 This class extends C<Prima::ListViewer> to help C<LPDB> implement an
 image thumbnail viewer.  Adds methods for resizing list items and
-remembering the navigation path down a tree of lists.
+remembering the navigation path down a tree of lists.  Number keys
+scroll to tenths of the list.
 
 =cut
 
@@ -47,6 +48,22 @@ sub init {
     $self-> reset_scrolls;
     return %profile;
 }
+
+# allow remote control number pad to scroll to tenths of large pages
+sub on_keydown {
+    my ($self, $code, $key, $mod) = @_;
+    $self-> notify(q(MouseUp),0,0,0) if defined $self-> {mouseTransaction};
+    return if $mod & km::DeadKey;
+
+    my $c = $code & 0xFF;
+    if ($c >= ord '0' and $c <= ord '9' and $self->{count}) {
+	$self->focusedItem(int(($code - ord '0') / 10 * $self->{count}));
+	$self->clear_event;
+	return;
+    }
+    $self-> SUPER::on_keydown( $code, $key, $mod);
+}
+
 
 =head2 Methods
 
