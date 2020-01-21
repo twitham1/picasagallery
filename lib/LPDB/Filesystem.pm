@@ -90,7 +90,7 @@ sub _wanted {
     my $modified = (stat $_)[9];
     $dir =~ s@\./@@;
     #    $dir = '' if $dir eq '.';
-    #    warn "checking: $modified\t$_\n";
+    warn "checking: $modified\t$_\n";
     if ($file eq '.picasa.ini' or $file eq 'Picasa.ini') {
 	# &_understand($db, _readfile($_));
 	# $db->{dirs}{$dir}{'<<updated>>'} = $modified;
@@ -141,7 +141,7 @@ sub _wanted {
 	    ? $row->update
 	    : $row->discard_changes;
 
-	my $path = "/[Folders]/$dir$file";
+	my $path = "/[Folders]/$dir";
 	# TODO: make this an internal method or function
 	my $rspath = $schema->resultset('Path')->find_or_create(
 	    { path => $path });
@@ -149,8 +149,8 @@ sub _wanted {
 	    { path_id => $rspath->path_id,
 	      file_id => $row->file_id });
 
-	my $tsfile = strftime "%Y/%m-%d-%H:%M:%S.$file",
-	    localtime $time;	# made-up file!!!  configurable?
+	# my $tsfile = strftime "%Y/%m-%d-%H:%M:%S.$file",
+	#     localtime $time;	# made-up file!!!  configurable?
 
 	my %tags; map { $tags{$_}++ } split /,\s*/,
 		      $info->{Keywords} || $info->{Subject} || '';
@@ -160,7 +160,7 @@ sub _wanted {
 	    $schema->resultset('PictureTag')->find_or_create(
 		{ tag_id => $rstag->tag_id,
 		  file_id => $row->file_id });
-	    my $path = "/[Tags]/$tag/$tsfile";
+	    my $path = "/[Tags]/$tag/";
 	    my $rspath = $schema->resultset('Path')->find_or_create(
 		{ path => $path });
 	    $schema->resultset('PicturePath')->find_or_create(

@@ -24,7 +24,9 @@ sub get {
     my($self, $id, $cid) = @_;
     $cid ||= 0;
     my $schema = $self->{schema};
-    if (my $this = $schema->resultset('Thumb')->find({file_id => $id})) {
+    if (my $this = $schema->resultset('Thumb')->find(
+	    {file_id => $id},
+	    {columns => [qw/image/]})) {
 	my $i = Image::Magick->new;
 	my $data = $this->image;
 	my $e = $i->BlobToImage($data);
