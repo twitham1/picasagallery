@@ -49,8 +49,8 @@ my $w = Prima::MainWindow->create(
 	['~Options' => [
 	     ['bigger', 'Zoom ~In', '=', ord '=' => sub { $l->bigger } ],
 	     ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $l->smaller } ],
-	     ['crops', '~Crop', 'c', ord 'c' => sub {
-		 $l->{crops} = $l->{crops} ? 0 : 1;
+	     ['*crops', '~Crop', 'c', ord 'c' => sub {
+		 $l->{crops} = $_[0]->menu->toggle($_[1]);
 		 $l->reset;
 	      } ],
 	     ['rand', '~Random Items' => sub {
