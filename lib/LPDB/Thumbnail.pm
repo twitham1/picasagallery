@@ -46,27 +46,29 @@ sub put {
 	{file_id => $id},
 	{prefetch => 'dir' });
     my $path = $this->dir->directory . $this->basename;
-    -f $path or warn "$path doesn't exist\n" and return;
+    -f $path or
+	warn "$path doesn't exist\n" and return;
     my $modified = (stat $path)[9];
     my $row = $schema->resultset('Thumb')->find_or_create(
 	{ file_id => $id,
 	  contact_id => $cid });
-    return $row->image if $row->modified || 0 >= $modified; # unchanged
+    $row->modified || 0 >= $modified and
+	return $row->image;	# unchanged
 
     # jpegs read 3X faster if we ask for size 2X the thumbnail!
     my @opt = $cid ? () : 	# crop faces at full resolution
-	$path =~ /jpe?g$/i ? ('jpeg:size' => '540x400') : ();
+	$path =~ /jpe?g$/i ? ('jpeg:size' => '640x480') : ();
 
     my $i = Image::Magick->new(@opt);
     my $e = $i->Read($path);
     if ($e) {
     	warn $e;      # opts are last-one-wins, so we override colors:
-    	$i = Image::Magick->new(qw/magick png24 size 270x200/,
+    	$i = Image::Magick->new(qw/magick png24 size 320x240/,
     				qw/background red fill white gravity center/);
     	$i->Read("caption:$e");	# put error message in the image
     }
     $i->AutoOrient;		# automated rot fix via EXIF!!!
-    $i->Thumbnail(geometry => '270x200');
+    $i->Thumbnail(geometry => '320x240'); # 1920/6=320
     my @b = $i->ImageToBlob;
     $row->modified(time);
     $row->image($b[0]);

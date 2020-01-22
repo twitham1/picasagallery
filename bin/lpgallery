@@ -37,7 +37,7 @@ use LPDB::Thumbnail;
 use LPDB::Prima::ListViewer;
 
 my $lpdb = new LPDB({dbfile => 'tmp.db',
-		     sqltrace => 1,
+#		     sqltrace => 1,
 		    });
 my $th = new LPDB::Thumbnail($lpdb);
 
@@ -68,37 +68,10 @@ $w->font->name('bitstream charter'); # hack!!!! how to find best font?
 
 #print sort map {"$_->{name}\n"} @{$::application-> fonts}; # see available fonts!!!
 
-# this needs refactored, too complicated!!!!
-
-sub scale { # return maximum x, y, offsets of im, retaining aspect ratio
-    my($self, $im, $x, $y) = @_;
-    my($w, $h) = ($im->width, $im->height);
-    my @out;
-    my $src = $w / $h;		# aspect ratios
-    my $dst = $x / $y;
-    if ($self->{crops}) {
-	if ($src > $dst) {	# image wider than cell
-	    my $crop = ($w - $h * $dst) / 2;
-	    push @out, $x, $y, 0, 0, $h * $dst, $h, $crop, 0;
-	} else {		# image taller than cell
-	    my $crop = ($h - $w / $dst) / 2;
-	    push @out, $x, $y, 0, 0, $w, $w / $dst, 0, $crop;
-	}
-    }
-    if ($src > $dst) {		# image wider than cell
-    	my $Y = $x / $src;
-    	push @out, $x, $Y, 0, int(($y - $Y) / 2), $w, $h, 0, 0;
-    } else {			# image taller than cell
-    	my $X = $y * $src;
-	push @out, $X, $y, int(($x - $X) / 2), 0, $w, $h, 0, 0;
-    }
-    return @out;
-}
-
 $l = $w->insert(
     'LPDB::Prima::ListViewer',
-    itemWidth => 270,		# 4:3, should match thumb size in DB
-    itemHeight => 200,		# maybe get these from configuration
+    itemWidth => 320,		# 4:3, should match thumb size in DB
+    itemHeight => 240,		# maybe get these from configuration
     onDrawItem => sub {
     	my ($self, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col) = @_;
 
@@ -112,29 +85,62 @@ $l = $w->insert(
     	$canvas-> backColor( $bk );
     	$canvas-> clear( $x1, $y1, $x2, $y2);
 	$canvas-> color( $sel ? $self-> hiliteColor : cl::Fore);
-	my $o = $sel || $foc || $pre ? 0 : int(($x2 - $x1) / 30);
-    	my($x, $y, $xoff, $yoff, $w, $h, $xf, $yf, @p)
-	    = &scale($self, $im, $x2-$x1-2*$o, $y2-$y1-2*$o);
-    	$canvas->put_image_indirect($im, $x1 + $o + $xoff,
-				    $y2 - $y - $o - $yoff, $xf, $yf,
-				    $x, $y, $w, $h, $self->rop)
-    	    or warn "put_image failed: $@\n";
-	if (!$o and $self->{crops}) { # show original aspect rectangle
-	    $canvas->rectangle($x1 + $o + $p[2],
-			       $y2 - $p[1] - $o - $p[3],
-			       $x1 + $o + $p[2] + $p[0],
-			       $y2 - $p[1] - $o - $p[3] + $p[1]);
+	{	# source image -> destination, preserving aspect ratio
+	    my $dw = $x2 - $x1;
+	    my $dh = $y2 - $y1;
+	    my $b = $sel || $foc || $pre ? 0 : $dw / 30;
+	    $dw -= $b * 2;
+	    $dh -= $b * 2;
+	    my($sw, $sh) = ($im->width, $im->height);
+	    my @out;
+	    my $src = $sw / $sh; # aspect ratios
+	    my $dst = $dw / $dh;
+	    my $sx = my $sy = my $dx = my $dy = 0;
+	    # this copy is used for rectangle overlay in crop mode
+	    my($DX, $DY, $DW, $DH) = ($dx, $dy, $dw, $dh);
+	    if ($src > $dst) {	# image wider than cell: pad top/bot
+		$DY = ($DH - $DW / $src) / 2;
+		$DH = $DW / $src;
+	    } else {	      # image taller than cell: pad left/right
+		$DX = ($DW - $DH * $src) / 2;
+		$DW = $DH * $src;
+	    }
+	    if ($self->{crops}) { # crop source to destination
+		if ($src > $dst) { # image wider than cell: crop left/right
+		    $sx = ($sw - $sh * $dst) / 2;
+		    $sw = $sh * $dst;
+		} else {	# image taller than cell: crop top/bot
+		    $sy = ($sh - $sw / $dst) / 2;
+		    $sh = $sw / $dst;
+		}
+	    } else {		   # pad source to destination
+		($dx, $dy, $dw, $dh) = ($DX, $DY, $DW, $DH);
+	    }
+	    $canvas->put_image_indirect($im, $x1 + $b + $dx, $y1 + $b + $dy,
+					$sx, $sy, $dw, $dh, $sw, $sh,
+					$self->rop)
+		or warn "put_image failed: $@\n";
+	    # put_image_indirect OBJECT, X, Y, X_FROM, Y_FROM,
+	    # DEST_WIDTH, DEST_HEIGHT, SRC_WIDTH, SRC_HEIGHT, ROP ->
+	    # source/dest: (dx, dy, sx, sy, dw, dh, sw, sh, rop)
+
+	    if (!$b and $self->{crops}) { # show original aspect rectangle
+	        $canvas->rectangle($x1 + $b + $DX,
+	    		       $y1 + $b + $DY,
+	    		       $x1 + $b + $DX + $DW,
+	    		       $y1 + $b + $DY + $DH);
+	    }
+	    $canvas->textOpaque(!$b);
+	    $b += 5;		# now text border
+	    $canvas->draw_text($idx, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
+			       dt::Right|dt::Top|dt::Default); # dt::VCenter
+
+	    my $str = substr("hello world this is a long string, " x 3,
+			     0, rand 99);
+	    $canvas->draw_text($str, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
+			       dt::Left|dt::Bottom|dt::Default) # dt::VCenter
+		if ($x2 - $x1) > 200;
 	}
-	$canvas->textOpaque($sel);
-	my $w = $canvas->get_text_width($idx, 1);
-    	$canvas->text_out($idx, $x2 - $o -$w - 3, $y2 - 20 - $o);
-	my $str = substr("hello world this is a long string",
-			 0, rand 33);
-	# $w = $canvas->get_text_width($str, 1);
-    	# $canvas->text_out($str, $x1+$o + 3, ($y1+$y2)/2)
-    	# $canvas->text_out($str, ($x1+$x2)/2 - $w/2, $o ? ($y1+$y2)/2 : $y1)
-	$canvas->text_out($str, $x1 + $o + 3, $y1 + $o + 3)
-	    if ($x2 - $x1) > 150;
     	$canvas-> rect_focus( $x1, $y1, $x2, $y2 ) if $foc;
     },
     onKeyDown => sub {
