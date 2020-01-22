@@ -120,15 +120,18 @@ $l = $w->insert(
 					$sx, $sy, $dw, $dh, $sw, $sh,
 					$self->rop)
 		or warn "put_image failed: $@\n";
-	    # put_image_indirect OBJECT, X, Y, X_FROM, Y_FROM,
-	    # DEST_WIDTH, DEST_HEIGHT, SRC_WIDTH, SRC_HEIGHT, ROP ->
-	    # source/dest: (dx, dy, sx, sy, dw, dh, sw, sh, rop)
 
 	    if (!$b and $self->{crops}) { # show original aspect rectangle
-	        $canvas->rectangle($x1 + $b + $DX,
-	    		       $y1 + $b + $DY,
-	    		       $x1 + $b + $DX + $DW,
-	    		       $y1 + $b + $DY + $DH);
+		$canvas->color(cl::LightRed);  # missing
+	        $canvas->rectangle($x1 + $DX, $y1 + $DY,
+				   $x1 + $DX + $DW, $y1 + $DY + $DH);
+		my($x, $y) = ($dw / $DW, $dh / $DH);
+		my $s = $x > $y ? $x : $y;
+		my($w, $h) = ($dw / $s, $dh / $s);
+		($x, $y) = (($dw - $w) / 2, ($dh - $h) / 2);
+		$canvas->color(cl::Fore); # present
+	        $canvas->rectangle($x1 + $x, $y1 + $y,
+				   $x1 + $x + $w, $y1 + $y + $h);
 	    }
 	    $canvas->textOpaque(!$b);
 	    $b += 5;		# now text border
