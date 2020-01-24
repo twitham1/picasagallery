@@ -71,7 +71,7 @@ $w->font->name('bitstream charter'); # hack!!!! how to find best font?
 $l = $w->insert(
     'LPDB::Prima::ListViewer',
     itemWidth => 320,		# 4:3, should match thumb size in DB
-    itemHeight => 240,		# maybe get these from configuration
+    itemHeight => 320,		# maybe get these from configuration
     onDrawItem => sub {
     	my ($self, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col) = @_;
 

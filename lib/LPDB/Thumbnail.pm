@@ -57,18 +57,18 @@ sub put {
 
     # jpegs read 3X faster if we ask for size 2X the thumbnail!
     my @opt = $cid ? () : 	# crop faces at full resolution
-	$path =~ /jpe?g$/i ? ('jpeg:size' => '640x480') : ();
+	$path =~ /jpe?g$/i ? ('jpeg:size' => '640x640') : ();
 
     my $i = Image::Magick->new(@opt);
     my $e = $i->Read($path);
     if ($e) {
     	warn $e;      # opts are last-one-wins, so we override colors:
-    	$i = Image::Magick->new(qw/magick png24 size 320x240/,
+    	$i = Image::Magick->new(qw/magick png24 size 320x320/,
     				qw/background red fill white gravity center/);
     	$i->Read("caption:$e");	# put error message in the image
     }
     $i->AutoOrient;		# automated rot fix via EXIF!!!
-    $i->Thumbnail(geometry => '320x240'); # 1920/6=320
+    $i->Thumbnail(geometry => '320x320'); # 1920/6=320
     my @b = $i->ImageToBlob;
     $row->modified(time);
     $row->image($b[0]);
