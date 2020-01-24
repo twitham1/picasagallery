@@ -49,14 +49,15 @@ my $w = Prima::MainWindow->create(
 	['~Options' => [
 	     ['bigger', 'Zoom ~In', '=', ord '=' => sub { $l->bigger } ],
 	     ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $l->smaller } ],
-	     ['*crops', '~Crop', 'c', ord 'c' => sub {
+	     ['crops', '~Crop', 'c', ord 'c' => sub {
 		 $l->{crops} = $_[0]->menu->toggle($_[1]);
-		 $l->reset;
+		 $l->repaint;
 	      } ],
 	     ['rand', '~Random Items' => sub {
 		 $l->items([map { rand 1000 } ( 0 .. rand 1000)]);
 		 $l->focusedItem(0);
 		 $l->reset;
+		 $l->repaint;
 	      } ],
 	     ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
 	 ]
@@ -70,8 +71,8 @@ $w->font->name('bitstream charter'); # hack!!!! how to find best font?
 
 $l = $w->insert(
     'LPDB::Prima::ListViewer',
-    itemWidth => 320,		# 4:3, should match thumb size in DB
-    itemHeight => 320,		# maybe get these from configuration
+    itemWidth => 320,  # square: same scale for landscape and portrait
+    itemHeight => 320, # maybe get these from configuration
     onDrawItem => sub {
     	my ($self, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col) = @_;
 
@@ -120,19 +121,21 @@ $l = $w->insert(
 					$sx, $sy, $dw, $dh, $sw, $sh,
 					$self->rop)
 		or warn "put_image failed: $@\n";
-
-	    if (!$b and $self->{crops}) { # show original aspect rectangle
-		$canvas->color(cl::LightRed);  # missing
-	        $canvas->rectangle($x1 + $DX, $y1 + $DY,
-				   $x1 + $DX + $DW, $y1 + $DY + $DH);
-		my($x, $y) = ($dw / $DW, $dh / $DH);
-		my $s = $x > $y ? $x : $y;
-		my($w, $h) = ($dw / $s, $dh / $s);
-		($x, $y) = (($dw - $w) / 2, ($dh - $h) / 2);
-		$canvas->color(cl::Fore); # present
+	    if (!$b) {
+		my($x, $y, $w, $h);
+		if ($self->{crops}) { # show original aspect rectangle
+		    $canvas->color(cl::LightRed); # cropped portion
+		    $canvas->rectangle($x1 + $DX, $y1 + $DY,
+				       $x1 + $DX + $DW, $y1 + $DY + $DH);
+		    $canvas->color(cl::Fore);
+		}
+		# TODO: fix this!!! It is right only for square thumbs:
+		($x, $w) = $DY ? ($DY, $DH) : ($DX, $DW);
+		($y, $h) = $DX ? ($DX, $DW) : ($DY, $DH);
 	        $canvas->rectangle($x1 + $x, $y1 + $y,
 				   $x1 + $x + $w, $y1 + $y + $h);
 	    }
+
 	    $canvas->textOpaque(!$b);
 	    $b += 5;		# now text border
 	    $canvas->draw_text($idx, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,

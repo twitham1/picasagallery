@@ -35,10 +35,12 @@ sub profile_default {
 	dragable	=> 0,
 	hScroll		=> 0,
 	autoHScroll	=> 0,
+	crops		=> 0,
 	);
     @$def{keys %prf} = values %prf;
     return $def;
 }
+
 sub init {
     my $self = shift;
     my %profile = $self-> SUPER::init(@_);
