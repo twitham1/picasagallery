@@ -37,6 +37,11 @@ __PACKAGE__->table("PathView");
   data_type: 'text'
   is_nullable: 1
 
+=head2 parent_id
+
+  data_type: 'integer'
+  is_nullable: 1
+
 =head2 file_id
 
   data_type: 'integer'
@@ -114,6 +119,8 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_nullable => 1 },
   "path",
   { data_type => "text", is_nullable => 1 },
+  "parent_id",
+  { data_type => "integer", is_nullable => 1 },
   "file_id",
   { data_type => "integer", is_nullable => 1 },
   "basename",
@@ -145,8 +152,8 @@ __PACKAGE__->add_columns(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-12-28 14:49:27
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:DzzD5ZWAHrVJhXCmgb4neQ
+# Created by DBIx::Class::Schema::Loader v0.07048 @ 2020-01-28 23:58:48
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:LW8Xs5bIO8FLYsiioCBh0w
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

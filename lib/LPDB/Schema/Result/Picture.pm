@@ -37,11 +37,15 @@ __PACKAGE__->table("Pictures");
   data_type: 'text'
   is_nullable: 0
 
+Base name to the image file contents
+
 =head2 dir_id
 
   data_type: 'integer'
   is_foreign_key: 1
   is_nullable: 1
+
+ID of the directory of the file
 
 =head2 bytes
 
@@ -243,8 +247,8 @@ Composing rels: L</picture_tags> -> tag
 __PACKAGE__->many_to_many("tags", "picture_tags", "tag");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2020-01-07 16:03:51
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:qB077qvRV6MWUATO8eA4cQ
+# Created by DBIx::Class::Schema::Loader v0.07048 @ 2020-01-28 23:58:48
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:tUaiFXUgGsmszZFnHMyCUw
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

@@ -299,7 +299,8 @@ sub filter {
     $conf->{filter}{age} and
 	push @filter, (time => { '>' => $conf->{filter}{age} });
     my $rs = $schema->resultset('PathView')->search(
-	{ path => { like => "$path%" },
+	{ file_id => { '!=' => undef },
+	  path => { like => "$path%" },
 	  @filter,		# user toggles these on GUI
 	},
 	{ group_by => 'file_id', # count each file only once
@@ -467,7 +468,8 @@ sub filter {
 sub pics {
     my($self, $filename) = @_;
     my $rs = $self->schema->resultset('PathView')->search(
-	{ filename => $filename },
+	{ file_id => { '!=' => undef },
+	  filename => $filename },
 	{ group_by => 'file_id' });
     my $data = $self->plstats($rs, $filename);
     $data->{rot} = $rs->get_column('rotation')->min;

@@ -84,6 +84,35 @@ sub update {
 	return $id{$this};
     }
 }
+# add a path and its parents to the virtual Paths table
+{
+    my %id;			# cache: {path} = id
+    sub _savepath {		# recursive up to root /
+	my($this) = @_;
+	$this =~ m@/$@ or return;
+	unless ($id{$this}) {
+	    warn "saving path $this\n";
+	    my $obj = $schema->resultset('Path')->find_or_new(
+		{ path => $this });
+	    unless ($obj->in_storage) { # pre-existing?
+		my($dir, $file) = LPDB::dirfile $this;
+		$obj->parent_id(&_savepath($dir));
+		$obj->insert;
+	    }
+	    $id{$this} = $obj->path_id;
+	}
+	return $id{$this};
+    }
+}
+# connect a picture id to one logical path, creating it as needed
+sub _savepathfile {
+    my($path, $id) = @_;
+    my $path_id = &_savepath($path);
+    $schema->resultset('PicturePath')->find_or_create(
+	{ path_id => $path_id,
+	  file_id => $id });
+}
+
 # add a file or directory to the database, adapted from Picasa.pm
 sub _wanted {
     my($dir, $file) = LPDB::dirfile $_;
@@ -141,16 +170,7 @@ sub _wanted {
 	    ? $row->update
 	    : $row->discard_changes;
 
-	my $path = "/[Folders]/$dir";
-	# TODO: make this an internal method or function
-	my $rspath = $schema->resultset('Path')->find_or_create(
-	    { path => $path });
-	$schema->resultset('PicturePath')->find_or_create(
-	    { path_id => $rspath->path_id,
-	      file_id => $row->file_id });
-
-	# my $tsfile = strftime "%Y/%m-%d-%H:%M:%S.$file",
-	#     localtime $time;	# made-up file!!!  configurable?
+	&_savepathfile("/[Folders]/$dir", $row->file_id);
 
 	my %tags; map { $tags{$_}++ } split /,\s*/,
 		      $info->{Keywords} || $info->{Subject} || '';
@@ -160,12 +180,7 @@ sub _wanted {
 	    $schema->resultset('PictureTag')->find_or_create(
 		{ tag_id => $rstag->tag_id,
 		  file_id => $row->file_id });
-	    my $path = "/[Tags]/$tag/";
-	    my $rspath = $schema->resultset('Path')->find_or_create(
-		{ path => $path });
-	    $schema->resultset('PicturePath')->find_or_create(
-		{ path_id => $rspath->path_id,
-		  file_id => $row->file_id });
+	    &_savepathfile("/[Tags]/$tag/", $row->file_id);
 	}
 	# 	$this->{face}	= $db->faces($dir, $file, $this->{rot}); # picasa data for this pic
 	# 	$this->{album}	= $db->albums($dir, $file);

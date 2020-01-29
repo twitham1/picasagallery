@@ -44,7 +44,7 @@ Physical path to a collection of pictures
   data_type: 'integer'
   is_nullable: 1
 
-ID of parent directory
+ID of parent directory, 0 for / root
 
 =cut
 
@@ -101,8 +101,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-12-30 14:52:56
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:4+Gdqr8bRMkippFSE/T9SQ
+# Created by DBIx::Class::Schema::Loader v0.07048 @ 2020-01-29 00:33:40
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:N1+i3+OGdaBYL8ggl8VlSg
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

@@ -39,6 +39,13 @@ __PACKAGE__->table("Paths");
 
 Logical path to a collection of pictures
 
+=head2 parent_id
+
+  data_type: 'integer'
+  is_nullable: 1
+
+ID of parent path, 0 for / root
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -46,6 +53,8 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_auto_increment => 1, is_nullable => 0 },
   "path",
   { data_type => "text", is_nullable => 0 },
+  "parent_id",
+  { data_type => "integer", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -102,8 +111,8 @@ Composing rels: L</picture_paths> -> file
 __PACKAGE__->many_to_many("files", "picture_paths", "file");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-11-25 18:43:02
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:zc61zsRr1aGR95+Ufor6tQ
+# Created by DBIx::Class::Schema::Loader v0.07048 @ 2020-01-29 00:33:40
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:DzWFuSkMPNGgIecHErvUQQ
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

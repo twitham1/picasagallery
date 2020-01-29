@@ -62,7 +62,7 @@ INSERT INTO table_comments (table_name, comment_text) VALUES
 
 INSERT INTO column_comments (table_name, column_name, comment_text) VALUES
    ('Directories', 'directory', 'Physical path to a collection of pictures'),
-   ('Directories', 'parent_id', 'ID of parent directory');
+   ('Directories', 'parent_id', 'ID of parent directory, 0 for / root');
    
 CREATE TABLE IF NOT EXISTS Directories (
    dir_id	INTEGER PRIMARY KEY NOT NULL,
@@ -77,12 +77,16 @@ INSERT INTO table_comments (table_name, comment_text) VALUES
    ('Paths', 'Virtual logical collections of pictures');
 
 INSERT INTO column_comments (table_name, column_name, comment_text) VALUES
-   ('Paths', 'path', 'Logical path to a collection of pictures');
+   ('Paths', 'path', 'Logical path to a collection of pictures'),
+   ('Paths', 'parent_id', 'ID of parent path, 0 for / root');
    
 CREATE TABLE IF NOT EXISTS Paths (
    path_id	INTEGER PRIMARY KEY NOT NULL,
-   path		TEXT UNIQUE NOT NULL);
+   path		TEXT UNIQUE NOT NULL,
+   parent_id	INTEGER
+   );
 CREATE INDEX IF NOT EXISTS path_index ON Paths (path, path_id);
+INSERT INTO Paths (path, parent_id) VALUES ('/', 0);
 
 ---------------------------------------- PICTURE PATH many2many
 INSERT INTO table_comments (table_name, comment_text) VALUES
