@@ -33,6 +33,7 @@ use warnings;
 use Prima qw(Application);
 use Prima::Image::Magick qw/:all/;
 use LPDB;
+use LPDB::Tree;			# virtual tree navigator
 use LPDB::Thumbnail;
 use LPDB::Prima::ListViewer;
 
@@ -41,6 +42,7 @@ my $lpdb = new LPDB({dbfile => 'tmp.db',
 		    });
 my $th = new LPDB::Thumbnail($lpdb);
 
+my @id;
 my $l;				# ListViewer
 my $w = Prima::MainWindow->create(
     text => 'Local Picture Gallery',
@@ -53,32 +55,34 @@ my $w = Prima::MainWindow->create(
 		 $l->{crops} = $_[0]->menu->toggle($_[1]);
 		 $l->repaint;
 	      } ],
-	     ['rand', '~Random Items' => sub {
-		 $l->items([map { rand 1000 } ( 0 .. rand 1000)]);
-		 $l->focusedItem(0);
-		 $l->reset;
-		 $l->repaint;
-	      } ],
+	     # ['rand', '~Random Items' => sub {
+	     # 	 $l->items([map { rand 1000 } ( 0 .. rand 1000)]);
+	     # 	 $l->focusedItem(0);
+	     # 	 $l->reset;
+	     # 	 $l->repaint;
+	     #  } ],
 	     ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
 	 ]
 	]],
     );
 $w->font->name('bitstream charter'); # hack!!!! how to find best font?
-#$w->font->height(20);
+$w->font->height(28);
 #$w->font->style(fs::Italic);
 
 #print sort map {"$_->{name}\n"} @{$::application-> fonts}; # see available fonts!!!
 
 $l = $w->insert(
     'LPDB::Prima::ListViewer',
-    itemWidth => 320,  # square: same scale for landscape and portrait
-    itemHeight => 320, # maybe get these from configuration
+    # itemWidth => 320,  # square: same scale for landscape and portrait
+    # itemHeight => 320, # maybe get these from configuration
     onDrawItem => sub {
     	my ($self, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col) = @_;
 
 #	warn "updating $idx\n"; # more than necessary?
-	
-	my $thumb = $th->get(1 + $idx % 10);
+
+	my $pic = $id[$idx];
+#	my $thumb = $th->get(1 + $idx % 10);
+	my $thumb = $th->get($pic->file_id);
 	$thumb or return "warn: can't get thumb!\n";
 	my $im = magick_to_prima($thumb);
     	my $bk = $sel ? $self-> hiliteBackColor : cl::Back;
@@ -138,13 +142,17 @@ $l = $w->insert(
 
 	    $canvas->textOpaque(!$b);
 	    $b += 5;		# now text border
-	    $canvas->draw_text($idx, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
-			       dt::Right|dt::Top|dt::Default); # dt::VCenter
 
-	    my $str = substr("hello world this is a long string, " x 3,
-			     0, rand 99);
+	    # my $str = substr("hello world this is a long string, " x 3,
+	    # 		     0, rand 99);
+	    
+	    my $str = sprintf "%s\n%dx%d", $pic->basename,
+		$pic->width, $pic->height;
 	    $canvas->draw_text($str, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
-			       dt::Left|dt::Bottom|dt::Default) # dt::VCenter
+			       dt::Right|dt::Top|dt::Default); # dt::VCenter
+	    $pic->caption and
+		$canvas->draw_text($pic->caption, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
+				   dt::Left|dt::Bottom|dt::Default) # dt::VCenter
 		if ($x2 - $x1) > 200;
 	}
     	$canvas-> rect_focus( $x1, $y1, $x2, $y2 ) if $foc;
@@ -163,9 +171,34 @@ $l = $w->insert(
 
 warn " brief keys ", $l->briefKeys;
 
-$l->items([ 0 .. rand 1000]);
+my $tree = new LPDB::Tree($lpdb);
+
+&recurse(0, '');
+
+sub recurse {
+    my($id, $indent) = @_;
+    my($path, $file) = $tree->pathpics($id || 0);
+    for my $child (@$file) {
+	print join "\t", $child->file_id, $indent || '',
+	    sprintf "%8d %8d %8d %s\n",
+	    $child->width, $child->height, $child->bytes,
+	    $child->pathtofile;
+	push @id, $child;
+    }
+    for my $child (@$path) {
+	print join "\t", $child->path_id, $indent || '',
+	    $child->path, "\n";
+	&recurse($child->path_id, "\t$indent");
+    }
+}
+
+# warn "@id\n";
+
+#$l->items([ 0 .. rand 1000]);
+$l->items(\@id);
 $l->focusedItem(0);
 $l->reset;
+$l->smaller; $l->bigger;	# resize thumbs to fill the window
 
 run Prima;
 
@@ -188,7 +221,7 @@ Timothy D Witham <twitham@sbcglobal.net>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2013-2020 Timothy D Witham.
+Copyright 2013-2022 Timothy D Witham.
 
 This program is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

@@ -252,5 +252,25 @@ __PACKAGE__->many_to_many("tags", "picture_tags", "tag");
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
+
+# __PACKAGE__->add_columns(
+#     pathtofile => {
+# 	data_type => 'text',
+# 	accessor => '_pathtofile'
+#     }
+#     );
+    
+# sub _pathtofile {
+#     my($self) = @_;
+#     print "hello world\n";
+#     my $pic = $self->schema->resultset('Picture')->find(
+#     	{file_id => $self->file_id},
+#     	{ prefetch => 'dir',
+#     	  columns => [ qw/basename dir.directory/]
+#     	});
+#     my $path = $pic->dir->directory . $pic->basename;
+#     return $path;
+# }
+
 __PACKAGE__->meta->make_immutable;
 1;

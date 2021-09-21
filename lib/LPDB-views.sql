@@ -21,17 +21,33 @@ CREATE VIEW PathView AS
    -- TODO: add joins to picasa metadata here
 
 -- experimental stats in 1 view
+-- TODO: fix bug that files are counted multiple times
 DROP VIEW IF EXISTS PathStats;
 
 CREATE VIEW PathStats AS
    SELECT
-      path AS path,
-      MIN(time) AS mintime,
-      MAX(time) AS maxtime,
-      SUM(bytes) AS totalbytes,
-      SUM(pixels) AS totalpixels
+      Paths.path_id AS path_id,
+      COUNT(Pictures.file_id) AS files,
+      MIN(Pictures.time) AS mintime,
+      MAX(Pictures.time) AS maxtime,
+      SUM(Pictures.bytes) AS totalbytes,
+      SUM(Pictures.pixels) AS totalpixels
    FROM
-      Pathview;
+      Paths
+   LEFT JOIN PicturePath ON Paths.path_id = PicturePath.path_id
+   LEFT JOIN Pictures ON Pictures.file_id = PicturePath.file_id;
+
+-- CREATE VIEW PathStats AS
+--    SELECT
+--       path_id,
+--       COUNT(file_id) AS files,
+--       MIN(time) AS mintime,
+--       MAX(time) AS maxtime,
+--       TOTAL(bytes) AS totalbytes,
+--       TOTAL(pixels) AS totalpixels
+--    FROM
+--       PathView
+--    GROUP BY path_id;
 
 -- original experimental views below no longer used
 -- TODO: remove all this if it is not valuable

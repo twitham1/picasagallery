@@ -25,8 +25,8 @@ sub profile_default {
     my $def = $_[0]-> SUPER::profile_default;
     my %prf = (
 	hiliteBackColor	=> cl::Green,
-	itemWidth	=> 200,
-	itemHeight	=> 150,
+	itemWidth	=> 320,
+	itemHeight	=> 320,
 	autoHeight	=> 0,
 	autoWidth	=> 0,
 	multiColumn	=> 1,
@@ -101,7 +101,7 @@ sub bigger {
     my($self) = @_;
     my $old = $self->itemWidth;
     my $c = $self->{active_columns} - 1; # maximize in one less column
-    $c > 1 or $c = 2;
+    $c > 2 or $c = 3;
     my @i = $self->indents;	# border / scrollbar indents
     my $new = int(($self->width - $i[0] - $i[2]) / $c);
     $self-> itemWidth(int $new);
@@ -124,7 +124,7 @@ Timothy D Witham <twitham@sbcglobal.net>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2013-2020 Timothy D Witham.
+Copyright 2013-2022 Timothy D Witham.
 
 This program is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

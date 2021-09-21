@@ -11,6 +11,7 @@ use strict;
 use warnings;
 use Image::Magick;
 use LPDB::Schema;
+use LPDB::Schema::Object;
 
 sub new {
     my($class, $lpdb) = @_;
@@ -20,8 +21,10 @@ sub new {
     return $self;
 }
 
+# return thumnail of given file ID
 sub get {
     my($self, $id, $cid) = @_;
+#    warn "getting $id from $self\n";
     $cid ||= 0;
     my $schema = $self->{schema};
     if (my $this = $schema->resultset('Thumb')->find(
@@ -41,11 +44,11 @@ sub get {
 sub put {
     my($self, $id, $cid) = @_;
     $cid ||= 0;
+    warn "putting $id/$cid in $self\n";
     my $schema = $self->{schema};
     my $this = $schema->resultset('Picture')->find(
-	{file_id => $id},
-	{prefetch => 'dir' });
-    my $path = $this->dir->directory . $this->basename;
+    	{file_id => $id});
+    my $path = $this->pathtofile;
     -f $path or
 	warn "$path doesn't exist\n" and return;
     my $modified = (stat $path)[9];

@@ -16,5 +16,9 @@ __PACKAGE__->load_namespaces;
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
+
+# # extend the schema objects with more methods -twitham
+# use LPDB::Schema::Object;
+
 __PACKAGE__->meta->make_immutable(inline_constructor => 0);
 1;
