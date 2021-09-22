@@ -42,6 +42,8 @@ my $lpdb = new LPDB({dbfile => 'tmp.db',
 		    });
 my $th = new LPDB::Thumbnail($lpdb);
 
+my $tree = new LPDB::Tree($lpdb);
+
 my @id;
 my $l;				# ListViewer
 my $w = Prima::MainWindow->create(
@@ -80,7 +82,7 @@ $l = $w->insert(
 
 #	warn "updating $idx\n"; # more than necessary?
 
-	my $pic = $id[$idx];
+	my $pic = $tree->node($id[$idx]);
 #	my $thumb = $th->get(1 + $idx % 10);
 	my $thumb = $th->get($pic->file_id);
 	$thumb or return "warn: can't get thumb!\n";
@@ -143,17 +145,13 @@ $l = $w->insert(
 	    $canvas->textOpaque(!$b);
 	    $b += 5;		# now text border
 
-	    # my $str = substr("hello world this is a long string, " x 3,
-	    # 		     0, rand 99);
-	    
 	    my $str = sprintf "%s\n%dx%d", $pic->basename,
 		$pic->width, $pic->height;
 	    $canvas->draw_text($str, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
 			       dt::Right|dt::Top|dt::Default); # dt::VCenter
 	    $pic->caption and
 		$canvas->draw_text($pic->caption, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
-				   dt::Left|dt::Bottom|dt::Default) # dt::VCenter
-		if ($x2 - $x1) > 200;
+				   dt::Left|dt::Bottom|dt::Default); # dt::VCenter
 	}
     	$canvas-> rect_focus( $x1, $y1, $x2, $y2 ) if $foc;
     },
@@ -171,24 +169,14 @@ $l = $w->insert(
 
 warn " brief keys ", $l->briefKeys;
 
-my $tree = new LPDB::Tree($lpdb);
-
 &recurse(0, '');
 
 sub recurse {
     my($id, $indent) = @_;
     my($path, $file) = $tree->pathpics($id || 0);
-    for my $child (@$file) {
-	print join "\t", $child->file_id, $indent || '',
-	    sprintf "%8d %8d %8d %s\n",
-	    $child->width, $child->height, $child->bytes,
-	    $child->pathtofile;
-	push @id, $child;
-    }
-    for my $child (@$path) {
-	print join "\t", $child->path_id, $indent || '',
-	    $child->path, "\n";
-	&recurse($child->path_id, "\t$indent");
+    push @id, @$file;
+    for my $n (@$path) {
+	&recurse($tree->node($n)->path_id, "\t$indent");
     }
 }
 
@@ -198,7 +186,7 @@ sub recurse {
 $l->items(\@id);
 $l->focusedItem(0);
 $l->reset;
-$l->smaller; $l->bigger;	# resize thumbs to fill the window
+$l->smaller;			# resize thumbs to fill the window
 
 run Prima;
 

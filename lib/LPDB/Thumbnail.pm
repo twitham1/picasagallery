@@ -6,7 +6,6 @@ LPDB::Thumbnail - thumbnail images of local pictures in sqlite
 
 =cut
 
-
 use strict;
 use warnings;
 use Image::Magick;
@@ -21,7 +20,7 @@ sub new {
     return $self;
 }
 
-# return thumnail of given file ID
+# return thumbnail of given file ID
 sub get {
     my($self, $id, $cid) = @_;
 #    warn "getting $id from $self\n";
