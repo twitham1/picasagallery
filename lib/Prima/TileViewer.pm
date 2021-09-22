@@ -1,17 +1,16 @@
 =head1 NAME
 
-LPDB::Prima::ListViewer - resizable cells for Prima::Listviewer
+Prima::TileViewer - resizable cells for Prima::Listviewer
 
 =head1 DESCRIPTION
 
 This class extends C<Prima::ListViewer> to help C<LPDB> implement an
-image thumbnail viewer.  Adds methods for resizing list items and
-remembering the navigation path down a tree of lists.  Number keys
-scroll to tenths of the list.
+image thumbnail browser.  Adds methods for resizing list items.
+Number keys now scroll to tenths of the list, handy for long lists.
 
 =cut
 
-package LPDB::Prima::ListViewer;
+package Prima::TileViewer;
 
 use strict;
 use warnings;
@@ -66,8 +65,6 @@ sub on_keydown {
     $self-> SUPER::on_keydown( $code, $key, $mod);
 }
 
-
-
 =head2 Methods
 
 =over
@@ -117,7 +114,7 @@ sub bigger {
 =back
 
 =head1 SEE ALSO
-L<Prima::Lists>, L<LPDB>
+L<Prima::LPDB::ThumbViewer>, L<LPDB>, L<Prima::Lists>
 
 =head1 AUTHOR
 

@@ -33,20 +33,16 @@ use warnings;
 use Prima qw(Application);
 use Prima::Image::Magick qw/:all/;
 use LPDB;
-use LPDB::Tree;			# virtual tree navigator
-use LPDB::Thumbnail;
-use LPDB::Prima::ListViewer;
+use Prima::LPDB::ThumbViewer;
 
 my $lpdb = new LPDB({dbfile => 'tmp.db',
 #		     sqltrace => 1,
 		    });
-my $th = new LPDB::Thumbnail($lpdb);
-
-my $tree = new LPDB::Tree($lpdb);
-
-my @id;
 my $l;				# ListViewer
 my $w = Prima::MainWindow->create(
+    # background => 'black',	# how to default these?
+    # foreground => 'white',
+
     text => 'Local Picture Gallery',
     packPropagate => 0,
     menuItems => [
@@ -74,87 +70,8 @@ $w->font->height(28);
 #print sort map {"$_->{name}\n"} @{$::application-> fonts}; # see available fonts!!!
 
 $l = $w->insert(
-    'LPDB::Prima::ListViewer',
-    # itemWidth => 320,  # square: same scale for landscape and portrait
-    # itemHeight => 320, # maybe get these from configuration
-    onDrawItem => sub {
-    	my ($self, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col) = @_;
-
-#	warn "updating $idx\n"; # more than necessary?
-
-	my $pic = $tree->node($id[$idx]);
-#	my $thumb = $th->get(1 + $idx % 10);
-	my $thumb = $th->get($pic->file_id);
-	$thumb or return "warn: can't get thumb!\n";
-	my $im = magick_to_prima($thumb);
-    	my $bk = $sel ? $self-> hiliteBackColor : cl::Back;
-    	$bk = $self-> prelight_color($bk) if $pre;
-    	$canvas-> backColor( $bk );
-    	$canvas-> clear( $x1, $y1, $x2, $y2);
-	$canvas-> color( $sel ? $self-> hiliteColor : cl::Fore);
-	{	# source image -> destination, preserving aspect ratio
-	    my $dw = $x2 - $x1;
-	    my $dh = $y2 - $y1;
-	    my $b = $sel || $foc || $pre ? 0 : $dw / 30;
-	    $dw -= $b * 2;
-	    $dh -= $b * 2;
-	    my($sw, $sh) = ($im->width, $im->height);
-	    my @out;
-	    my $src = $sw / $sh; # aspect ratios
-	    my $dst = $dw / $dh;
-	    my $sx = my $sy = my $dx = my $dy = 0;
-	    # this copy is used for rectangle overlay in crop mode
-	    my($DX, $DY, $DW, $DH) = ($dx, $dy, $dw, $dh);
-	    if ($src > $dst) {	# image wider than cell: pad top/bot
-		$DY = ($DH - $DW / $src) / 2;
-		$DH = $DW / $src;
-	    } else {	      # image taller than cell: pad left/right
-		$DX = ($DW - $DH * $src) / 2;
-		$DW = $DH * $src;
-	    }
-	    if ($self->{crops}) { # crop source to destination
-		if ($src > $dst) { # image wider than cell: crop left/right
-		    $sx = ($sw - $sh * $dst) / 2;
-		    $sw = $sh * $dst;
-		} else {	# image taller than cell: crop top/bot
-		    $sy = ($sh - $sw / $dst) / 2;
-		    $sh = $sw / $dst;
-		}
-	    } else {		   # pad source to destination
-		($dx, $dy, $dw, $dh) = ($DX, $DY, $DW, $DH);
-	    }
-	    $canvas->put_image_indirect($im, $x1 + $b + $dx, $y1 + $b + $dy,
-					$sx, $sy, $dw, $dh, $sw, $sh,
-					$self->rop)
-		or warn "put_image failed: $@\n";
-	    if (!$b) {
-		my($x, $y, $w, $h);
-		if ($self->{crops}) { # show original aspect rectangle
-		    $canvas->color(cl::LightRed); # cropped portion
-		    $canvas->rectangle($x1 + $DX, $y1 + $DY,
-				       $x1 + $DX + $DW, $y1 + $DY + $DH);
-		    $canvas->color(cl::Fore);
-		}
-		# TODO: fix this!!! It is right only for square thumbs:
-		($x, $w) = $DY ? ($DY, $DH) : ($DX, $DW);
-		($y, $h) = $DX ? ($DX, $DW) : ($DY, $DH);
-	        $canvas->rectangle($x1 + $x, $y1 + $y,
-				   $x1 + $x + $w, $y1 + $y + $h);
-	    }
-
-	    $canvas->textOpaque(!$b);
-	    $b += 5;		# now text border
-
-	    my $str = sprintf "%s\n%dx%d", $pic->basename,
-		$pic->width, $pic->height;
-	    $canvas->draw_text($str, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
-			       dt::Right|dt::Top|dt::Default); # dt::VCenter
-	    $pic->caption and
-		$canvas->draw_text($pic->caption, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
-				   dt::Left|dt::Bottom|dt::Default); # dt::VCenter
-	}
-    	$canvas-> rect_focus( $x1, $y1, $x2, $y2 ) if $foc;
-    },
+    'Prima::LPDB::ThumbViewer',
+    lpdb => $lpdb,		# LPDB connection required in advance
     onKeyDown => sub {
 #	warn "@_\n";
     	# if ($_[2] == ord 'm') {
@@ -169,23 +86,8 @@ $l = $w->insert(
 
 warn " brief keys ", $l->briefKeys;
 
-&recurse(0, '');
-
-sub recurse {
-    my($id, $indent) = @_;
-    my($path, $file) = $tree->pathpics($id || 0);
-    push @id, @$file;
-    for my $n (@$path) {
-	&recurse($tree->node($n)->path_id, "\t$indent");
-    }
-}
-
-# warn "@id\n";
-
-#$l->items([ 0 .. rand 1000]);
-$l->items(\@id);
-$l->focusedItem(0);
-$l->reset;
+# $l->focusedItem(0);
+# $l->reset;
 $l->smaller;			# resize thumbs to fill the window
 
 run Prima;
