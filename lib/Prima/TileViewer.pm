@@ -42,18 +42,18 @@ sub profile_default {
 
 sub init {
     my $self = shift;
-    my %profile = $self-> SUPER::init(@_);
-    $self-> setup_indents;
+    my %profile = $self->SUPER::init(@_);
+    $self->setup_indents;
     $self->hScroll($profile{hScroll});
-    $self-> reset;
-    $self-> reset_scrolls;
+    $self->reset;
+    $self->reset_scrolls;
     return %profile;
 }
 
 # allow remote control number pad to scroll to tenths of large pages
 sub on_keydown {
     my ($self, $code, $key, $mod) = @_;
-    $self-> notify(q(MouseUp),0,0,0) if defined $self-> {mouseTransaction};
+    $self->notify(q(MouseUp),0,0,0) if defined $self->{mouseTransaction};
     return if $mod & km::DeadKey;
 
     my $c = $code & 0xFF;
@@ -62,7 +62,7 @@ sub on_keydown {
 	$self->clear_event;
 	return;
     }
-    $self-> SUPER::on_keydown( $code, $key, $mod);
+    $self->SUPER::on_keydown( $code, $key, $mod);
 }
 
 =head2 Methods
@@ -78,13 +78,14 @@ aspect ratio remains constant.
 
 sub smaller {
     my($self) = @_;
+    my $wide = $self->width;
     my $old = $self->itemWidth;
     my $c = $self->{active_columns} + 1; # maximize in one more column
     my @i = $self->indents;	# border / scrollbar indents
     my $new = int(($self->width - $i[0] - $i[2]) / $c);
     $new > 100 or $new = 100;
-    $self-> itemWidth(int $new);
-    $self-> itemHeight(int $self->itemHeight * $new / $old);
+    $self->itemWidth(int $new);
+    $self->itemHeight(int $self->itemHeight * $new / $old);
     $self->notify('Size', $self->size, $self->size);
 }
 
@@ -102,8 +103,8 @@ sub bigger {
     $c > 2 or $c = 3;
     my @i = $self->indents;	# border / scrollbar indents
     my $new = int(($self->width - $i[0] - $i[2]) / $c);
-    $self-> itemWidth(int $new);
-    $self-> itemHeight(int $self->itemHeight * $new / $old);
+    $self->itemWidth(int $new);
+    $self->itemHeight(int $self->itemHeight * $new / $old);
     $self->notify('Size', $self->size, $self->size);
 }
 

@@ -36,38 +36,104 @@ sub init {
     $self->{tree} = new LPDB::Tree($self->{lpdb});
     $self->{thumb} = new LPDB::Thumbnail($self->{lpdb});
     my %profile = $self-> SUPER::init(@_);
-    $self->items( [ $self->recurse(0) ]); # fix this to read first level of DB right!!!
+    $self->items($self->children(1));
     $self->focusedItem(0);
-    $self-> setup_indents;
-    $self->hScroll($profile{hScroll});
-    $self-> reset;
-    $self-> reset_scrolls;
+#    $self->bigger; $self->smaller;
+    $self->repaint;
     # warn join "\n", map { $self->{$_} } qw/lpdb tree thumb items/, "\n";
     # my @foo = @{$self->{items}};
     # warn "items: @foo\n";
     return %profile;
 }
 
-# # fix this hack!!!!
-sub recurse {
-    my($self, $id, $indent) = @_;
+sub children {
+    my($self, $id) = @_;
     my @id;
     my($path, $file) = $self->{tree}->pathpics($id || 0);
-    push @id, @$file if @$file;
-    for my $n (@$path) {
-	push @id, $self->recurse($self->{tree}->node($n)->path_id);
-    }
-    return @id;
+    return [ @$path, @$file ];
+    # TODO: option for dirs to be first/last/mixed with pics by name or date
 }
 
+# sub repaint {
+#     $_[0]->bigger;
+#     $_[0]->smaller;
+#     $_[0]->SUPER::repaint;
+# }
+
+sub push {	   # navigation path: must push pairs of (focusedItem in path_id)
+    push @{$_[0]->{navstack}}, $_[1], $_[2];
+}
+sub pop {
+    return pop @{$_[0]->{navstack}};
+}
+sub on_keydown
+{
+    my ($self, $code, $key, $mod) = @_;
+    my $idx = $self->focusedItem;
+    if ($key == kb::Enter && $idx >= 0) {
+	my $this = $self->{items}[$idx];
+	# warn $self->focusedItem, " is entered\n";
+	if ($this->isa('LPDB::Schema::Result::Path')) {
+	    $self->push($idx, $this->parent_id);
+	    $self->items($self->children($this->path_id));
+	    $self->focusedItem(0);
+	    $self->repaint;
+	} elsif ($this->isa('LPDB::Schema::Result::Picture')) {
+	    # show picture in other window and raise it
+	}
+	$self->clear_event;
+	return;
+    } elsif ($key == kb::Escape && @{$self->{navstack}} > 1) {
+	$self->items($self->children($self->pop));
+	$self->focusedItem($self->pop || 0);
+	$self->repaint;
+	$self->clear_event;
+	return;
+    }
+    $self-> SUPER::on_keydown( $code, $key, $mod);
+}
 sub on_drawitem
 {
+    my $self = shift;
+    my $this = $self->{items}[$_[1]];
+    if ($this->isa('LPDB::Schema::Result::Path')) {
+	$self->draw_path(@_);
+    } elsif ($this->isa('LPDB::Schema::Result::Picture')) {
+	$self->draw_picture(@_);
+    }
+}
+sub draw_path {
     my ($self, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col) = @_;
 
-    my $tree = $self->{tree};
-    my $th = $self->{thumb};
-    my $pic = $tree->node($self->{items}[$idx]);
-    my $thumb = $th->get($pic->file_id);
+    my $path = $self->{items}[$idx];
+
+    my $bk = $sel ? $self-> hiliteBackColor : cl::Back;
+    $bk = $self-> prelight_color($bk) if $pre;
+    $canvas-> backColor( $bk );
+    $canvas-> clear( $x1, $y1, $x2, $y2);
+    $canvas-> color( $sel ? $self-> hiliteColor : cl::Fore);
+    my $dw = $x2 - $x1;
+    my $dh = $y2 - $y1;
+    my $b = $sel || $foc || $pre ? 0 : $dw / 30; # border
+    $dw -= $b * 2;
+    $dh -= $b * 2;
+    $canvas->textOpaque(!$b);
+    $b += 5;			# now text border
+
+    my $str = $path->path;
+    $str =~ m{(.*/)(.+/?)};
+    $canvas->draw_text($2, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
+		       dt::Left|dt::Top|dt::Default); # dt::VCenter
+    $canvas->draw_text($1, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
+		       dt::Left|dt::Bottom|dt::Default); # dt::VCenter
+
+    $canvas-> rect_focus( $x1, $y1, $x2, $y2 ) if $foc;
+}
+sub draw_picture {
+    my ($self, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col) = @_;
+
+    my $pic = $self->{items}[$idx];
+    my $thumb = $self->{thumb}->get($pic->file_id);
     $thumb or return "warn: can't get thumb!\n";
     my $im = magick_to_prima($thumb);
     my $bk = $sel ? $self-> hiliteBackColor : cl::Back;

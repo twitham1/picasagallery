@@ -18,8 +18,6 @@ sub new {
 		 conf => $lpdb->conf,
     };
     bless $self, $class;
-    # $self->{tree}[0] = [$self->pathpics(0)];
-    # use Data::Dumper; print Dumper $self->{tree};
     return $self;
 }
 
@@ -29,11 +27,9 @@ sub pathpics {		      # return paths and pictures of parent ID
     if (my $paths = $self->{schema}->resultset('Path')->search(
 	    {parent_id => $id || 0},
 	    {order_by => { -asc => 'path' },
-	     columns => [qw/path path_id/],
 	    })) {
 	while (my $row = $paths->next) {
-	    # push @dirs, $row;
- 	    push @dirs, -1 * $row->path_id;
+	    push @dirs, $row;
 	}
     }
     if (my $pics = $self->{schema}->resultset('Picture')->search(
@@ -41,11 +37,8 @@ sub pathpics {		      # return paths and pictures of parent ID
 	    {order_by => { -asc => 'basename' },
 	     prefetch => 'picture_paths',
 	    })) {
-	# push @pics, $pics->all;
-	push @pics, map { $_->file_id } $pics->all;
+	push @pics, $pics->all;
     }
-    # use Data::Dumper;
-    # print Dumper \@dirs;
     return \@dirs, \@pics;
 }
 
@@ -59,7 +52,7 @@ sub node {			# return Path or Picture of ID
 	$obj = $self->{schema}->resultset('Picture')->find(
 	    { file_id => $id});
     }
-#    print "node $id = $obj\n";
+#    warn "node $id = $obj\n";
     return $obj;
 }
 
