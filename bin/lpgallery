@@ -53,12 +53,6 @@ my $w = Prima::MainWindow->create(
 		 $l->{crops} = $_[0]->menu->toggle($_[1]);
 		 $l->repaint;
 	      } ],
-	     # ['rand', '~Random Items' => sub {
-	     # 	 $l->items([map { rand 1000 } ( 0 .. rand 1000)]);
-	     # 	 $l->focusedItem(0);
-	     # 	 $l->reset;
-	     # 	 $l->repaint;
-	     #  } ],
 	     ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
 	 ]
 	]],

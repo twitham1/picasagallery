@@ -36,9 +36,13 @@ sub init {
     $self->{tree} = new LPDB::Tree($self->{lpdb});
     $self->{thumb} = new LPDB::Thumbnail($self->{lpdb});
     my %profile = $self-> SUPER::init(@_);
+#     $self->items([1 .. 20]);	# need active_columns to set smaller tile size
+#     $self->focusedItem(10);
+#     $self->smaller;
+# #    $self->repaint;
     $self->items($self->children(1));
     $self->focusedItem(0);
-#    $self->bigger; $self->smaller;
+    $self->smaller;
     $self->repaint;
     # warn join "\n", map { $self->{$_} } qw/lpdb tree thumb items/, "\n";
     # my @foo = @{$self->{items}};
@@ -212,7 +216,7 @@ sub draw_picture {
 =back
 
 =head1 SEE ALSO
-L<Prima::Lists>, L<LPDB>
+L<Prima::TileViewer>, L<LPDB>
 
 =head1 AUTHOR
 

@@ -81,6 +81,7 @@ sub smaller {
     my $wide = $self->width;
     my $old = $self->itemWidth;
     my $c = $self->{active_columns} + 1; # maximize in one more column
+    $c > 3 or $c = 4;
     my @i = $self->indents;	# border / scrollbar indents
     my $new = int(($self->width - $i[0] - $i[2]) / $c);
     $new > 100 or $new = 100;
@@ -100,7 +101,7 @@ sub bigger {
     my($self) = @_;
     my $old = $self->itemWidth;
     my $c = $self->{active_columns} - 1; # maximize in one less column
-    $c > 2 or $c = 3;
+    $c > 3 or $c = 4;
     my @i = $self->indents;	# border / scrollbar indents
     my $new = int(($self->width - $i[0] - $i[2]) / $c);
     $self->itemWidth(int $new);
