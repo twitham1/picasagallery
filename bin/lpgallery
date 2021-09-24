@@ -35,27 +35,37 @@ use Prima::Image::Magick qw/:all/;
 use LPDB;
 use Prima::LPDB::ThumbViewer;
 
-my $lpdb = new LPDB({dbfile => 'tmp.db',
+my $file = '.lpdb.db';
+my $create = -f $file ? 0 : 1;
+my $lpdb = new LPDB({dbfile => $file,
 #		     sqltrace => 1,
 		    });
+$lpdb->create if $create;
+my $child;
+if ($child = fork) {
+    sleep 2;
+} else {
+    $lpdb->update('./');
+    exit;
+}
+
 my $l;				# ListViewer
 my $w = Prima::MainWindow->create(
     # background => 'black',	# how to default these?
     # foreground => 'white',
-
     text => 'Local Picture Gallery',
     packPropagate => 0,
     menuItems => [
-	['~Options' => [
-	     ['bigger', 'Zoom ~In', '=', ord '=' => sub { $l->bigger } ],
-	     ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $l->smaller } ],
-	     ['crops', '~Crop', 'c', ord 'c' => sub {
-		 $l->{crops} = $_[0]->menu->toggle($_[1]);
-		 $l->repaint;
-	      } ],
-	     ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
-	 ]
-	]],
+    	['~Options' => [
+    	     ['bigger', 'Zoom ~In', '=', ord '=' => sub { $l->bigger } ],
+    	     ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $l->smaller } ],
+    	     ['crops', '~Crop', 'c', ord 'c' => sub {
+    		 $l->{crops} = $_[0]->menu->toggle($_[1]);
+    		 $l->repaint;
+    	      } ],
+    	     ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
+    	 ]
+    	]],
     );
 $w->font->name('bitstream charter'); # hack!!!! how to find best font?
 $w->font->height(28);

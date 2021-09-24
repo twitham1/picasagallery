@@ -42,9 +42,10 @@ sub init {
 # #    $self->repaint;
     $self->items($self->children(1));
     $self->focusedItem(0);
-    $self->reset;
-    $self->smaller(5);
-    $self->smaller(6);
+    # $self->reset;
+    # $self->smaller(8);
+    # $self->reset;
+    # $self->smaller(10);
     $self->repaint;
     # warn join "\n", map { $self->{$_} } qw/lpdb tree thumb items/, "\n";
     # my @foo = @{$self->{items}};
@@ -185,13 +186,17 @@ sub draw_path {
     $thumb = $self->{thumb}->get($first->file_id);
     $thumb or return "warn: can't get thumb!\n";
     $im = magick_to_prima($thumb);
-    $self->_draw_thumb($im, 1, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
+    my $b = $self->_draw_thumb($im, 1, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
 
     my $last = $path->last;
-    $thumb = $self->{thumb}->get($last->file_id);
-    $thumb or return "warn: can't get thumb!\n";
-    $im = magick_to_prima($thumb);
-    my $b = $self->_draw_thumb($im, 2, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
+    unless ($first->file_id == $last->file_id) { # same if only one
+	$thumb = $self->{thumb}->get($last->file_id);
+	$thumb or return "warn: can't get thumb!\n";
+	$im = magick_to_prima($thumb);
+	$self->_draw_thumb($im, 2, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
+    }
+    # TODO: center/top picture is favorite from DB, if any
+    $self->_draw_thumb($im, 3, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
 
     $canvas->textOpaque(!$b);
     $b += 5;			# now text border
@@ -218,8 +223,9 @@ sub draw_picture {
     $b += 5;			# now text border
     # my $str = sprintf "%s\n%dx%d", $pic->basename,
     #     $pic->width, $pic->height;
-    # $canvas->draw_text($str, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
-    # 		   dt::Right|dt::Top|dt::Default); # dt::VCenter
+    my $str = localtime $pic->time;
+    $canvas->draw_text($str, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
+    		   dt::Right|dt::Top|dt::Default); # dt::VCenter
     $pic->caption and
 	$canvas->draw_text($pic->caption, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
 			   dt::Left|dt::Bottom|dt::Default); # dt::VCenter

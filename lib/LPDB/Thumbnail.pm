@@ -43,7 +43,7 @@ sub get {
 sub put {
     my($self, $id, $cid) = @_;
     $cid ||= 0;
-    warn "putting $id/$cid in $self\n";
+#    warn "putting $id/$cid in $self\n";
     my $schema = $self->{schema};
     my $this = $schema->resultset('Picture')->find(
     	{file_id => $id});
