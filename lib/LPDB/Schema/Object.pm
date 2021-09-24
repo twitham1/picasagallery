@@ -18,25 +18,25 @@ sub pathtofile {		# return full filesystem path to file
 
 package LPDB::Schema::Result::Path;
 
-sub firstlastID {	    # return first and last picture ID of path
+sub first {		    # return first picture below path
     my($self) = @_;
-    #    warn "firstlast for $self\n";
     my $schema = $self->result_source->schema; # any way to find both in 1 query?
-    my $first = $schema->resultset('PathView')->find(
+    return $schema->resultset('PathView')->find(
     	{path => { like => $self->path . '%'},
 	 time => { '!=' => undef } },
 	{order_by => { -asc => 'time' },
 	 rows => 1,
-	 columns => [ qw/file_id/],
     	});
-    my $last = $schema->resultset('PathView')->find(
+}
+sub last {			# return last picture below path
+    my($self) = @_;
+    my $schema = $self->result_source->schema; # any way to find both in 1 query?
+    return $schema->resultset('PathView')->find(
     	{path => { like => $self->path . '%'},
 	 time => { '!=' => undef } },
 	{order_by => { -desc => 'time' },
 	 rows => 1,
-	 columns => [ qw/file_id/],
     	});
-    return $first->file_id, $last->file_id;
 }
 
 # sub thumbnail {

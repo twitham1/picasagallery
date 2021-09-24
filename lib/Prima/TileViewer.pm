@@ -77,10 +77,10 @@ aspect ratio remains constant.
 =cut
 
 sub smaller {
-    my($self) = @_;
+    my($self, $c) = @_;
     my $wide = $self->width;
     my $old = $self->itemWidth;
-    my $c = $self->{active_columns} + 1; # maximize in one more column
+    $c ||= $self->{active_columns} + 1; # maximize in one more column
     $c > 3 or $c = 4;
     my @i = $self->indents;	# border / scrollbar indents
     my $new = int(($self->width - $i[0] - $i[2]) / $c);
@@ -98,9 +98,9 @@ aspect ratio remains constant.
 =cut
 
 sub bigger {
-    my($self) = @_;
+    my($self, $c) = @_;
     my $old = $self->itemWidth;
-    my $c = $self->{active_columns} - 1; # maximize in one less column
+    $c ||= $self->{active_columns} - 1; # maximize in one less column
     $c > 3 or $c = 4;
     my @i = $self->indents;	# border / scrollbar indents
     my $new = int(($self->width - $i[0] - $i[2]) / $c);
