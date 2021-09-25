@@ -17,6 +17,7 @@ use LPDB::Tree;
 use LPDB::Thumbnail;
 use Prima::TileViewer;
 use Prima::Image::Magick qw/:all/;
+use POSIX qw/strftime/;
 
 use vars qw(@ISA);
 @ISA = qw(Prima::TileViewer);
@@ -205,7 +206,9 @@ sub draw_path {
     $canvas->draw_text($2, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
 		       dt::Left|dt::Top|dt::Default); # dt::VCenter
 
-    $str = localtime($first->time) . ' - ' . localtime($last->time);
+    $str = strftime("%b %d %Y", localtime $first->time);
+    $first->time == $last->time or
+	$str .= "\n" . strftime("%b %d %Y", localtime $last->time);
     $canvas->draw_text($str, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
 		       dt::Left|dt::Bottom|dt::Default); # dt::VCenter
     $canvas->rect_focus( $x1, $y1, $x2, $y2 ) if $foc;

@@ -15,6 +15,7 @@ use LPDB::Schema::Object;
 sub new {
     my($class, $lpdb) = @_;
     my $self = { schema => $lpdb->schema,
+		 tschema => $lpdb->tschema,
 		 conf => $lpdb->conf };
     bless $self, $class;
     return $self;
@@ -28,8 +29,8 @@ sub get {
 	 and return undef;
 #    warn "getting $id from $self\n";
     $cid ||= 0;
-    my $schema = $self->{schema};
-    if (my $this = $schema->resultset('Thumb')->find(
+    my $tschema = $self->{tschema};
+    if (my $this = $tschema->resultset('Thumb')->find(
 	    {file_id => $id},
 	    {columns => [qw/image/]})) {
 	my $data = $this->image;
@@ -56,7 +57,8 @@ sub put {
     -f $path or
 	warn "$path doesn't exist\n" and return;
     my $modified = (stat $path)[9];
-    my $row = $schema->resultset('Thumb')->find_or_create(
+    my $tschema = $self->{tschema};
+    my $row = $tschema->resultset('Thumb')->find_or_create(
 	{ file_id => $id,
 	  contact_id => $cid });
     $row->modified || 0 >= $modified and

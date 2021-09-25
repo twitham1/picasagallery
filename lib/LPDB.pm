@@ -37,6 +37,8 @@ my $conf = {		       # override any keys in first arg to new
     filter	=> {},	    # filters
     sqltrace	=> 0,	    # SQL to STDERR from DBIx::Class::Storage
     editpath	=> 0,	# optional sub to return modified virtual path
+    # dbfile	=> '.lpdb.db',
+    # thumbfile	=> '.lpdb-thumb.db',
 };
 
 sub new {
@@ -64,6 +66,17 @@ sub new {
     # Default is no enforcement, and must be set per connection.
     $dbh->do('PRAGMA foreign_keys = ON;');
     $self->{dbh} = $dbh;
+
+    $conf->{thumbfile} or
+    	carp "{thumbfile} required" and return undef;
+    my $tdbh = DBI->connect("dbi:SQLite:dbname=$conf->{thumbfile}",  "", "",
+    			    { RaiseError => 1, AutoCommit => 1,
+    			      # DBIx::Class::Storage::DBI::SQLite(3pm):
+    			      on_connect_call => 'use_foreign_keys',
+    			    })
+    	or die $DBI::errstr;
+    $self->{tdbh} = $tdbh;
+
     $self->{mtime} = 0;	# modify time of dbfile, for detecting updates
     $self->{sofar} = 0;	# hack!!! for picasagallery, fix this...
     bless $self, $class;
@@ -82,16 +95,16 @@ sub conf {	     # return whole config, or key, or set key's value
     return $self->{conf};	# whole configuration hash
 }
 
-sub dbh {
-    return $_[0]->{dbh};
-}
+sub dbh { return $_[0]->{dbh}; }
+sub tdbh { return $_[0]->{tdbh}; }
 
 sub disconnect {
     my $self = shift;
-    my $dbh = $self->dbh;
+    # my $dbh = $self->dbh;
     # print all currently cached prepared statements
 #    print "cache>>>$_<<<\n" for keys %{$dbh->{CachedKids}};
-    $dbh->disconnect;
+    $self->dbh->disconnect;
+    $self->tdbh->disconnect;
 }
 
 sub schema {
@@ -99,6 +112,12 @@ sub schema {
     $self->{schema} or $self->{schema} = LPDB::Schema->connect(
 	sub { $self->dbh });
     return $self->{schema};
+}
+sub tschema {
+    my $self = shift;
+    $self->{tschema} or $self->{tschema} = LPDB::Schema->connect(
+	sub { $self->tdbh });
+    return $self->{tschema};
 }
 
 # stats of given result set moves values from DB to perl object

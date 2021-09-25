@@ -24,24 +24,27 @@ my $conf;
 my $done = 0;			# records processed
 my $tty = -t STDERR;
 
-# create the database
+# create the database from lib/LPDB/*.sql
 sub create {
     my $self = shift;
-    my $file = $self->conf('dbfile');
-    -s $file and return 1;
-    my $sql = 'LPDB.sql';
-    for (@INC) {
-	my $this = "$_/$sql";
-	-f $this and $sql = $this and last;
+    my $db = $self->conf('dbfile');
+    my $thumb = $self->conf('thumbfile');
+    my %sql = ('database.sql' => $db,
+	       'views.sql'    => $db,
+	       'thumbs.sql'   => $thumb);
+    # warn "$db already exists!" and return if -f $db;
+    # warn "$thumb already exists!" and return if -f $thumb;
+    for my $base (sort keys %sql) { # find the .sql in @INC
+	for my $path (@INC) {
+	    my $sql = "$path/LPDB/$base";
+	    if (-f $sql) {
+		my $db = $sql{$base};
+		warn "create: running sqlite3 $db < $sql\n";
+		print `sqlite3 $db < $sql`; # hack!!! any smarter way?
+		last;
+	    }
+	}
     }
-    warn "create: running sqlite3 $file < $sql\n";
-    print `sqlite3 $file < $sql`; # hack!!! any smarter way?
-    $sql =~ s/.sql/-thumbs.sql/;
-    warn "create: running sqlite3 $file < $sql\n";
-    print `sqlite3 $file < $sql`; # add the views
-    $sql =~ s/-thumbs.sql/-views.sql/;
-    warn "create: running sqlite3 $file < $sql\n";
-    print `sqlite3 $file < $sql`; # add the views
     return 1;
 }
 

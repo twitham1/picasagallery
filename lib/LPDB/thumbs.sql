@@ -2,6 +2,19 @@
 
 -- by twitham@sbcglobal.net, 2019/12
 
+-- dbicdump automatically includes this documentation in the class output
+CREATE TABLE IF NOT EXISTS table_comments (
+   id INTEGER PRIMARY KEY NOT NULL,
+   table_name TEXT,
+   comment_text TEXT); --  WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS column_comments (
+   id INTEGER PRIMARY KEY NOT NULL,
+   table_name TEXT,
+   column_name TEXT,
+   comment_text TEXT); -- WITHOUT ROWID;
+
+---------------------------------------- THUMBNAILS
 INSERT INTO table_comments (table_name, comment_text) VALUES
    ('Thumbs',	  'Thumbnail images of [faces in] pictures');
 
