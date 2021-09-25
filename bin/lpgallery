@@ -35,18 +35,29 @@ use Prima::Image::Magick qw/:all/;
 use LPDB;
 use Prima::LPDB::ThumbViewer;
 
-my $file = '.lpdb.db';
-my $create = -f $file ? 0 : 1;
-my $lpdb = new LPDB({dbfile => $file,
-#		     sqltrace => 1,
-		    });
-$lpdb->create if $create;
+my $dbfile = '.lpdb.db';
+my $create = -f $dbfile && -s _ ? 0 : 1;
+my $lpdb;			# LPDB object, a local picture database
+
 my $child;
-if ($child = fork) {
-    sleep 2;
-} else {
-    $lpdb->update('./');
+if ($child = fork) {		# GUI starts after child is updating DB
+    warn "$0: $$ forked $child to update $dbfile\n";
+    sleep 5 if $create;
+    $lpdb = new LPDB({dbfile => $dbfile,
+		      #		     sqltrace => 1,
+		     });
+} else {			# child updates DB, creating if needed
+    unlink $dbfile if $create and ! -s $dbfile;
+    $lpdb = new LPDB({dbfile => $dbfile,
+		      #		     sqltrace => 1,
+		     });
+    $lpdb->create if $create;
+    $lpdb->update('.');
+    warn "$0: $$ done updating $dbfile\n";
     exit;
+}
+END {
+    kill 'TERM', $child if $child;
 }
 
 my $l;				# ListViewer

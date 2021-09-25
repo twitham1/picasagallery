@@ -56,7 +56,10 @@ sub new {
     $conf->{dbfile} or
 	carp "{dbfile} required" and return undef;
     my $dbh = DBI->connect("dbi:SQLite:dbname=$conf->{dbfile}",  "", "",
-			   { RaiseError => 1, AutoCommit => 1 })
+			   { RaiseError => 1, AutoCommit => 1,
+			     # DBIx::Class::Storage::DBI::SQLite(3pm):
+			     on_connect_call => 'use_foreign_keys',
+			   })
 	or die $DBI::errstr;
     # Default is no enforcement, and must be set per connection.
     $dbh->do('PRAGMA foreign_keys = ON;');

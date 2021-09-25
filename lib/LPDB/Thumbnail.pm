@@ -22,21 +22,26 @@ sub new {
 
 # return thumbnail of given file ID
 sub get {
-    my($self, $id, $cid) = @_;
+    my($self, $id, $cid, $try) = @_;
+    $try ||= 0;
+     $try++ > 5
+	 and return undef;
 #    warn "getting $id from $self\n";
     $cid ||= 0;
     my $schema = $self->{schema};
     if (my $this = $schema->resultset('Thumb')->find(
 	    {file_id => $id},
 	    {columns => [qw/image/]})) {
-	my $i = Image::Magick->new;
 	my $data = $this->image;
+	unless ($data) {	# try to fix broken save
+	    return $self->put($id, $cid) ? $self->get($id, $cid, $try) : undef;
+	}
+	my $i = Image::Magick->new;
 	my $e = $i->BlobToImage($data);
-	$e and warn $e and return;
-#	$i->Display;		# comment this!!!
+	$e and warn "($e) for Picture $id, $data" and return;
 	return $i;
     } else {			# not in DB, try to add it
-	return $self->put($id, $cid) ? $self->get($id, $cid) : undef;
+	return $self->put($id, $cid) ? $self->get($id, $cid, $try) : undef;
     }
     return;
 }

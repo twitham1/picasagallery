@@ -22,6 +22,7 @@ my $exiftool;	  # global hacks for File::Find !!!  We'll never
 my $schema;	  # find more than once per process, so this is OK.
 my $conf;
 my $done = 0;			# records processed
+my $tty = -t STDERR;
 
 # create the database
 sub create {
@@ -44,6 +45,14 @@ sub create {
     return 1;
 }
 
+sub status {
+    $tty or return;
+    print STDERR "\r$done    @_      ";
+}
+END {
+    print STDERR "\n";
+}
+
 # recursively add given directory or . to LPDB
 sub update {
     my($self, @dirs) = @_;
@@ -54,7 +63,7 @@ sub update {
 	$exiftool = new Image::ExifTool;
 	$exiftool->Options(FastScan => 1);
     }
-    warn "update @dirs\n" if $conf->{debug};
+    status "update @dirs";
     $schema->txn_begin;
     find ({ no_chdir => 1,
 	    preprocess => sub { sort @_ },
@@ -71,7 +80,7 @@ sub update {
 	my($this) = @_;
 	$this =~ m@/$@ or return;
 	unless ($id{$this}) {
-	    warn "saving dir $this\n";
+	    status ' ' x 60, "saving dir $this";
 	    my $obj = $schema->resultset('Directory')->find_or_new(
 		{ directory => $this });
 	    unless ($obj->in_storage) { # pre-existing?
@@ -91,7 +100,7 @@ sub update {
 	my($this) = @_;
 	$this =~ m@/$@ or return;
 	unless ($id{$this}) {
-	    warn "saving path $this\n";
+	    status "saving path $this";
 	    my $obj = $schema->resultset('Path')->find_or_new(
 		{ path => $this });
 	    unless ($obj->in_storage) { # pre-existing?
@@ -119,7 +128,7 @@ sub _wanted {
     my $modified = (stat $_)[9];
     $dir =~ s@\./@@;
     #    $dir = '' if $dir eq '.';
-    warn "checking: $modified\t$_\n";
+    status "checking: $modified $_";
     if ($file eq '.picasa.ini' or $file eq 'Picasa.ini') {
 	# &_understand($db, _readfile($_));
 	# $db->{dirs}{$dir}{'<<updated>>'} = $modified;
@@ -131,9 +140,10 @@ sub _wanted {
 	return;
     }
 #    my $guard = $schema->txn_scope_guard; # DBIx::Class::Storage::TxnScopeGuard
-    unless (++$done % 100) {
+    unless (++$done % 100) {	# fix this!!! make configurable??...
 	$schema->txn_commit;
-	warn "committed $done   \n"; # fix this!!! make configurable...
+	status "committed $done";
+	sleep 1; # hack!!! let GUI work, not needed when no DB readers
 	$schema->txn_begin;
     }
     if (-f $_) {
