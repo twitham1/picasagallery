@@ -155,8 +155,8 @@ sub _draw_thumb {		# pos 0 = full size, pos 1,2,3 = picture stack
     }
     my ($x, $y) = (
 	$pos   == 0 ? ($x1 + $b + $dx, $y1 + $b + $dy) # full picture
-	: $pos == 1 ? ($x1 + $b + $dx, $y2 - $b - $dh) # NW
-	: $pos == 2 ? ($x2 - $b - $dw, $y1 + $b + $dy) # SE
+	: $pos == 1 ? ($x1 + $b, $y2 - $b - $dh) # North West
+	: $pos == 2 ? ($x2 - $b - $dw, $y1 + $b) # South East
 	: $pos == 3 ? (($x1 + $x2)/2 - $dw/2, ($y1 + $y2)/2 - $dh/2) # center
 	: ($x1, $y1));		# should never happen
     $canvas->put_image_indirect($im, $x, $y, $sx, $sy, $dw, $dh, $sw, $sh,
@@ -196,8 +196,8 @@ sub draw_path {
 	$im = magick_to_prima($thumb);
 	$self->_draw_thumb($im, 2, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
     }
-    # TODO: center/top picture is favorite from DB, if any
-    $self->_draw_thumb($im, 3, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
+    # # TODO: center/top picture is favorite from DB, if any, or cycling random!
+    # $self->_draw_thumb($im, 3, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
 
     $canvas->textOpaque(!$b);
     $b += 5;			# now text border
@@ -207,8 +207,8 @@ sub draw_path {
 		       dt::Left|dt::Top|dt::Default); # dt::VCenter
 
     $str = strftime("%b %d %Y", localtime $first->time);
-    $first->time == $last->time or
-	$str .= "\n" . strftime("%b %d %Y", localtime $last->time);
+    my $end = strftime("%b %d %Y", localtime $last->time);
+    $str eq $end or $str .= "\n$end";
     $canvas->draw_text($str, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
 		       dt::Left|dt::Bottom|dt::Default); # dt::VCenter
     $canvas->rect_focus( $x1, $y1, $x2, $y2 ) if $foc;

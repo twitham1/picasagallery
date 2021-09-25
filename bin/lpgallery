@@ -51,9 +51,9 @@ if ($child = fork) {		# GUI starts after child is updating DB
 } else {			# child updates DB, creating if needed
     unlink $dbfile if $create and ! -s $dbfile;
     $lpdb = new LPDB({dbfile => $dbfile,
-		      thumbfile => $thumbfile,
-		      #		     sqltrace => 1,
-		     });
+    		      thumbfile => $thumbfile,
+    		      #		     sqltrace => 1,
+    		     });
     $lpdb->create if $create;
     $lpdb->update('.');
     warn "$0: $$ done updating $dbfile\n";

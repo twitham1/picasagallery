@@ -146,7 +146,6 @@ sub _wanted {
     unless (++$done % 100) {	# fix this!!! make configurable??...
 	$schema->txn_commit;
 	status "committed $done";
-	sleep 1; # hack!!! let GUI work, not needed when no DB readers
 	$schema->txn_begin;
     }
     if (-f $_) {
