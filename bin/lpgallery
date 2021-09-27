@@ -30,7 +30,8 @@ similar to picasagallery or mythgallery, like for mythtv
 
 use strict;
 use warnings;
-use Prima qw(Application);
+use Prima;
+use Prima::Application name => "LPGallery";
 use Prima::Image::Magick qw/:all/;
 use LPDB;
 use Prima::LPDB::ThumbViewer;
@@ -63,19 +64,23 @@ END {
     kill 'TERM', $child if $child;
 }
 
-my $l;				# ListViewer
+my $lv;				# ListViewer
+my $iv;				# ImageViewer
 my $w = Prima::MainWindow->create(
     # background => 'black',	# how to default these?
     # foreground => 'white',
     text => 'Local Picture Gallery',
     packPropagate => 0,
+    frameSize => [1920, 1080],	# dont' seem to work?
+    frameWidth => 1600,
+    frameHeight => 900,
     menuItems => [
     	['~Options' => [
-    	     ['bigger', 'Zoom ~In', '=', ord '=' => sub { $l->bigger } ],
-    	     ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $l->smaller } ],
+    	     ['bigger', 'Zoom ~In', '=', ord '=' => sub { $lv->bigger } ],
+    	     ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $lv->smaller } ],
     	     ['crops', '~Crop', 'c', ord 'c' => sub {
-    		 $l->{crops} = $_[0]->menu->toggle($_[1]);
-    		 $l->repaint;
+    		 $lv->{crops} = $_[0]->menu->toggle($_[1]);
+    		 $lv->repaint;
     	      } ],
     	     ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
     	 ]
@@ -87,7 +92,7 @@ $w->font->height(28);
 
 #print sort map {"$_->{name}\n"} @{$::application-> fonts}; # see available fonts!!!
 
-$l = $w->insert(
+$lv = $w->insert(
     'Prima::LPDB::ThumbViewer',
     lpdb => $lpdb,		# LPDB connection required in advance
     onKeyDown => sub {
@@ -102,11 +107,14 @@ $l = $w->insert(
     pack => { expand => 1, fill => 'both' },
     );
 
-warn " brief keys ", $l->briefKeys;
+$w->maximize;
 
-# $l->focusedItem(0);
-# $l->reset;
-$l->smaller;			# resize thumbs to fill the window
+# warn " brief keys ", $lv->briefKeys;
+# $lv->briefKeys(0);
+
+# $lv->focusedItem(0);
+# $lv->reset;
+$lv->smaller;			# resize thumbs to fill the window
 
 run Prima;
 

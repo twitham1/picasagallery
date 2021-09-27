@@ -18,6 +18,7 @@ use LPDB::Thumbnail;
 use Prima::TileViewer;
 use Prima::Image::Magick qw/:all/;
 use POSIX qw/strftime/;
+use Prima::LPDB::ImageViewer;
 
 use vars qw(@ISA);
 @ISA = qw(Prima::TileViewer);
@@ -36,6 +37,20 @@ sub init {
     $self->{lpdb} = $hash{lpdb} or die "lpdb object required";
     $self->{tree} = new LPDB::Tree($self->{lpdb});
     $self->{thumb} = new LPDB::Thumbnail($self->{lpdb});
+    $self->{viewer} = new Prima::LPDB::ImageViewer;
+
+# Does this speed up thumbnail generation?  It might deadlock more than 1 run at a time
+    $self->{timer} = Prima::Timer->create(
+	timeout => 3000, # milliseconds
+	onTick => sub {
+	    warn "tick!\n";
+	    $self->{lpdb}->{tschema}->txn_commit;
+	    $self->{lpdb}->{tschema}->txn_begin;
+	}
+	);
+    $self->{lpdb}->{tschema}->txn_begin;
+#    $self->{timer}->start;
+
     my %profile = $self-> SUPER::init(@_);
 #     $self->items([1 .. 20]);	# need active_columns to set smaller tile size
 #     $self->focusedItem(10);
@@ -88,6 +103,7 @@ sub on_keydown
 	    $self->repaint;
 	} elsif ($this->isa('LPDB::Schema::Result::Picture')) {
 	    # show picture in other window and raise it
+	    $self->{viewer}->viewimage($this->pathtofile);
 	}
 	$self->clear_event;
 	return;
