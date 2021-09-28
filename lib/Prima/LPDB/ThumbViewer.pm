@@ -256,6 +256,7 @@ sub viewer {		 # reuse existing image viewer, or recreate it
     }
 #    $self->{viewer}->maximize;	# 
     $self->{viewer}->select;
+    $self->{viewer}->repaint;
     $self->{viewer};
 }
 

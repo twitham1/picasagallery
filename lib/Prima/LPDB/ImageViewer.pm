@@ -21,12 +21,6 @@ use Prima::Image::Magick qw/:all/;
 use vars qw(@ISA);
 @ISA = qw(Prima::ImageViewer);
 
-# 	# onMouseDown => \&iv_mousedown,
-# 	# onMouseUp   => \&iv_mouseup,
-# 	# onMouseMove => \&iv_mousemove,
-# 	# onMouseWheel => \&iv_mousewheel,
-# );
-
 sub profile_default
 {
     my $def = $_[ 0]-> SUPER::profile_default;
@@ -36,24 +30,12 @@ sub profile_default
 	name => 'IV',
 	valignment  => ta::Middle,
 	alignment   => ta::Center,
-	autoZoom => 0,
+	autoZoom => 1,
 	stretch => 0,
-	# borderIcons    => bi::SystemMenu | bi::TitleBar,
-	# widgetClass    => wc::Dialog,
-	originDontCare => 0,
-	sizeDontCare   => 0,
-	# taskListed     => 0,
 	);
     @$def{keys %prf} = values %prf;
     return $def;
 }
-
-sub profile_check_in
-{
-    my ( $self, $p, $default) = @_;
-    $self-> SUPER::profile_check_in( $p, $default);
-}
-
 
 sub init {
     my $self = shift;
@@ -77,10 +59,22 @@ sub viewimage
 
     $self->image(magick_to_prima($i));
     $self->{fileName} = $filename;
-    warn "focused: ", $::application->get_focused_widget;
+    $self->autoZoom(1);
+    $self->apply_auto_zoom;
+    $self->repaint;
     $self->selected(1);
     $self->focused(1);
     $self->status;
+}
+
+sub on_paint {
+    my($self, $canvas) = @_;
+    $self->SUPER::on_paint(@_);
+    my $im = $self->image or return;
+    $canvas->draw_text(sprintf("%.0f%% of %d x %d",
+			       $self->zoom * 100, $im->width, $im->height),
+		       0, 0, $self->get_active_area(2),
+		       dt::Left|dt::Top|dt::Default); # dt::VCenter
 }
 
 sub on_close {
@@ -94,13 +88,31 @@ sub on_keydown
 {
     my ( $self, $code, $key, $mod) = @_;
 
-    warn "my keydown: @_";
+
+    if ($key == kb::Enter) {
+	if ($self->autoZoom(!$self->autoZoom)) {
+	    $self->apply_auto_zoom;
+	} else {
+	    $self->zoom(1);
+	}
+	$self->repaint;
+	return;
+    }
+    if ($key == kb::Prior) {
+	$self->zoom($self->zoom * 1.1);
+	return;
+    }
+    if ($key == kb::Next) {
+	$self->zoom($self->zoom * 0.9);
+	return;
+    }
     if ($key == kb::Escape) {	# return focus to caller
 	my $owner = $self->{thumbviewer};
 	$owner->selected(1);
 	$owner->focused(1);
 	$owner->owner->restore;
 	$owner->owner->select;
+	return;
     }
 
     return if $self->{stretch};
@@ -121,9 +133,6 @@ sub on_keydown
     $self-> deltas( $dx, $dy);
 }
 
-my $ico = Prima::Icon-> create;
-$ico = 0 unless $ico-> load( 'hand.gif');
-
 sub status
 {
     my($self) = @_;
@@ -141,50 +150,6 @@ sub status
     $w->text($str);
     $w->name($str);
 }
-
-# sub iv_mousedown
-# {
-# 	my ( $self, $btn, $mod, $x, $y) = @_;
-# 	return if $self-> {drag} || $btn != mb::Right;
-# 	$self-> {drag}=1;
-# 	$self-> {x} = $x;
-# 	$self-> {y} = $y;
-# 	$self-> {wasdx} = $self-> deltaX;
-# 	$self-> {wasdy} = $self-> deltaY;
-# 	$self-> capture(1);
-# 	$self-> pointer( $ico) if $ico;
-# }
-
-# sub iv_mouseup
-# {
-# 	my ( $self, $btn, $mod, $x, $y) = @_;
-# 	return unless $self-> {drag} && $btn == mb::Right;
-# 	$self-> {drag}=0;
-# 	$self-> capture(0);
-# 	$self-> pointer( cr::Default) if $ico;
-# }
-
-# sub iv_mousemove
-# {
-# 	my ( $self, $mod, $x, $y) = @_;
-# 	return unless $self-> {drag};
-# 	my ($dx,$dy) = ($x - $self-> {x}, $y - $self-> {y});
-# 	$self-> deltas( $self-> {wasdx} - $dx, $self-> {wasdy} + $dy);
-# }
-
-# sub iv_mousewheel
-# {
-# 	my ( $self, $mod, $x, $y, $z) = @_;
-# 	$z = (abs($z) > 120) ? int($z/120) : (($z > 0) ? 1 : -1);
-# 	my $xv = $self-> bring(($mod & km::Shift) ? 'VScroll' : 'HScroll');
-# 	return unless $xv;
-# 	$z *= ($mod & km::Ctrl) ? $xv-> pageStep : $xv-> step;
-# 	if ( $mod & km::Shift) {
-# 		$self-> deltaX( $self-> deltaX - $z);
-# 	} else {
-# 		$self-> deltaY( $self-> deltaY - $z);
-# 	}
-# }
 
 1;
 

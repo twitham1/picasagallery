@@ -86,6 +86,9 @@ my $w = Prima::MainWindow->create(
     	     ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
     	 ]
     	]],
+    # onClose => sub { # why do windows not release focus automatically?
+    # 	$_[0]->deselect;	# this works but dumps core!
+    # },
     );
 $w->font->name('bitstream charter'); # hack!!!! how to find best font?
 $w->font->height(28);
