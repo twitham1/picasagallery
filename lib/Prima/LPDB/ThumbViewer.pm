@@ -6,6 +6,7 @@ Prima::ThumbViewer - Browse a tree of image thumbnails from LPDB
 
 This class connects C<Prima::TileViewer> to an C<LPDB> database,
 presenting its paths and pictures in an interactive thumbnail browser.
+It also opens a C<Prima::LPDB::ImageViewer> to show the pictures.
 
 =cut
 
@@ -23,21 +24,13 @@ use Prima::LPDB::ImageViewer;
 use vars qw(@ISA);
 @ISA = qw(Prima::TileViewer);
 
-# sub profile_default {
-#     my $def = $_[0]-> SUPER::profile_default;
-#     my %prf = (
-# 	);
-#     @$def{keys %prf} = values %prf;
-#     return $def;
-# }
-
 sub init {
     my $self = shift;
     my(%hash) = @_;
     $self->{lpdb} = $hash{lpdb} or die "lpdb object required";
     $self->{tree} = new LPDB::Tree($self->{lpdb});
     $self->{thumb} = new LPDB::Thumbnail($self->{lpdb});
-    $self->{viewer} = new Prima::LPDB::ImageViewer;
+    $self->{viewer} = undef;
 
 # Does this speed up thumbnail generation?  It might deadlock more than 1 run at a time
     $self->{timer} = Prima::Timer->create(
@@ -52,20 +45,15 @@ sub init {
 #    $self->{timer}->start;
 
     my %profile = $self-> SUPER::init(@_);
-#     $self->items([1 .. 20]);	# need active_columns to set smaller tile size
-#     $self->focusedItem(10);
-#     $self->smaller;
-# #    $self->repaint;
     $self->items($self->children(1));
     $self->focusedItem(0);
-    # $self->reset;
-    # $self->smaller(8);
-    # $self->reset;
-    # $self->smaller(10);
     $self->repaint;
     # warn join "\n", map { $self->{$_} } qw/lpdb tree thumb items/, "\n";
     # my @foo = @{$self->{items}};
     # warn "items: @foo\n";
+    $self->selected(1);
+    $self->focused(1);
+    $self->select;
     return %profile;
 }
 
@@ -76,12 +64,6 @@ sub children {
     return [ @$path, @$file ];
     # TODO: option for dirs to be first/last/mixed with pics by name or date
 }
-
-# sub repaint {
-#     $_[0]->bigger;
-#     $_[0]->smaller;
-#     $_[0]->SUPER::repaint;
-# }
 
 sub push {	   # navigation path: must push pairs of (focusedItem in path_id)
     push @{$_[0]->{navstack}}, $_[1], $_[2];
@@ -103,7 +85,8 @@ sub on_keydown
 	    $self->repaint;
 	} elsif ($this->isa('LPDB::Schema::Result::Picture')) {
 	    # show picture in other window and raise it
-	    $self->{viewer}->viewimage($this->pathtofile);
+	    $self->viewer->IV->viewimage($this->pathtofile);
+#	    $self->viewer;
 	}
 	$self->clear_event;
 	return;
@@ -249,6 +232,31 @@ sub draw_picture {
 	$canvas->draw_text($pic->caption, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
 			   dt::Left|dt::Bottom|dt::Default); # dt::VCenter
     $canvas->rect_focus( $x1, $y1, $x2, $y2 ) if $foc;
+}
+
+sub viewer {		 # reuse existing image viewer, or recreate it
+    my $self = shift;
+    if ($self and $self->{viewer} and
+	Prima::Object::alive($self->{viewer})) {
+	$self->{viewer}->restore;
+    } else {
+	$self->{viewer} = Prima::Window->create(
+	    text => 'Image Viewer',
+	    #	    size => [$::application->size],
+	    size => [1600, 900],
+#	    selectable => 1,
+	    );
+	$self->{viewer}->insert(
+	    'Prima::LPDB::ImageViewer',
+	    name => 'IV',
+	    thumbviewer => $self,
+	    pack => { expand => 1, fill => 'both' },
+	    #    growMode => gm::Client,
+	    );
+    }
+#    $self->{viewer}->maximize;	# 
+    $self->{viewer}->select;
+    $self->{viewer};
 }
 
 1;

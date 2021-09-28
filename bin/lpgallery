@@ -69,6 +69,7 @@ my $iv;				# ImageViewer
 my $w = Prima::MainWindow->create(
     # background => 'black',	# how to default these?
     # foreground => 'white',
+    name => 'LPG',
     text => 'Local Picture Gallery',
     packPropagate => 0,
     frameSize => [1920, 1080],	# dont' seem to work?
@@ -95,6 +96,7 @@ $w->font->height(28);
 $lv = $w->insert(
     'Prima::LPDB::ThumbViewer',
     lpdb => $lpdb,		# LPDB connection required in advance
+    name => 'TV',
     onKeyDown => sub {
 #	warn "@_\n";
     	# if ($_[2] == ord 'm') {
@@ -107,7 +109,7 @@ $lv = $w->insert(
     pack => { expand => 1, fill => 'both' },
     );
 
-$w->maximize;
+#$w->maximize;
 
 # warn " brief keys ", $lv->briefKeys;
 # $lv->briefKeys(0);
