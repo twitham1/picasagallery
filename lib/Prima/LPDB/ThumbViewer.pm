@@ -17,6 +17,7 @@ use warnings;
 use LPDB::Tree;
 use LPDB::Thumbnail;
 use Prima::TileViewer;
+use Prima::Label;
 use Prima::Image::Magick qw/:all/;
 use POSIX qw/strftime/;
 use Prima::LPDB::ImageViewer;
@@ -24,6 +25,10 @@ use Prima::LPDB::ImageViewer;
 use vars qw(@ISA);
 @ISA = qw(Prima::TileViewer);
 
+
+sub lpdb { $_[0]->{lpdb} }
+sub tree { $_[0]->{tree} }
+sub thumb { $_[0]->{thumb} }
 sub init {
     my $self = shift;
     my(%hash) = @_;
@@ -32,17 +37,17 @@ sub init {
     $self->{thumb} = new LPDB::Thumbnail($self->{lpdb});
     $self->{viewer} = undef;
 
-# Does this speed up thumbnail generation?  It might deadlock more than 1 run at a time
-    $self->{timer} = Prima::Timer->create(
-	timeout => 3000, # milliseconds
-	onTick => sub {
-	    warn "tick!\n";
-	    $self->{lpdb}->{tschema}->txn_commit;
-	    $self->{lpdb}->{tschema}->txn_begin;
-	}
-	);
-    $self->{lpdb}->{tschema}->txn_begin;
-#    $self->{timer}->start;
+# # Does this speed up thumbnail generation?  It might deadlock more than 1 run at a time
+#     $self->{timer} = Prima::Timer->create(
+# 	timeout => 3000, # milliseconds
+# 	onTick => sub {
+# 	    warn "tick!\n";
+# 	    $self->{lpdb}->{tschema}->txn_commit;
+# 	    $self->{lpdb}->{tschema}->txn_begin;
+# 	}
+# 	);
+#     $self->{lpdb}->{tschema}->txn_begin;
+# #    $self->{timer}->start;
 
     my %profile = $self-> SUPER::init(@_);
     $self->items($self->children(1));
@@ -85,7 +90,7 @@ sub on_keydown
 	    $self->repaint;
 	} elsif ($this->isa('LPDB::Schema::Result::Picture')) {
 	    # show picture in other window and raise it
-	    $self->viewer->IV->viewimage($this->pathtofile);
+	    $self->viewer->IV->viewimage($this); # $this->pathtofile);
 #	    $self->viewer;
 	}
 	$self->clear_event;
@@ -234,24 +239,60 @@ sub draw_picture {
     $canvas->rect_focus( $x1, $y1, $x2, $y2 ) if $foc;
 }
 
+# TODO, move this to ImageViewer or ImageWindow or somewhere?
+
 sub viewer {		 # reuse existing image viewer, or recreate it
     my $self = shift;
     if ($self and $self->{viewer} and
 	Prima::Object::alive($self->{viewer})) {
-	$self->{viewer}->restore;
+	$self->{viewer}->restore
+	    if $self->{viewer}->windowState == ws::Minimized;
     } else {
-	$self->{viewer} = Prima::Window->create(
+#	$self->{viewer} = Prima::LPDB::ImageViewer->create;
+	my $w = $self->{viewer} = Prima::Window->create(
 	    text => 'Image Viewer',
 	    #	    size => [$::application->size],
 	    size => [1600, 900],
 #	    selectable => 1,
 	    );
-	$self->{viewer}->insert(
+	$w->insert(
 	    'Prima::LPDB::ImageViewer',
 	    name => 'IV',
 	    thumbviewer => $self,
 	    pack => { expand => 1, fill => 'both' },
 	    #    growMode => gm::Client,
+	    );
+	$w->insert('Prima::Label', name => 'NW', autoHeight => 1,
+		   left => 25, top => $w->height - 25,
+		   growMode => gm::GrowLoY,
+		   text => "north west",
+	    );
+	$w->insert('Prima::Label', name => 'NE', autoHeight => 1,
+		   right => $w->width - 50, top => $w->height - 25,
+		   growMode => gm::GrowLoX|gm::GrowLoY,
+#		   alignment => ta::Right,
+		   text => "north east",
+	    );
+	$w->insert('Prima::Label', name => 'SE', autoHeight => 1,
+		   right => $w->width - 50, bottom => 25,
+		   growMode => gm::GrowLoX,
+		   text => "south east",
+	    );
+	$w->insert('Prima::Label', name => 'SW', autoHeight => 1,
+		   left => 25, bottom => 25,
+		   text => "south west",
+	    );
+	$w->insert('Prima::Label', name => 'N', autoHeight => 1,
+		   left => $w->width / 2, top => $w->height - 25,
+		   growMode => gm::XCenter|gm::GrowLoY,
+		   alignment => ta::Center,
+		   text => "north",
+	    );
+	$w->insert('Prima::Label', name => 'S', autoHeight => 1,
+		   left => $w->width / 2, bottom => 25,
+		   growMode => gm::XCenter,
+		   alignment => ta::Center,
+		   text => "south",
 	    );
     }
 #    $self->{viewer}->maximize;	# 

@@ -5,7 +5,7 @@ Prima::LPDB::ImageViewer - ImageViewer for Prima::LPDB::ThumbViewer
 =head1 DESCRIPTION
 
 Like C<Prima::ImageViewer> but with a keyboard driven interface for
-LPDB.  A single window is reused to show many images over time and
+C<LPDB>.  A single window is reused to show many images over time and
 overlay with metadata.
 
 =cut
@@ -44,9 +44,11 @@ sub init {
     return %profile;
 }
 
+sub picture { $_[0]->{picture} || undef }
 sub viewimage
 {
-    my ($self, $filename) = @_;
+    my ($self, $picture) = @_;
+    my $filename = $picture->pathtofile or return;
     my $i = Image::Magick->new;
     my $e = $i->Read($filename);
     if ($e) {
@@ -58,6 +60,7 @@ sub viewimage
     $i->AutoOrient;		# automated rot fix via EXIF!!!
 
     $self->image(magick_to_prima($i));
+    $self->{picture} = $picture;
     $self->{fileName} = $filename;
     $self->autoZoom(1);
     $self->apply_auto_zoom;
@@ -67,21 +70,29 @@ sub viewimage
     $self->status;
 }
 
+sub on_size {
+    my $self = shift;
+    $self->owner->font->height($self->width/60); # hack?!!!
+}
+
 sub on_paint {
     my($self, $canvas) = @_;
     $self->SUPER::on_paint(@_);
     my $im = $self->image or return;
-    $canvas->draw_text(sprintf("%.0f%% of %d x %d",
-			       $self->zoom * 100, $im->width, $im->height),
-		       0, 0, $self->get_active_area(2),
-		       dt::Left|dt::Top|dt::Default); # dt::VCenter
+    $self->owner->NW->text(sprintf("%.0f%% of %d x %d",
+				   $self->zoom * 100, $im->width, $im->height),
+			   0, 0, $self->get_active_area(2));
+    $self->owner->SW->text(scalar localtime $self->picture->time);
+    $self->owner->N->text($self->picture->basename);
+    $self->owner->S->text($self->picture->caption
+			  ? $self->picture->caption : "");
 }
 
 sub on_close {
     my $owner = $_[0]->{thumbviewer};
     $owner->selected(1);
     $owner->focused(1);
-    $owner->owner->restore;
+#    $owner->owner->restore;
     $owner->owner->select;
 }
 sub on_keydown
@@ -110,7 +121,7 @@ sub on_keydown
 	my $owner = $self->{thumbviewer};
 	$owner->selected(1);
 	$owner->focused(1);
-	$owner->owner->restore;
+#	$owner->owner->restore;
 	$owner->owner->select;
 	return;
     }

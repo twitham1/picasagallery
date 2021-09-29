@@ -64,6 +64,8 @@ END {
     kill 'TERM', $child if $child;
 }
 
+sub myclose { $::application->deselect; $::application->close }
+
 my $lv;				# ListViewer
 my $iv;				# ImageViewer
 my $w = Prima::MainWindow->create(
@@ -101,10 +103,10 @@ $lv = $w->insert(
     lpdb => $lpdb,		# LPDB connection required in advance
     name => 'TV',
     onKeyDown => sub {
-#	warn "@_\n";
-    	# if ($_[2] == ord 'm') {
-    	#     $w->popup;
-    	# }
+	# my ( $self, $code, $key, $mod) = @_;
+	# if ($key == kb::Escape) {
+	#     $lv->deselect; $::application->close;
+	# }
     },
     onClick => sub {
 	print $_[0]-> focusedItem, " is clicked\n";
