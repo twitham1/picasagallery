@@ -72,7 +72,7 @@ sub viewimage
 
 sub on_size {
     my $self = shift;
-    $self->owner->font->height($self->width/60); # hack?!!!
+    $self->owner->font->height($self->width/50); # hack?!!!
 }
 
 sub on_paint {			# update metadata label overlays
@@ -101,11 +101,15 @@ sub on_keydown
 
     if ($key == kb::Enter) {
 	my $az = $self->autoZoom;
-	$self->autoZoom($self->autoZoom ? 0 : 1);
+	$self->autoZoom(!$self->autoZoom);
 	if ($self->autoZoom) {
 	    $self->apply_auto_zoom;
 	} else {
-	    $self->zoom(1);
+	    $self->zoom(1);	# scroll to center:
+	    my @sz = $self->image->size;
+	    my @ar = $self->get_active_area;
+	    $self->deltaX($sz[0]/2 - @ar[2]/2);
+	    $self->deltaY($sz[1]/2 - @ar[3]/2);
 	}
 	$self->repaint;
 	return;
