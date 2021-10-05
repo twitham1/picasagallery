@@ -75,7 +75,7 @@ sub on_size {
     $self->owner->font->height($self->width/60); # hack?!!!
 }
 
-sub on_paint {
+sub on_paint {			# update metadata label overlays
     my($self, $canvas) = @_;
     $self->SUPER::on_paint(@_);
     my $im = $self->image or return;
@@ -99,7 +99,6 @@ sub on_keydown
 {
     my ( $self, $code, $key, $mod) = @_;
 
-
     if ($key == kb::Enter) {
 	if ($self->autoZoom(!$self->autoZoom)) {
 	    $self->apply_auto_zoom;
@@ -110,11 +109,11 @@ sub on_keydown
 	return;
     }
     if ($key == kb::Prior) {
-	$self->zoom($self->zoom * 1.1);
+	$self->zoom($self->zoom * 1.2);
 	return;
     }
     if ($key == kb::Next) {
-	$self->zoom($self->zoom * 0.9);
+	$self->zoom($self->zoom / 1.2);
 	return;
     }
     if ($key == kb::Escape) {	# return focus to caller
@@ -135,13 +134,15 @@ sub on_keydown
     my $xstep = int($self-> width  / 5) || 1;
     my $ystep = int($self-> height / 5) || 1;
 
-    my ( $dx, $dy) = $self-> deltas;
+    my ($dx, $dy) = $self-> deltas;
+
+    # TODO: prev/next picture if not scrolling
 
     $dx += $xstep if $key == kb::Right;
     $dx -= $xstep if $key == kb::Left;
     $dy += $ystep if $key == kb::Down;
     $dy -= $ystep if $key == kb::Up;
-    $self-> deltas( $dx, $dy);
+    $self-> deltas($dx, $dy);
 }
 
 sub status

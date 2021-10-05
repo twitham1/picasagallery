@@ -2,6 +2,16 @@
 
 # picasagallery by twitham@sbcglobal.net, 2013-12
 
+# In 2021 picasagallery is somewhat obsolete, slowly being replaced by
+# lpgallery with LPDB backend and Prima frontend.
+
+# lpdb=1 may be busted by recent changes in LPDB.  Using LPDB with
+# this old picasagallery was a hack and I may or may not get around to
+# fixing this.  But original picasagallery in memory (still the
+# default) should still work via original lib/Picasa.pm.
+
+
+
 # remote-control (keyboard) driven mythgallery-style picture browser
 # that also understands local Picasa data: albums, faces, stars,
 # uploads, captions, exif, tags, and so on.
@@ -39,7 +49,6 @@ use File::Path;			 # for creating thumbnail paths
 use Time::Local;		 # for age calculations
 use Image::ExifTool qw(:Public); # for picture metadata
 use Image::Magick;		 # for picture conversions
-use lib 'lib';			 # hack, remove this!!!
 use Picasa;			 # for groking Picasa data!
 use LPDB;			 # use new LPDB instead of storables!
 
@@ -49,7 +58,8 @@ our $conf = {
     lpdb	=> 0,	 # 0 = Picasa {metadata}, 1 = LPDB {dbfile}
     metadata	=> '.picasagallery.cache',   # cache of picture data
     metaperl	=> 0,	     # optional cache in perl format, 0 = none
-    dbfile	=> 'tmp.db', # LPDB filename, used if {lpdb}=1
+    dbfile	=> '.lpdb.db', # LPDB filename, used if {lpdb}=1
+    thumbfile	=> '.lpdb-thumb.db', # LPDB thumbnail cache, not yet used!!!!
     fast	=> 0,	# 0 = scan for changes, 1 = read-only cache/DB
     roots	=> ['.'], # root directories of all pictures to update
     cache	=> '.thumbcache', # where to put thumbnails
@@ -786,7 +796,8 @@ sub nums {	# format the counts of attributes; upcase if filtering
     $this->{uploads} || 0,
     $this->{faces} || 0,
     $this->{albums} || 0,
-    $this->{caption} =~ /^\d+$/ ? $this->{caption} : $this->{caption} ? 1 : 0,
+    $this->{caption} && $this->{caption} =~ /^\d+$/
+	? $this->{caption} : $this->{caption} ? 1 : 0,
     $this->{tags} || 0;
     $conf->{filtering} = scalar
 	grep { $conf->{filter}{$_} and /^([A-Z])/ and $out =~ s/($1)/\U$1\E/i }

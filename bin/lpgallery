@@ -64,8 +64,6 @@ END {
     kill 'TERM', $child if $child;
 }
 
-sub myclose { $::application->deselect; $::application->close }
-
 my $lv;				# ListViewer
 my $iv;				# ImageViewer
 my $w = Prima::MainWindow->create(
@@ -86,6 +84,7 @@ my $w = Prima::MainWindow->create(
     		 $lv->repaint;
     	      } ],
     	     ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
+    	     # ['quit', '~Quit', 'Ctrl+Q', '^q' => \&myclose ],
     	 ]
     	]],
     # onClose => sub { # why do windows not release focus automatically?
@@ -95,6 +94,8 @@ my $w = Prima::MainWindow->create(
 $w->font->name('bitstream charter'); # hack!!!! how to find best font?
 $w->font->height(28);
 #$w->font->style(fs::Italic);
+
+sub myclose { $w->deselect; $::application->close } # segfaults!??!!!
 
 #print sort map {"$_->{name}\n"} @{$::application-> fonts}; # see available fonts!!!
 

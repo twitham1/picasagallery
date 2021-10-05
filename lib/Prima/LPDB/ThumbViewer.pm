@@ -160,8 +160,8 @@ sub _draw_thumb {		# pos 0 = full size, pos 1,2,3 = picture stack
     my ($x, $y) = (
 	$pos   == 0 ? ($x1 + $b + $dx, $y1 + $b + $dy) # full picture
 	: $pos == 1 ? ($x1 + $b, $y2 - $b - $dh) # North West
-	: $pos == 2 ? ($x2 - $b - $dw, $y1 + $b) # South East
-	: $pos == 3 ? (($x1 + $x2)/2 - $dw/2, ($y1 + $y2)/2 - $dh/2) # center
+	: $pos == 2 ? (($x1 + $x2)/2 - $dw/2, ($y1 + $y2)/2 - $dh/2) # center
+	: $pos == 3 ? ($x2 - $b - $dw, $y1 + $b) # South East
 	: ($x1, $y1));		# should never happen
     $canvas->put_image_indirect($im, $x, $y, $sx, $sy, $dw, $dh, $sw, $sh,
 				$self->rop)
@@ -187,34 +187,53 @@ sub draw_path {
 
     my ($thumb, $im);
     my $path = $self->{items}[$idx];
-    my $first = $path->first;
-    $thumb = $self->{thumb}->get($first->file_id);
-    $thumb or return "warn: can't get thumb!\n";
-    $im = magick_to_prima($thumb);
-    my $b = $self->_draw_thumb($im, 1, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
+    # my $first = $path->first;
+    # $thumb = $self->{thumb}->get($first->file_id);
+    # $thumb or return "warn: can't get thumb!\n";
+    # $im = magick_to_prima($thumb);
+    # my $b = $self->_draw_thumb($im, 1, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
 
-    my $last = $path->last;
-    unless ($first->file_id == $last->file_id) { # same if only one
-	$thumb = $self->{thumb}->get($last->file_id);
-	$thumb or return "warn: can't get thumb!\n";
+    # my $last = $path->last;
+    # unless ($first->file_id == $last->file_id) { # same if only one
+    # 	$thumb = $self->{thumb}->get($last->file_id);
+    # 	$thumb or return "warn: can't get thumb!\n";
+    # 	$im = magick_to_prima($thumb);
+    # 	$self->_draw_thumb($im, 2, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
+    # }
+
+    my $b = 0;			# border size
+    my @where = (1, 2, 3);
+    my($first, $last);
+    for my $pic ($path->stack) {
+	my $where = shift @where;
+	$pic or next;
+	my $thumb = $self->{thumb}->get($pic->file_id);
+	$thumb or next;
+	$first or $first = $pic;
+	$last = $pic;
 	$im = magick_to_prima($thumb);
-	$self->_draw_thumb($im, 2, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
+	$b = $self->_draw_thumb($im, $where, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
     }
+
     # # TODO: center/top picture is favorite from DB, if any, or cycling random!
     # $self->_draw_thumb($im, 3, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
 
     $canvas->textOpaque(!$b);
     $b += 5;			# now text border
+    my $n = $path->picturecount;
     my $str = $path->path;
     $str =~ m{(.*/)(.+/?)};
-    $canvas->draw_text($2, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
-		       dt::Left|dt::Top|dt::Default); # dt::VCenter
+    $canvas->draw_text("$2\n$n", $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
+		       dt::Right|dt::Top|dt::Default);
 
+    # $canvas->draw_text($n, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
+    # 		       dt::Center|dt::VCenter|dt::Default);
+    
     $str = strftime("%b %d %Y", localtime $first->time);
     my $end = strftime("%b %d %Y", localtime $last->time);
     $str eq $end or $str .= "\n$end";
     $canvas->draw_text($str, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
-		       dt::Left|dt::Bottom|dt::Default); # dt::VCenter
+		       dt::Left|dt::Bottom|dt::Default);
     $canvas->rect_focus( $x1, $y1, $x2, $y2 ) if $foc;
 }
 sub draw_picture {
@@ -230,12 +249,12 @@ sub draw_picture {
     $b += 5;			# now text border
     # my $str = sprintf "%s\n%dx%d", $pic->basename,
     #     $pic->width, $pic->height;
-    my $str = localtime $pic->time;
-    $canvas->draw_text($str, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
-    		   dt::Right|dt::Top|dt::Default); # dt::VCenter
+    # my $str = localtime $pic->time;
+    # $canvas->draw_text($str, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
+    # 		   dt::Right|dt::Top|dt::Default); # dt::VCenter
     $pic->caption and
 	$canvas->draw_text($pic->caption, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
-			   dt::Left|dt::Bottom|dt::Default); # dt::VCenter
+			   dt::Center|dt::Bottom|dt::Default); # dt::VCenter
     $canvas->rect_focus( $x1, $y1, $x2, $y2 ) if $foc;
 }
 
