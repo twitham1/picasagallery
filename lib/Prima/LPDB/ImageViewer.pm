@@ -100,7 +100,9 @@ sub on_keydown
     my ( $self, $code, $key, $mod) = @_;
 
     if ($key == kb::Enter) {
-	if ($self->autoZoom(!$self->autoZoom)) {
+	my $az = $self->autoZoom;
+	$self->autoZoom($self->autoZoom ? 0 : 1);
+	if ($self->autoZoom) {
 	    $self->apply_auto_zoom;
 	} else {
 	    $self->zoom(1);
