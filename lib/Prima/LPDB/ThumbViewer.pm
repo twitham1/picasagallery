@@ -17,6 +17,7 @@ use warnings;
 use LPDB::Tree;
 use LPDB::Thumbnail;
 use Prima::TileViewer;
+use Prima::FrameSet;
 use Prima::Label;
 use Prima::Image::Magick qw/:all/;
 use POSIX qw/strftime/;
@@ -51,6 +52,7 @@ sub init {
 
     my %profile = $self-> SUPER::init(@_);
     $self->items($self->children(1));
+    $self->focusedItem(-1);
     $self->focusedItem(0);
     $self->repaint;
     # warn join "\n", map { $self->{$_} } qw/lpdb tree thumb items/, "\n";
@@ -76,6 +78,33 @@ sub push {	   # navigation path: must push pairs of (focusedItem in path_id)
 sub pop {
     return pop @{$_[0]->{navstack}};
 }
+
+sub on_selectitem {		# update metadata labels
+    my ($self, $idx, $state) = @_;
+    my $x = $idx->[0] + 1;
+    my $y = $self->count;
+    my $this = $self->{items}[$idx->[0]];
+    $self->owner->NORTH->NW->text($self->cwd);
+    $self->owner->NORTH->NE->text("$x / $y");
+    if ($this->isa('LPDB::Schema::Result::Path')) {
+	$this->path =~ m{(.*/)(.+/?)};
+	$self->owner->NORTH->N->text($2);
+	my @p = $this->stack;
+	$self->owner->SOUTH->SW->text(scalar localtime $p[0]->time);
+	$self->owner->SOUTH->SE->text($p[2] ? scalar localtime $p[2]->time : '');
+	$self->owner->SOUTH->S->text($this->picturecount);
+    } elsif ($this->isa('LPDB::Schema::Result::Picture')) {
+	$self->owner->NORTH->N->text($this->basename);
+	$self->owner->SOUTH->SW->text(scalar localtime $this->time);
+	$self->owner->SOUTH->SE->text('');
+	$self->owner->SOUTH->S->text('');
+    }
+}
+sub cwd {
+    my($self, $cwd) = @_;
+    $cwd and $self->{cwd} = $cwd;
+    return $self->{cwd} || '/';
+}
 sub on_keydown
 {
     my ($self, $code, $key, $mod) = @_;
@@ -85,7 +114,10 @@ sub on_keydown
 	# warn $self->focusedItem, " is entered\n";
 	if ($this->isa('LPDB::Schema::Result::Path')) {
 	    $self->push($idx, $this->parent_id);
+	    $self->cwd($this->path);
 	    $self->items($self->children($this->path_id));
+	    $self->focusedItem(-1);
+	    $self->repaint;
 	    $self->focusedItem(0);
 	    $self->repaint;
 	} elsif ($this->isa('LPDB::Schema::Result::Picture')) {
@@ -96,7 +128,11 @@ sub on_keydown
 	$self->clear_event;
 	return;
     } elsif ($key == kb::Escape && @{$self->{navstack}} > 1) {
+	$self->cwd =~ m{(.*/)(.+/?)} and
+	    $self->cwd($1);
 	$self->items($self->children($self->pop));
+	$self->focusedItem(-1);
+	$self->repaint;
 	$self->focusedItem($self->pop || 0);
 	$self->repaint;
 	$self->clear_event;

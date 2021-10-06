@@ -32,6 +32,7 @@ use strict;
 use warnings;
 use Prima;
 use Prima::Application name => "LPGallery";
+use Prima::FrameSet;
 use Prima::Image::Magick qw/:all/;
 use LPDB;
 use Prima::LPDB::ThumbViewer;
@@ -95,20 +96,36 @@ $w->font->name('bitstream charter'); # hack!!!! how to find best font?
 $w->font->height(28);
 #$w->font->style(fs::Italic);
 
+# my $alias = $sv::Antialias;
+# my $alpha = $w->can_draw_alpha;
+# warn "alias: $alias, alpha: $alpha";
+
 sub myclose { $w->deselect; $::application->close } # segfaults!??!!!
 
 #print sort map {"$_->{name}\n"} @{$::application-> fonts}; # see available fonts!!!
+
+my $top = $w->insert('Prima::FrameSet', name => 'NORTH', sliderWidth => 0,
+		     pack => { side => 'top', fill => 'x', pad => 5 });
+$top->insert('Prima::Label', name => 'NW', pack => { side => 'left' });
+$top->insert('Prima::Label', name => 'NE', pack => { side => 'right' });
+$top->insert('Prima::Label', name => 'N', pack => { side => 'top' });
+
+my $bot = $w->insert('Prima::FrameSet', name => 'SOUTH', sliderWidth => 0,
+		     pack => { side => 'bottom', fill => 'x' });
+$bot->insert('Prima::Label', name => 'SW', pack => { side => 'left' });
+$bot->insert('Prima::Label', name => 'SE', pack => { side => 'right' });
+$bot->insert('Prima::Label', name => 'S', pack => { side => 'bottom' });
 
 $lv = $w->insert(
     'Prima::LPDB::ThumbViewer',
     lpdb => $lpdb,		# LPDB connection required in advance
     name => 'TV',
-    onKeyDown => sub {
-	# my ( $self, $code, $key, $mod) = @_;
-	# if ($key == kb::Escape) {
-	#     $lv->deselect; $::application->close;
-	# }
-    },
+    # onKeyDown => sub {
+    # 	# my ( $self, $code, $key, $mod) = @_;
+    # 	# if ($key == kb::Escape) {
+    # 	#     $lv->deselect; $::application->close;
+    # 	# }
+    # },
     onClick => sub {
 	print $_[0]-> focusedItem, " is clicked\n";
     },

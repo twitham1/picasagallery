@@ -80,8 +80,8 @@ sub on_paint {			# update metadata label overlays
     $self->SUPER::on_paint(@_);
     my $im = $self->image or return;
     $self->owner->NW->text(sprintf("%.0f%% of %d x %d",
-				   $self->zoom * 100, $im->width, $im->height),
-			   0, 0, $self->get_active_area(2));
+				   $self->zoom * 100, $im->width, $im->height));
+			   # 0, 0, $self->get_active_area(2));
     $self->owner->SW->text(scalar localtime $self->picture->time);
     $self->owner->N->text($self->picture->basename);
     $self->owner->S->text($self->picture->caption
@@ -90,6 +90,7 @@ sub on_paint {			# update metadata label overlays
 
 sub on_close {
     my $owner = $_[0]->{thumbviewer};
+    $owner or return;
     $owner->selected(1);
     $owner->focused(1);
 #    $owner->owner->restore;
@@ -107,9 +108,9 @@ sub on_keydown
 	} else {
 	    $self->zoom(1);	# scroll to center:
 	    my @sz = $self->image->size;
-	    my @ar = $self->get_active_area;
-	    $self->deltaX($sz[0]/2 - @ar[2]/2);
-	    $self->deltaY($sz[1]/2 - @ar[3]/2);
+	    my @ar = $self->get_active_area(2);
+	    $self->deltaX($sz[0]/2 - $ar[0]/2);
+	    $self->deltaY($sz[1]/2 - $ar[1]/2);
 	}
 	$self->repaint;
 	return;
