@@ -50,14 +50,32 @@ sub init {
 #     $self->{lpdb}->{tschema}->txn_begin;
 # #    $self->{timer}->start;
 
-    my %profile = $self-> SUPER::init(@_);
+    my %profile = $self->SUPER::init(@_);
+
+    $self->packForget; # to get packs around the perimeter of the SUPER widget
+
+    my $top = $self->owner->insert('Prima::FrameSet', name => 'NORTH', sliderWidth => 0,
+			    pack => { side => 'top', fill => 'x', ipad => 10 });
+    $top->font->height(22);
+    $top->insert('Prima::Label', name => 'NW', pack => { side => 'left' },
+	hint => "hello world!", showHint => 1);
+    $top->insert('Prima::Label', name => 'NE', pack => { side => 'right' });
+    $top->insert('Prima::Label', name => 'N', pack => { side => 'top' });
+
+    $self->pack;
+
+    my $bot = $self->owner->insert('Prima::FrameSet', name => 'SOUTH', sliderWidth => 0,
+			    pack => { side => 'bottom', fill => 'x', pad => 5 });
+				      # before => $top });
+    $bot->font->height(22);
+    $bot->insert('Prima::Label', name => 'SW', pack => { side => 'left' });
+    $bot->insert('Prima::Label', name => 'SE', pack => { side => 'right' });
+    $bot->insert('Prima::Label', name => 'S', pack => { side => 'bottom' });
+
     $self->items($self->children(1));
     $self->focusedItem(-1);
     $self->focusedItem(0);
     $self->repaint;
-    # warn join "\n", map { $self->{$_} } qw/lpdb tree thumb items/, "\n";
-    # my @foo = @{$self->{items}};
-    # warn "items: @foo\n";
     $self->selected(1);
     $self->focused(1);
     $self->select;
@@ -91,13 +109,13 @@ sub on_selectitem {		# update metadata labels
 	$self->owner->NORTH->N->text($2);
 	my @p = $this->stack;
 	$self->owner->SOUTH->SW->text(scalar localtime $p[0]->time);
-	$self->owner->SOUTH->SE->text($p[2] ? scalar localtime $p[2]->time : '');
+	$self->owner->SOUTH->SE->text($p[2] ? scalar localtime $p[2]->time : '  ');
 	$self->owner->SOUTH->S->text($this->picturecount);
     } elsif ($this->isa('LPDB::Schema::Result::Picture')) {
 	$self->owner->NORTH->N->text($this->basename);
 	$self->owner->SOUTH->SW->text(scalar localtime $this->time);
-	$self->owner->SOUTH->SE->text('');
-	$self->owner->SOUTH->S->text('');
+	$self->owner->SOUTH->SE->text('  ');
+	$self->owner->SOUTH->S->text('  ');
     }
 }
 sub cwd {
@@ -316,38 +334,6 @@ sub viewer {		 # reuse existing image viewer, or recreate it
 	    thumbviewer => $self,
 	    pack => { expand => 1, fill => 'both' },
 	    #    growMode => gm::Client,
-	    );
-	$w->insert('Prima::Label', name => 'NW', autoHeight => 1,
-		   left => 25, top => $w->height - 25,
-		   growMode => gm::GrowLoY,
-		   text => "north west",
-	    );
-	$w->insert('Prima::Label', name => 'NE', autoHeight => 1,
-		   right => $w->width - 50, top => $w->height - 25,
-		   growMode => gm::GrowLoX|gm::GrowLoY,
-#		   alignment => ta::Right,
-		   text => "north east",
-	    );
-	$w->insert('Prima::Label', name => 'SE', autoHeight => 1,
-		   right => $w->width - 50, bottom => 25,
-		   growMode => gm::GrowLoX,
-		   text => "south east",
-	    );
-	$w->insert('Prima::Label', name => 'SW', autoHeight => 1,
-		   left => 25, bottom => 25,
-		   text => "south west",
-	    );
-	$w->insert('Prima::Label', name => 'N', autoHeight => 1,
-		   left => $w->width / 2, top => $w->height - 25,
-		   growMode => gm::XCenter|gm::GrowLoY,
-		   alignment => ta::Center,
-		   text => "north",
-	    );
-	$w->insert('Prima::Label', name => 'S', autoHeight => 1,
-		   left => $w->width / 2, bottom => 25,
-		   growMode => gm::XCenter,
-		   alignment => ta::Center,
-		   text => "south",
 	    );
     }
 #    $self->{viewer}->maximize;	# 

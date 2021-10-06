@@ -35,19 +35,10 @@ sub profile_default {
 	hScroll		=> 0,
 	autoHScroll	=> 0,
 	crops		=> 0,
+	borderWidth	=> 0,
 	);
     @$def{keys %prf} = values %prf;
     return $def;
-}
-
-sub init {
-    my $self = shift;
-    my %profile = $self->SUPER::init(@_);
-    $self->setup_indents;
-    $self->hScroll($profile{hScroll});
-    $self->reset;
-    $self->reset_scrolls;
-    return %profile;
 }
 
 # allow remote control number pad to scroll to tenths of large pages
@@ -95,7 +86,7 @@ sub smaller {
     $new > 100 or $new = 100;
     $self->itemWidth(int $new);
     $self->itemHeight(int $self->itemHeight * $new / $old);
-    $self->owner->font->height($new/15);
+    $self->owner->font->height($new/12);
     $self->notify('Size', $self->size, $self->size);
 }
 
@@ -115,7 +106,7 @@ sub bigger {
     my $new = int(($self->width - $i[0] - $i[2]) / $c);
     $self->itemWidth(int $new);
     $self->itemHeight(int $self->itemHeight * $new / $old);
-    $self->owner->font->height($new/15);
+    $self->owner->font->height($new/12);
     $self->notify('Size', $self->size, $self->size);
 }
 

@@ -32,7 +32,6 @@ use strict;
 use warnings;
 use Prima;
 use Prima::Application name => "LPGallery";
-use Prima::FrameSet;
 use Prima::Image::Magick qw/:all/;
 use LPDB;
 use Prima::LPDB::ThumbViewer;
@@ -73,9 +72,7 @@ my $w = Prima::MainWindow->create(
     name => 'LPG',
     text => 'Local Picture Gallery',
     packPropagate => 0,
-    frameSize => [1920, 1080],	# dont' seem to work?
-    frameWidth => 1600,
-    frameHeight => 900,
+    # size => [1920, 1080],
     menuItems => [
     	['~Options' => [
     	     ['bigger', 'Zoom ~In', '=', ord '=' => sub { $lv->bigger } ],
@@ -104,18 +101,6 @@ sub myclose { $w->deselect; $::application->close } # segfaults!??!!!
 
 #print sort map {"$_->{name}\n"} @{$::application-> fonts}; # see available fonts!!!
 
-my $top = $w->insert('Prima::FrameSet', name => 'NORTH', sliderWidth => 0,
-		     pack => { side => 'top', fill => 'x', pad => 5 });
-$top->insert('Prima::Label', name => 'NW', pack => { side => 'left' });
-$top->insert('Prima::Label', name => 'NE', pack => { side => 'right' });
-$top->insert('Prima::Label', name => 'N', pack => { side => 'top' });
-
-my $bot = $w->insert('Prima::FrameSet', name => 'SOUTH', sliderWidth => 0,
-		     pack => { side => 'bottom', fill => 'x' });
-$bot->insert('Prima::Label', name => 'SW', pack => { side => 'left' });
-$bot->insert('Prima::Label', name => 'SE', pack => { side => 'right' });
-$bot->insert('Prima::Label', name => 'S', pack => { side => 'bottom' });
-
 $lv = $w->insert(
     'Prima::LPDB::ThumbViewer',
     lpdb => $lpdb,		# LPDB connection required in advance
@@ -129,7 +114,9 @@ $lv = $w->insert(
     onClick => sub {
 	print $_[0]-> focusedItem, " is clicked\n";
     },
-    pack => { expand => 1, fill => 'both' },
+    size => [800, 600],
+    # growMode => gm::GrowAll,
+   pack => { expand => 1, fill => 'both' },
     );
 
 #$w->maximize;

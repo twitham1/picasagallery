@@ -40,7 +40,41 @@ sub profile_default
 sub init {
     my $self = shift;
     my %profile = $self->SUPER::init(@_);
+
     $self->{thumbviewer} = $profile{thumbviewer}; # object to return focus to
+
+    $self->insert('Prima::Label', name => 'NW', autoHeight => 1,
+		  left => 25, top => $self->height - 25,
+		  growMode => gm::GrowLoY,
+		  text => "north west",
+	);
+    $self->insert('Prima::Label', name => 'NE', autoHeight => 1,
+		  right => $self->width - 50, top => $self->height - 25,
+		  growMode => gm::GrowLoX|gm::GrowLoY,
+		  #		   alignment => ta::Right,
+		  text => "north east",
+	);
+    $self->insert('Prima::Label', name => 'SE', autoHeight => 1,
+		  right => $self->width - 50, bottom => 25,
+		  growMode => gm::GrowLoX,
+		  text => "south east",
+	);
+    $self->insert('Prima::Label', name => 'SW', autoHeight => 1,
+		  left => 25, bottom => 25,
+		  text => "south west",
+	);
+    $self->insert('Prima::Label', name => 'N', autoHeight => 1,
+		  left => $self->width / 2, top => $self->height - 25,
+		  growMode => gm::XCenter|gm::GrowLoY,
+		  alignment => ta::Center,
+		  text => "north",
+	);
+    $self->insert('Prima::Label', name => 'S', autoHeight => 1,
+		  left => $self->width / 2, bottom => 25,
+		  growMode => gm::XCenter,
+		  alignment => ta::Center,
+		  text => "south",
+	);
     return %profile;
 }
 
@@ -79,12 +113,12 @@ sub on_paint {			# update metadata label overlays
     my($self, $canvas) = @_;
     $self->SUPER::on_paint(@_);
     my $im = $self->image or return;
-    $self->owner->NW->text(sprintf("%.0f%% of %d x %d",
+    $self->NW->text(sprintf("%.0f%% of %d x %d",
 				   $self->zoom * 100, $im->width, $im->height));
 			   # 0, 0, $self->get_active_area(2));
-    $self->owner->SW->text(scalar localtime $self->picture->time);
-    $self->owner->N->text($self->picture->basename);
-    $self->owner->S->text($self->picture->caption
+    $self->SW->text(scalar localtime $self->picture->time);
+    $self->N->text($self->picture->basename);
+    $self->S->text($self->picture->caption
 			  ? $self->picture->caption : "");
 }
 
@@ -162,7 +196,7 @@ sub status
 	$str = $self->{fileName};
 	$str =~ s/([^\\\/]*)$/$1/;
 	$str = sprintf("%s (%dx%dx%d bpp)", $1,
-		       $img-> width, $img-> height, $img-> type & im::BPP);
+		       $img->width, $img->height, $img->type & im::BPP);
     } else {
 	$str = '.Untitled';
     }
