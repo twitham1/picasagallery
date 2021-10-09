@@ -4,14 +4,14 @@ Prima::ThumbViewer - Browse a tree of image thumbnails from LPDB
 
 =head1 DESCRIPTION
 
-This class connects C<Prima::TileViewer> to an C<LPDB> database,
-presenting its paths and pictures in an interactive thumbnail browser.
-It also opens a C<Prima::LPDB::ImageViewer> to show the pictures.
+The heart of C<lpgallery>, this class connects C<Prima::TileViewer> to
+an C<LPDB> database, presenting its paths and pictures in a keyboard-
+driven interactive thumbnail browser.  It also [re]opens a
+C<Prima::LPDB::ImageViewer> to display a selected picture.
 
 =cut
 
 package Prima::LPDB::ThumbViewer;
-
 use strict;
 use warnings;
 use LPDB::Tree;
@@ -22,10 +22,10 @@ use Prima::Label;
 use Prima::Image::Magick qw/:all/;
 use POSIX qw/strftime/;
 use Prima::LPDB::ImageViewer;
+use Prima::Fullscreen;
 
 use vars qw(@ISA);
-@ISA = qw(Prima::TileViewer);
-
+@ISA = qw(Prima::TileViewer Prima::Fullscreen);
 
 sub lpdb { $_[0]->{lpdb} }
 sub tree { $_[0]->{tree} }
@@ -38,35 +38,37 @@ sub init {
     $self->{thumb} = new LPDB::Thumbnail($self->{lpdb});
     $self->{viewer} = undef;
 
-# # Does this speed up thumbnail generation?  It might deadlock more than 1 run at a time
-#     $self->{timer} = Prima::Timer->create(
-# 	timeout => 3000, # milliseconds
-# 	onTick => sub {
-# 	    warn "tick!\n";
-# 	    $self->{lpdb}->{tschema}->txn_commit;
-# 	    $self->{lpdb}->{tschema}->txn_begin;
-# 	}
-# 	);
-#     $self->{lpdb}->{tschema}->txn_begin;
-# #    $self->{timer}->start;
+    # # Does this speed up thumbnail generation?  It might deadlock more than 1 run at a time
+    #     $self->{timer} = Prima::Timer->create(
+    # 	timeout => 3000, # milliseconds
+    # 	onTick => sub {
+    # 	    warn "tick!\n";
+    # 	    $self->{lpdb}->{tschema}->txn_commit;
+    # 	    $self->{lpdb}->{tschema}->txn_begin;
+    # 	}
+    # 	);
+    #     $self->{lpdb}->{tschema}->txn_begin;
+    # #    $self->{timer}->start;
 
     my %profile = $self->SUPER::init(@_);
+
+    $self->insert('Prima::Fullscreen', window => $self->owner);
 
     $self->packForget; # to get packs around the perimeter of the SUPER widget
 
     my $top = $self->owner->insert('Prima::FrameSet', name => 'NORTH', sliderWidth => 0,
-			    pack => { side => 'top', fill => 'x', ipad => 10 });
+				   pack => { side => 'top', fill => 'x', ipad => 10 });
     $top->font->height(22);
     $top->insert('Prima::Label', name => 'NW', pack => { side => 'left' },
-	hint => "hello world!", showHint => 1);
+		 hint => "hello world!", showHint => 1);
     $top->insert('Prima::Label', name => 'NE', pack => { side => 'right' });
     $top->insert('Prima::Label', name => 'N', pack => { side => 'top' });
 
-    $self->pack;
+    $self->pack(expand => 1, fill => 'both');
 
     my $bot = $self->owner->insert('Prima::FrameSet', name => 'SOUTH', sliderWidth => 0,
-			    pack => { side => 'bottom', fill => 'x', pad => 5 });
-				      # before => $top });
+				   pack => { side => 'bottom', fill => 'x', pad => 5 });
+    # before => $top });
     $bot->font->height(22);
     $bot->insert('Prima::Label', name => 'SW', pack => { side => 'left' });
     $bot->insert('Prima::Label', name => 'SE', pack => { side => 'right' });
@@ -140,6 +142,7 @@ sub on_keydown
 	    $self->repaint;
 	} elsif ($this->isa('LPDB::Schema::Result::Picture')) {
 	    # show picture in other window and raise it
+#	    $self->owner->onTop(0); # hack!!!! can't get Fullscreen to do it...
 	    $self->viewer->IV->viewimage($this); # $this->pathtofile);
 #	    $self->viewer;
 	}
@@ -156,7 +159,7 @@ sub on_keydown
 	$self->clear_event;
 	return;
     }
-    $self-> SUPER::on_keydown( $code, $key, $mod);
+    $self->SUPER::on_keydown( $code, $key, $mod);
 }
 sub on_drawitem
 {
@@ -325,8 +328,8 @@ sub viewer {		 # reuse existing image viewer, or recreate it
 	my $w = $self->{viewer} = Prima::Window->create(
 	    text => 'Image Viewer',
 	    #	    size => [$::application->size],
-	    size => [1600, 900],
-#	    selectable => 1,
+#	    size => [1600, 900],
+	    size => [1920, 1080],
 	    );
 	$w->insert(
 	    'Prima::LPDB::ImageViewer',

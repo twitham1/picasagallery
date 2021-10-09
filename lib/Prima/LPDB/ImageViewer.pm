@@ -17,22 +17,36 @@ use warnings;
 use Prima::ImageViewer;
 use Image::Magick;
 use Prima::Image::Magick qw/:all/;
+use Prima::Fullscreen;
 
 use vars qw(@ISA);
-@ISA = qw(Prima::ImageViewer);
+@ISA = qw(Prima::ImageViewer Prima::Fullscreen);
 
 sub profile_default
 {
     my $def = $_[ 0]-> SUPER::profile_default;
     my %prf = (
-	size => [800, 600],
+	size => [1600, 900],
 	selectable => 1,
 	name => 'IV',
 	valignment  => ta::Middle,
 	alignment   => ta::Center,
 	autoZoom => 1,
 	stretch => 0,
-	);
+	popupItems => [
+	    ['~Options' => [
+		 ['fullscreen', '~Full Screen', 'f', ord 'f' =>
+		  sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
+		 # ['bigger', 'Zoom ~In', '=', ord '=' => sub { $lv->bigger } ],
+		 # ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $lv->smaller } ],
+		 # ['crops', '~Crop', 'c', ord 'c' => sub {
+		 # 	 $lv->{crops} = $_[0]->menu->toggle($_[1]);
+		 # 	 $lv->repaint;
+		 #  } ],
+		 # ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
+		 # # ['quit', '~Quit', 'Ctrl+Q', '^q' => \&myclose ],
+	     ]
+	    ]]	);
     @$def{keys %prf} = values %prf;
     return $def;
 }
@@ -40,36 +54,39 @@ sub profile_default
 sub init {
     my $self = shift;
     my %profile = $self->SUPER::init(@_);
+    my @opt = qw/autoHeight 1/; # transparent 1/; # flickers!
 
     $self->{thumbviewer} = $profile{thumbviewer}; # object to return focus to
 
-    $self->insert('Prima::Label', name => 'NW', autoHeight => 1,
+    $self->insert('Prima::Fullscreen', window => $self->owner);
+
+    $self->insert('Prima::Label', name => 'NW', @opt,
 		  left => 25, top => $self->height - 25,
 		  growMode => gm::GrowLoY,
 		  text => "north west",
 	);
-    $self->insert('Prima::Label', name => 'NE', autoHeight => 1,
+    $self->insert('Prima::Label', name => 'NE', @opt,
 		  right => $self->width - 50, top => $self->height - 25,
 		  growMode => gm::GrowLoX|gm::GrowLoY,
 		  #		   alignment => ta::Right,
 		  text => "north east",
 	);
-    $self->insert('Prima::Label', name => 'SE', autoHeight => 1,
+    $self->insert('Prima::Label', name => 'SE', @opt,
 		  right => $self->width - 50, bottom => 25,
 		  growMode => gm::GrowLoX,
 		  text => "south east",
 	);
-    $self->insert('Prima::Label', name => 'SW', autoHeight => 1,
+    $self->insert('Prima::Label', name => 'SW', @opt,
 		  left => 25, bottom => 25,
 		  text => "south west",
 	);
-    $self->insert('Prima::Label', name => 'N', autoHeight => 1,
+    $self->insert('Prima::Label', name => 'N', @opt,
 		  left => $self->width / 2, top => $self->height - 25,
 		  growMode => gm::XCenter|gm::GrowLoY,
 		  alignment => ta::Center,
 		  text => "north",
 	);
-    $self->insert('Prima::Label', name => 'S', autoHeight => 1,
+    $self->insert('Prima::Label', name => 'S', @opt,
 		  left => $self->width / 2, bottom => 25,
 		  growMode => gm::XCenter,
 		  alignment => ta::Center,
@@ -135,6 +152,10 @@ sub on_keydown
     my ( $self, $code, $key, $mod) = @_;
 
     if ($key == kb::Enter) {
+    	$self->popup($self->popupItems);
+    	return;
+    }
+    if ($key == kb::Enter) {
 	my $az = $self->autoZoom;
 	$self->autoZoom(!$self->autoZoom);
 	if ($self->autoZoom) {
@@ -163,8 +184,14 @@ sub on_keydown
 	$owner->focused(1);
 #	$owner->owner->restore;
 	$owner->owner->select;
+	$owner->owner->onTop(1)
+	    if $owner->fullscreen; # hack!!!! can't get Fullscreen to do it...
 	return;
     }
+    # if ($key == kb::F11) {
+    # 	warn "f11 hit";
+    # 	$self->fullscreen(!$self->fullscreen);
+    # }
 
     return if $self->{stretch};
 

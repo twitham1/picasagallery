@@ -66,15 +66,19 @@ END {
 
 my $lv;				# ListViewer
 my $iv;				# ImageViewer
-my $w = Prima::MainWindow->create(
+my $w;
+$w = Prima::MainWindow->create(
     # background => 'black',	# how to default these?
     # foreground => 'white',
     name => 'LPG',
     text => 'Local Picture Gallery',
     packPropagate => 0,
-    # size => [1920, 1080],
+    #size => [1920, 1080],
+    size => [1600, 900],
     menuItems => [
     	['~Options' => [
+    	     ['fullscreen', '~Full Screen', 'f', ord 'f' =>
+	      sub { $lv->fullscreen($_[0]->menu->toggle($_[1]) )} ],
     	     ['bigger', 'Zoom ~In', '=', ord '=' => sub { $lv->bigger } ],
     	     ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $lv->smaller } ],
     	     ['crops', '~Crop', 'c', ord 'c' => sub {
@@ -90,7 +94,7 @@ my $w = Prima::MainWindow->create(
     # },
     );
 $w->font->name('bitstream charter'); # hack!!!! how to find best font?
-$w->font->height(28);
+$w->font->height(24);
 #$w->font->style(fs::Italic);
 
 # my $alias = $sv::Antialias;
@@ -114,19 +118,18 @@ $lv = $w->insert(
     onClick => sub {
 	print $_[0]-> focusedItem, " is clicked\n";
     },
-    size => [800, 600],
+    size => [320, 320],
     # growMode => gm::GrowAll,
-   pack => { expand => 1, fill => 'both' },
+    pack => { expand => 1, fill => 'both' },
     );
 
-#$w->maximize;
+# $w->maximize;
 
 # warn " brief keys ", $lv->briefKeys;
 # $lv->briefKeys(0);
 
-# $lv->focusedItem(0);
-# $lv->reset;
-$lv->smaller;			# resize thumbs to fill the window
+$lv->smaller(7);		# resize thumbs to fill the window
+$lv->focusedItem(0);
 
 run Prima;
 
