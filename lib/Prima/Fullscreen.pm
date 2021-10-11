@@ -51,23 +51,35 @@ sub fullscreen {
     my $win = $self->owner;
     # my $win = $self->{window};
     my @d = $::application->size;		      # desktop size
-    my @w = ($win->frameSize, $win->frameOrigin);     # my size
-    my @W = ($win->size, $win->origin);
+    my @f = ($win->frameSize, $win->frameOrigin);     # frame size/pos
+    my @w = ($win->size, $win->origin);		      # window size/pos
+    warn "window $win is @w framed by @f";
     unless (defined $which) {
-	return $d[0] == $W[0] && $d[1] == $W[1];
+	return $d[0] == $w[0] && $d[1] == $w[1];
     }
     if ($which) {		# going to fullscreen
 	@where = @w;		# remember size/origin to return to
-	my $x = $w[0] - $W[0];
-	my $y = $w[1] - $W[1];
+	# my $x = $f[0] - $w[0];
+	# my $y = $f[1] - $w[1];
 	# this loses Alt-tab control on xfce:
 	# $win->borderStyle(bs::None);
 	# $win->borderIcons(0);
+	# # $win->frameSize($d[0] + $x, $d[1] + $y);
+	# $y = $f[3] - $w[3] + 1;
+	# $win->frameOrigin(-$x, $y);
+	# $y = -100;
+	# do {
+	#     $win->frameOrigin(-$x, $y);
+	#     my @t = $win->origin;
+	#     warn "frame at $x $y, yields origin @t";
+	#     $y++;
+	# } while (($win->origin)[1] && $y < 100);
+	# $win->onTop(0);
 	# without this, xfce taskbar overlays my fullscreen:
 	$win->onTop(1);
-	$win->frameSize($d[0] + $x, $d[1] + $y);
-	$win->frameOrigin(-$x, $w[3] - $W[3]);
-	# $win->onTop(0);
+	$win->origin(0, 1);
+	$win->size(@d);
+	$win->onTop(1);
 	return 1;
     } elsif (@where) {		# restore orignal frame
 	$win->onTop(0);

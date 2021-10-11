@@ -328,8 +328,22 @@ sub viewer {		 # reuse existing image viewer, or recreate it
 	my $w = $self->{viewer} = Prima::Window->create(
 	    text => 'Image Viewer',
 	    #	    size => [$::application->size],
-#	    size => [1600, 900],
-	    size => [1920, 1080],
+	    # packPropagate => 0,
+	    size => [1600, 900],
+	    popupItems => [
+		['~Options' => [
+		     ['fullscreen', '~Full Screen', 'f', ord 'f' =>
+		      sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
+		     # ['bigger', 'Zoom ~In', '=', ord '=' => sub { $lv->bigger } ],
+		     # ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $lv->smaller } ],
+		     # ['crops', '~Crop', 'c', ord 'c' => sub {
+		     # 	 $lv->{crops} = $_[0]->menu->toggle($_[1]);
+		     # 	 $lv->repaint;
+		     #  } ],
+		     # ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
+		     # # ['quit', '~Quit', 'Ctrl+Q', '^q' => \&myclose ],
+		 ]
+		]]
 	    );
 	$w->insert(
 	    'Prima::LPDB::ImageViewer',

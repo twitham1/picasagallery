@@ -33,12 +33,13 @@ sub profile_default
 	alignment   => ta::Center,
 	autoZoom => 1,
 	stretch => 0,
-	popupItems => [
+	popupItems => [ 
 	    ['~Options' => [
 		 ['fullscreen', '~Full Screen', 'f', ord 'f' =>
 		  sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
-		 # ['bigger', 'Zoom ~In', '=', ord '=' => sub { $lv->bigger } ],
-		 # ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $lv->smaller } ],
+		 [],
+		 ['bigger', 'Zoom ~In', '=', ord '=' => sub {  } ],
+		 ['smaller', 'Zoom ~Out', '-', ord '-' => sub {  } ],
 		 # ['crops', '~Crop', 'c', ord 'c' => sub {
 		 # 	 $lv->{crops} = $_[0]->menu->toggle($_[1]);
 		 # 	 $lv->repaint;
@@ -46,7 +47,10 @@ sub profile_default
 		 # ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
 		 # # ['quit', '~Quit', 'Ctrl+Q', '^q' => \&myclose ],
 	     ]
-	    ]]	);
+	    ],
+	    ['option2' => [
+		 ['hello']]]
+	]);
     @$def{keys %prf} = values %prf;
     return $def;
 }
@@ -58,7 +62,15 @@ sub init {
 
     $self->{thumbviewer} = $profile{thumbviewer}; # object to return focus to
 
+    # my $foo = $self->popup;
+    # $self->popup->popupItems($self->menuItems);
+    # $self->popup->selected(1);
+    # use Data::Dumper;
+    # print Dumper $foo;
+
     $self->insert('Prima::Fullscreen', window => $self->owner);
+
+    $self->font->height(22);
 
     $self->insert('Prima::Label', name => 'NW', @opt,
 		  left => 25, top => $self->height - 25,
@@ -123,7 +135,8 @@ sub viewimage
 
 sub on_size {
     my $self = shift;
-    $self->owner->font->height($self->width/50); # hack?!!!
+    #    $self->owner->font->height($self->width/50); # hack?!!!
+    $self->apply_auto_zoom if $self->autoZoom;
 }
 
 sub on_paint {			# update metadata label overlays
@@ -151,10 +164,6 @@ sub on_keydown
 {
     my ( $self, $code, $key, $mod) = @_;
 
-    if ($key == kb::Enter) {
-    	$self->popup($self->popupItems);
-    	return;
-    }
     if ($key == kb::Enter) {
 	my $az = $self->autoZoom;
 	$self->autoZoom(!$self->autoZoom);
@@ -187,6 +196,10 @@ sub on_keydown
 	$owner->owner->onTop(1)
 	    if $owner->fullscreen; # hack!!!! can't get Fullscreen to do it...
 	return;
+    }
+    if ($code == ord 'm') {	# menu
+	my @sz = $self->size;
+	$self->popup->popup($sz[0]/2, $sz[1]/2);
     }
     # if ($key == kb::F11) {
     # 	warn "f11 hit";
