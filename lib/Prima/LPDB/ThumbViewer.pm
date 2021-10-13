@@ -33,15 +33,20 @@ sub profile_default
     my $def = $_[ 0]-> SUPER::profile_default;
     my %prf = (
 	popupItems => [ 
-	    ['~Options' => [
+	    ['~Zoom' => [
 		 ['fullscreen', '~Full Screen', 'f', ord 'f' =>
 		  sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
-		 ['bigger', 'Zoom ~In', '=', ord '=' => sub { $_[0]->bigger } ],
-		 ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $_[0]->smaller } ],
-		 ['crops', '~Crop', 'c', ord 'c' => sub {
-		     $_[0]->{crops} = $_[0]->popup->toggle($_[1]);
-		     $_[0]->repaint;
-		  } ]]],
+		 ['bigger', 'Zoom ~In', 'PageUp', ord '=' =>
+		  sub { $_[0]->bigger } ],
+		 ['smaller', 'Zoom ~Out', 'PageDown', ord '-' =>
+		  sub { $_[0]->smaller } ],
+	     ]],
+	    ['~Options' => [
+		 ['crops', '~Crop', 'c', ord 'c' =>
+		  sub { $_[0]->{crops} = $_[0]->popup->toggle($_[1]);
+			$_[0]->repaint;
+		  } ],
+	     ]],
 	    ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
 	    # ['quit', '~Quit', 'Ctrl+Q', '^q' => \&myclose ],
 	]);
@@ -78,12 +83,14 @@ sub init {
     $self->packForget; # to get packs around the perimeter of the SUPER widget
 
     my $top = $self->owner->insert('Prima::FrameSet', name => 'NORTH', sliderWidth => 0,
-				   pack => { side => 'top', fill => 'x', ipad => 10 });
+				   pack => { side => 'top', fill => 'x', ipad => 10 },
+				   hint => "Hit m for menu!", showHint => 1);
+
     # $top->font->height(40);
-    $top->insert('Prima::Label', name => 'NW', pack => { side => 'left' },
-		 hint => "hello world!", showHint => 1, autoheight => 1);
+    $top->insert('Prima::Label', name => 'NW', pack => { side => 'left' });
     $top->insert('Prima::Label', name => 'NE', pack => { side => 'right' });
-    $top->insert('Prima::Label', name => 'N', pack => { side => 'top' });
+    $top->insert('Prima::Label', name => 'N', pack => { side => 'top' },
+	text => 'Hit M for Menu!');
 
     $self->pack(expand => 1, fill => 'both');
 
@@ -149,6 +156,7 @@ sub cwd {
 sub on_keydown
 {
     my ($self, $code, $key, $mod) = @_;
+    warn "keydown  @_";
     my $idx = $self->focusedItem;
     if ($key == kb::Enter && $idx >= 0) {
 	my $this = $self->{items}[$idx];
@@ -180,7 +188,7 @@ sub on_keydown
 	$self->clear_event;
 	return;
     }
-    if ($code == ord 'm' or $code == ord '?') {	# popup menu
+    if ($code == ord 'm' or $code == ord '?' or $code == 13) { # popup menu
 	my @sz = $self->size;
 	$self->popup->popup($sz[0]/2, $sz[1]/2);
 	return;

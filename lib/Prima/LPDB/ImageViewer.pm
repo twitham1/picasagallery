@@ -38,7 +38,6 @@ sub profile_default
 	    ['~Zoom' => [
 		 ['fullscreen', '~Full Screen', 'f', ord 'f' =>
 		  sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
-		 [],
 		 ['*autozoom', '~Auto Zoom', 'a', ord 'a' =>
 		  sub { $_[0]->autoZoom($_[0]->popup->toggle($_[1]) )} ],
 		 ['bigger', 'Zoom ~In', 'PageUp', ord '=' =>
@@ -187,7 +186,7 @@ sub on_keydown
 	    if $owner->fullscreen; # hack!!!! can't get Fullscreen to do it...
 	return;
     }
-    if ($code == ord 'm') {	# menu
+    if ($code == ord 'm' or $code == ord '?' or $code == 13) { # popup menu
 	my @sz = $self->size;
 	$self->popup->popup($sz[0]/2, $sz[1]/2);
 	return;
