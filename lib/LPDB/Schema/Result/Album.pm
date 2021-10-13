@@ -13,10 +13,7 @@ LPDB::Schema::Result::Album - Logical collections of pictures
 use strict;
 use warnings;
 
-use Moose;
-use MooseX::NonMoose;
-use MooseX::MarkAsMethods autoclean => 1;
-extends 'DBIx::Class::Core';
+use base 'DBIx::Class::Core';
 
 =head1 TABLE: C<Albums>
 
@@ -129,10 +126,9 @@ Composing rels: L</picture_albums> -> file
 __PACKAGE__->many_to_many("files", "picture_albums", "file");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-11-25 18:39:31
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:cVmIkhWFep3u82jLSyApew
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-10-13 00:56:51
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:KGMmuBHRE19Wha8rZSeaTA
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
-__PACKAGE__->meta->make_immutable;
 1;

@@ -13,10 +13,7 @@ LPDB::Schema::Result::Directory - Physical collections of pictures
 use strict;
 use warnings;
 
-use Moose;
-use MooseX::NonMoose;
-use MooseX::MarkAsMethods autoclean => 1;
-extends 'DBIx::Class::Core';
+use base 'DBIx::Class::Core';
 
 =head1 TABLE: C<Directories>
 
@@ -101,10 +98,9 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2020-01-29 00:33:40
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:N1+i3+OGdaBYL8ggl8VlSg
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-10-13 00:56:51
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Gw3f/O/210mxlFtEVZ9V4A
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
-__PACKAGE__->meta->make_immutable;
 1;

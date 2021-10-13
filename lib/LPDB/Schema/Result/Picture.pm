@@ -13,10 +13,7 @@ LPDB::Schema::Result::Picture - Picture files that hold images
 use strict;
 use warnings;
 
-use Moose;
-use MooseX::NonMoose;
-use MooseX::MarkAsMethods autoclean => 1;
-extends 'DBIx::Class::Core';
+use base 'DBIx::Class::Core';
 
 =head1 TABLE: C<Pictures>
 
@@ -201,21 +198,6 @@ __PACKAGE__->has_many(
   { cascade_copy => 0, cascade_delete => 0 },
 );
 
-=head2 thumbs
-
-Type: has_many
-
-Related object: L<LPDB::Schema::Result::Thumb>
-
-=cut
-
-__PACKAGE__->has_many(
-  "thumbs",
-  "LPDB::Schema::Result::Thumb",
-  { "foreign.file_id" => "self.file_id" },
-  { cascade_copy => 0, cascade_delete => 0 },
-);
-
 =head2 albums
 
 Type: many_to_many
@@ -247,30 +229,25 @@ Composing rels: L</picture_tags> -> tag
 __PACKAGE__->many_to_many("tags", "picture_tags", "tag");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2020-01-28 23:58:48
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:tUaiFXUgGsmszZFnHMyCUw
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-10-13 00:56:51
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:p7kiVf3IbP+b3DGiy+F3eQ
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
 
-# __PACKAGE__->add_columns(
-#     pathtofile => {
-# 	data_type => 'text',
-# 	accessor => '_pathtofile'
-#     }
-#     );
-    
-# sub _pathtofile {
-#     my($self) = @_;
-#     print "hello world\n";
-#     my $pic = $self->schema->resultset('Picture')->find(
-#     	{file_id => $self->file_id},
-#     	{ prefetch => 'dir',
-#     	  columns => [ qw/basename dir.directory/]
-#     	});
-#     my $path = $pic->dir->directory . $pic->basename;
-#     return $path;
-# }
+=head2 thumbs
 
-__PACKAGE__->meta->make_immutable;
+Type: has_many
+
+Related object: L<LPDB::Schema::Result::Thumb>
+
+=cut
+
+__PACKAGE__->has_many(
+  "thumbs",
+  "LPDB::Schema::Result::Thumb",
+  { "foreign.file_id" => "self.file_id" },
+  { cascade_copy => 0, cascade_delete => 0 },
+);
+
 1;

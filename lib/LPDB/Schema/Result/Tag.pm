@@ -13,10 +13,7 @@ LPDB::Schema::Result::Tag - Tags in pictures (EXIF keywords or subject)
 use strict;
 use warnings;
 
-use Moose;
-use MooseX::NonMoose;
-use MooseX::MarkAsMethods autoclean => 1;
-extends 'DBIx::Class::Core';
+use base 'DBIx::Class::Core';
 
 =head1 TABLE: C<Tags>
 
@@ -102,10 +99,9 @@ Composing rels: L</picture_tags> -> file
 __PACKAGE__->many_to_many("files", "picture_tags", "file");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-11-25 18:39:31
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:T5a3PIlBVGWwS7uKeI2X+A
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-10-13 00:56:51
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:bAo37wGWMsaVdaxsR9GJWw
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
-__PACKAGE__->meta->make_immutable;
 1;

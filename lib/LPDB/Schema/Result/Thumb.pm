@@ -13,10 +13,7 @@ LPDB::Schema::Result::Thumb - Thumbnail images of [faces in] pictures
 use strict;
 use warnings;
 
-use Moose;
-use MooseX::NonMoose;
-use MooseX::MarkAsMethods autoclean => 1;
-extends 'DBIx::Class::Core';
+use base 'DBIx::Class::Core';
 
 =head1 TABLE: C<Thumbs>
 
@@ -89,6 +86,13 @@ __PACKAGE__->add_columns(
 
 __PACKAGE__->set_primary_key("file_id", "contact_id");
 
+
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-10-13 01:05:58
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:SVv5LerR+eH8PDQz2Pcz/A
+
+
+# You can replace this text with custom code or comments, and it will be preserved on regeneration
+
 =head1 RELATIONS
 
 =head2 contact
@@ -121,11 +125,4 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
 );
 
-
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2020-01-07 16:03:51
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:2vY1PeZYLzO+9CVnrHkwYA
-
-
-# You can replace this text with custom code or comments, and it will be preserved on regeneration
-__PACKAGE__->meta->make_immutable;
 1;

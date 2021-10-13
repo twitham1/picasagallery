@@ -31,7 +31,7 @@ CREATE VIEW PathStats AS
       MIN(Pictures.time) AS mintime,
       MAX(Pictures.time) AS maxtime,
       SUM(Pictures.bytes) AS totalbytes,
-      SUM(Pictures.pixels) AS totalpixels
+      SUM(Pictures.width * Pictures.height) AS totalpixels
    FROM
       Paths
    LEFT JOIN PicturePath ON Paths.path_id = PicturePath.path_id

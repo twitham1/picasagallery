@@ -13,10 +13,7 @@ LPDB::Schema::Result::TableComment
 use strict;
 use warnings;
 
-use Moose;
-use MooseX::NonMoose;
-use MooseX::MarkAsMethods autoclean => 1;
-extends 'DBIx::Class::Core';
+use base 'DBIx::Class::Core';
 
 =head1 TABLE: C<table_comments>
 
@@ -66,10 +63,9 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("id");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2019-10-14 00:43:26
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:WnBrfq06nmHc183j3uPUow
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-10-13 00:56:51
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:FIZhSVvCOLogXUM/u9XiEw
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
-__PACKAGE__->meta->make_immutable;
 1;

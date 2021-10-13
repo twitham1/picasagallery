@@ -13,10 +13,7 @@ LPDB::Schema::Result::PathView
 use strict;
 use warnings;
 
-use Moose;
-use MooseX::NonMoose;
-use MooseX::MarkAsMethods autoclean => 1;
-extends 'DBIx::Class::Core';
+use base 'DBIx::Class::Core';
 __PACKAGE__->table_class("DBIx::Class::ResultSource::View");
 
 =head1 TABLE: C<PathView>
@@ -152,10 +149,9 @@ __PACKAGE__->add_columns(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07048 @ 2020-01-28 23:58:48
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:LW8Xs5bIO8FLYsiioCBh0w
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-10-13 00:56:51
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:g+qCc51LsaUxLyVG9CXwNQ
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
-__PACKAGE__->meta->make_immutable;
 1;
