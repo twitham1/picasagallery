@@ -86,7 +86,7 @@ sub smaller {
     $new > 100 or $new = 100;
     $self->itemWidth(int $new);
     $self->itemHeight(int $self->itemHeight * $new / $old);
-    $self->owner->font->height($new/12);
+    $self->font->height($new/12);
     $self->notify('Size', $self->size, $self->size);
 }
 
@@ -106,7 +106,7 @@ sub bigger {
     my $new = int(($self->width - $i[0] - $i[2]) / $c);
     $self->itemWidth(int $new);
     $self->itemHeight(int $self->itemHeight * $new / $old);
-    $self->owner->font->height($new/12);
+    $self->font->height($new/12);
     $self->notify('Size', $self->size, $self->size);
 }
 

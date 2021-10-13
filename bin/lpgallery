@@ -64,57 +64,36 @@ END {
     kill 'TERM', $child if $child;
 }
 
+# huge for couch viewing, why is this line needed?!!!?
+$::application->font->size(22);
+
+# without above, get_default_font is too small.  I use xrdb -load file
+# of this content for large text viewing from the couch:
+
+# Prima.Color: white
+# Prima.Back: black
+# Prima.HiliteBackColor: gray33
+# Prima.Font: Helvetica-22
+
 my $lv;				# ListViewer
 my $iv;				# ImageViewer
 my $w;
 $w = Prima::MainWindow->create(
-    # background => 'black',	# how to default these?
-    # foreground => 'white',
     name => 'LPG',
     text => 'Local Picture Gallery',
     packPropagate => 0,
     #size => [1920, 1080],
     size => [1600, 900],
-    menuItems => [
-    	['~Options' => [
-    	     ['fullscreen', '~Full Screen', 'f', ord 'f' =>
-	      sub { $lv->fullscreen($_[0]->menu->toggle($_[1]) )} ],
-    	     ['bigger', 'Zoom ~In', '=', ord '=' => sub { $lv->bigger } ],
-    	     ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $lv->smaller } ],
-    	     ['crops', '~Crop', 'c', ord 'c' => sub {
-    		 $lv->{crops} = $_[0]->menu->toggle($_[1]);
-    		 $lv->repaint;
-    	      } ],
-    	     ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
-    	     # ['quit', '~Quit', 'Ctrl+Q', '^q' => \&myclose ],
-    	 ]
-    	]],
-    # onClose => sub { # why do windows not release focus automatically?
-    # 	$_[0]->deselect;	# this works but dumps core!
-    # },
     );
-$w->font->name('bitstream charter'); # hack!!!! how to find best font?
-$w->font->height(24);
-#$w->font->style(fs::Italic);
-
-# my $alias = $sv::Antialias;
-# my $alpha = $w->can_draw_alpha;
-# warn "alias: $alias, alpha: $alpha";
 
 sub myclose { $w->deselect; $::application->close } # segfaults!??!!!
 
-#print sort map {"$_->{name}\n"} @{$::application-> fonts}; # see available fonts!!!
+# print sort map {"$_->{name}\n"} @{$::application-> fonts}; # see available fonts!!!
 
 $lv = $w->insert(
     'Prima::LPDB::ThumbViewer',
     lpdb => $lpdb,		# LPDB connection required in advance
     name => 'TV',
-    # onKeyDown => sub {
-    # 	# my ( $self, $code, $key, $mod) = @_;
-    # 	# if ($key == kb::Escape) {
-    # 	#     $lv->deselect; $::application->close;
-    # 	# }
-    # },
     onClick => sub {
 	print $_[0]-> focusedItem, " is clicked\n";
     },
@@ -123,12 +102,7 @@ $lv = $w->insert(
     pack => { expand => 1, fill => 'both' },
     );
 
-# $w->maximize;
-
-# warn " brief keys ", $lv->briefKeys;
-# $lv->briefKeys(0);
-
-$lv->smaller(7);		# resize thumbs to fill the window
+$lv->smaller(6);		# resize thumbs to fill the window
 $lv->focusedItem(0);
 
 run Prima;

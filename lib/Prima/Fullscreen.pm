@@ -77,6 +77,7 @@ sub fullscreen {
 	# $win->onTop(0);
 	# without this, xfce taskbar overlays my fullscreen:
 	$win->onTop(1);
+	# on xfce/ubuntu, 0,0 is not right but 0,1 is close:
 	$win->origin(0, 1);
 	$win->size(@d);
 	$win->onTop(1);

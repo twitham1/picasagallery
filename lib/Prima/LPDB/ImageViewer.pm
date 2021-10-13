@@ -33,23 +33,20 @@ sub profile_default
 	alignment   => ta::Center,
 	autoZoom => 1,
 	stretch => 0,
-	popupItems => [ 
-	    ['~Options' => [
+	popupItems => [
+	    # ['~Menu', 'm', ord 'm'],
+	    ['~Zoom' => [
 		 ['fullscreen', '~Full Screen', 'f', ord 'f' =>
 		  sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
 		 [],
-		 ['bigger', 'Zoom ~In', '=', ord '=' => sub {  } ],
-		 ['smaller', 'Zoom ~Out', '-', ord '-' => sub {  } ],
-		 # ['crops', '~Crop', 'c', ord 'c' => sub {
-		 # 	 $lv->{crops} = $_[0]->menu->toggle($_[1]);
-		 # 	 $lv->repaint;
-		 #  } ],
-		 # ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
-		 # # ['quit', '~Quit', 'Ctrl+Q', '^q' => \&myclose ],
-	     ]
-	    ],
-	    ['option2' => [
-		 ['hello']]]
+		 ['*autozoom', '~Auto Zoom', 'a', ord 'a' =>
+		  sub { $_[0]->autoZoom($_[0]->popup->toggle($_[1]) )} ],
+		 ['bigger', 'Zoom ~In', 'PageUp', ord '=' =>
+		  sub { $_[0]->key_down(0, kb::Prior ) }],
+		 ['smaller', 'Zoom ~Out', 'PageDown', ord '-' =>
+		  sub { $_[0]->key_down(0, kb::Next ) }],
+	     ]],
+	    ['~Escape' => sub { $_[0]->key_down(0, kb::Escape) } ],
 	]);
     @$def{keys %prf} = values %prf;
     return $def;
@@ -62,15 +59,7 @@ sub init {
 
     $self->{thumbviewer} = $profile{thumbviewer}; # object to return focus to
 
-    # my $foo = $self->popup;
-    # $self->popup->popupItems($self->menuItems);
-    # $self->popup->selected(1);
-    # use Data::Dumper;
-    # print Dumper $foo;
-
     $self->insert('Prima::Fullscreen', window => $self->owner);
-
-    $self->font->height(22);
 
     $self->insert('Prima::Label', name => 'NW', @opt,
 		  left => 25, top => $self->height - 25,
@@ -135,7 +124,7 @@ sub viewimage
 
 sub on_size {
     my $self = shift;
-    #    $self->owner->font->height($self->width/50); # hack?!!!
+    #    $self->font->height($self->width/50); # hack?!!!
     $self->apply_auto_zoom if $self->autoZoom;
 }
 
@@ -165,7 +154,6 @@ sub on_keydown
     my ( $self, $code, $key, $mod) = @_;
 
     if ($key == kb::Enter) {
-	my $az = $self->autoZoom;
 	$self->autoZoom(!$self->autoZoom);
 	if ($self->autoZoom) {
 	    $self->apply_auto_zoom;
@@ -180,10 +168,12 @@ sub on_keydown
 	return;
     }
     if ($key == kb::Prior) {
+	$self->autoZoom(0);
 	$self->zoom($self->zoom * 1.2);
 	return;
     }
     if ($key == kb::Next) {
+	$self->autoZoom(0);
 	$self->zoom($self->zoom / 1.2);
 	return;
     }
@@ -200,6 +190,7 @@ sub on_keydown
     if ($code == ord 'm') {	# menu
 	my @sz = $self->size;
 	$self->popup->popup($sz[0]/2, $sz[1]/2);
+	return;
     }
     # if ($key == kb::F11) {
     # 	warn "f11 hit";

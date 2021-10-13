@@ -27,6 +27,27 @@ use Prima::Fullscreen;
 use vars qw(@ISA);
 @ISA = qw(Prima::TileViewer Prima::Fullscreen);
 
+my $lv;
+sub profile_default
+{
+    my $def = $_[ 0]-> SUPER::profile_default;
+    my %prf = (
+	popupItems => [ 
+	    ['~Options' => [
+		 ['fullscreen', '~Full Screen', 'f', ord 'f' =>
+		  sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
+		 ['bigger', 'Zoom ~In', '=', ord '=' => sub { $_[0]->bigger } ],
+		 ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $_[0]->smaller } ],
+		 ['crops', '~Crop', 'c', ord 'c' => sub {
+		     $_[0]->{crops} = $_[0]->popup->toggle($_[1]);
+		     $_[0]->repaint;
+		  } ]]],
+	    ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
+	    # ['quit', '~Quit', 'Ctrl+Q', '^q' => \&myclose ],
+	]);
+    @$def{keys %prf} = values %prf;
+    return $def;
+}
 sub lpdb { $_[0]->{lpdb} }
 sub tree { $_[0]->{tree} }
 sub thumb { $_[0]->{thumb} }
@@ -58,9 +79,9 @@ sub init {
 
     my $top = $self->owner->insert('Prima::FrameSet', name => 'NORTH', sliderWidth => 0,
 				   pack => { side => 'top', fill => 'x', ipad => 10 });
-    $top->font->height(22);
+    # $top->font->height(40);
     $top->insert('Prima::Label', name => 'NW', pack => { side => 'left' },
-		 hint => "hello world!", showHint => 1);
+		 hint => "hello world!", showHint => 1, autoheight => 1);
     $top->insert('Prima::Label', name => 'NE', pack => { side => 'right' });
     $top->insert('Prima::Label', name => 'N', pack => { side => 'top' });
 
@@ -69,7 +90,7 @@ sub init {
     my $bot = $self->owner->insert('Prima::FrameSet', name => 'SOUTH', sliderWidth => 0,
 				   pack => { side => 'bottom', fill => 'x', pad => 5 });
     # before => $top });
-    $bot->font->height(22);
+    # $bot->font->height(36);
     $bot->insert('Prima::Label', name => 'SW', pack => { side => 'left' });
     $bot->insert('Prima::Label', name => 'SE', pack => { side => 'right' });
     $bot->insert('Prima::Label', name => 'S', pack => { side => 'bottom' });
@@ -157,6 +178,11 @@ sub on_keydown
 	$self->focusedItem($self->pop || 0);
 	$self->repaint;
 	$self->clear_event;
+	return;
+    }
+    if ($code == ord 'm' or $code == ord '?') {	# popup menu
+	my @sz = $self->size;
+	$self->popup->popup($sz[0]/2, $sz[1]/2);
 	return;
     }
     $self->SUPER::on_keydown( $code, $key, $mod);
@@ -324,26 +350,11 @@ sub viewer {		 # reuse existing image viewer, or recreate it
 	$self->{viewer}->restore
 	    if $self->{viewer}->windowState == ws::Minimized;
     } else {
-#	$self->{viewer} = Prima::LPDB::ImageViewer->create;
 	my $w = $self->{viewer} = Prima::Window->create(
 	    text => 'Image Viewer',
 	    #	    size => [$::application->size],
 	    # packPropagate => 0,
 	    size => [1600, 900],
-	    popupItems => [
-		['~Options' => [
-		     ['fullscreen', '~Full Screen', 'f', ord 'f' =>
-		      sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
-		     # ['bigger', 'Zoom ~In', '=', ord '=' => sub { $lv->bigger } ],
-		     # ['smaller', 'Zoom ~Out', '-', ord '-' => sub { $lv->smaller } ],
-		     # ['crops', '~Crop', 'c', ord 'c' => sub {
-		     # 	 $lv->{crops} = $_[0]->menu->toggle($_[1]);
-		     # 	 $lv->repaint;
-		     #  } ],
-		     # ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
-		     # # ['quit', '~Quit', 'Ctrl+Q', '^q' => \&myclose ],
-		 ]
-		]]
 	    );
 	$w->insert(
 	    'Prima::LPDB::ImageViewer',
@@ -353,7 +364,6 @@ sub viewer {		 # reuse existing image viewer, or recreate it
 	    #    growMode => gm::Client,
 	    );
     }
-#    $self->{viewer}->maximize;	# 
     $self->{viewer}->select;
     $self->{viewer}->repaint;
     $self->{viewer};
