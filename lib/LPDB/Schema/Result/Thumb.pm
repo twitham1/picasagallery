@@ -86,13 +86,6 @@ __PACKAGE__->add_columns(
 
 __PACKAGE__->set_primary_key("file_id", "contact_id");
 
-
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-10-13 01:05:58
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:SVv5LerR+eH8PDQz2Pcz/A
-
-
-# You can replace this text with custom code or comments, and it will be preserved on regeneration
-
 =head1 RELATIONS
 
 =head2 contact
@@ -125,4 +118,10 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "CASCADE" },
 );
 
+
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-10-13 22:44:09
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:3XBTdY2IznT+OMv5bnbMQQ
+
+
+# You can replace this text with custom code or comments, and it will be preserved on regeneration
 1;

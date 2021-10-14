@@ -1,0 +1,13 @@
+#!/bin/sh
+
+# update the DBIx::Class from the database
+
+DB=tmp.db
+
+test -f $DB && rm $DB
+
+# add any new sql files here
+sqlite3 $DB < lib/LPDB/database.sql && \
+    sqlite3 $DB < lib/LPDB/views.sql && \
+    sqlite3 $DB < lib/LPDB/thumbs.sql && \
+    dbicdump dbicdump.conf

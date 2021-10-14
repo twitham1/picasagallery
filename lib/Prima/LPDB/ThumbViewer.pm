@@ -84,7 +84,8 @@ sub init {
 
     my $top = $self->owner->insert('Prima::FrameSet', name => 'NORTH', sliderWidth => 0,
 				   pack => { side => 'top', fill => 'x', ipad => 10 },
-				   hint => "Hit m for menu!", showHint => 1);
+#				   hint => "Hit m for menu!", showHint => 1
+	);
 
     # $top->font->height(40);
     $top->insert('Prima::Label', name => 'NW', pack => { side => 'left' });
