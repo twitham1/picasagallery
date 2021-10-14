@@ -82,23 +82,19 @@ sub init {
 
     $self->packForget; # to get packs around the perimeter of the SUPER widget
 
-    my $top = $self->owner->insert('Prima::FrameSet', name => 'NORTH', sliderWidth => 0,
-				   pack => { side => 'top', fill => 'x', ipad => 10 },
-#				   hint => "Hit m for menu!", showHint => 1
-	);
-
-    # $top->font->height(40);
+    my $top = $self->owner->insert('Prima::Label', name => 'NORTH', text => '',
+				   transparent => 1, # hack, using label as container
+				   pack => { side => 'top', fill => 'x', pad => 5 });
     $top->insert('Prima::Label', name => 'NW', pack => { side => 'left' });
     $top->insert('Prima::Label', name => 'NE', pack => { side => 'right' });
     $top->insert('Prima::Label', name => 'N', pack => { side => 'top' },
-	text => 'Hit M for Menu!');
+		 text => 'Hit M for Menu!');
 
     $self->pack(expand => 1, fill => 'both');
 
-    my $bot = $self->owner->insert('Prima::FrameSet', name => 'SOUTH', sliderWidth => 0,
+    my $bot = $self->owner->insert('Prima::Label', name => 'SOUTH', text => '',
+				   transparent => 1, # hack, using label as container
 				   pack => { side => 'bottom', fill => 'x', pad => 5 });
-    # before => $top });
-    # $bot->font->height(36);
     $bot->insert('Prima::Label', name => 'SW', pack => { side => 'left' });
     $bot->insert('Prima::Label', name => 'SE', pack => { side => 'right' });
     $bot->insert('Prima::Label', name => 'S', pack => { side => 'bottom' });
@@ -145,8 +141,9 @@ sub on_selectitem {		# update metadata labels
     } elsif ($this->isa('LPDB::Schema::Result::Picture')) {
 	$self->owner->NORTH->N->text($this->basename);
 	$self->owner->SOUTH->SW->text(scalar localtime $this->time);
-	$self->owner->SOUTH->SE->text('  ');
-	$self->owner->SOUTH->S->text('  ');
+	$self->owner->SOUTH->SE->text($this->width . 'x' . $this->height);
+	$self->owner->SOUTH->S->text(sprintf "%.1fMP",
+				     $this->width * $this->height / 1000000);
     }
 }
 sub cwd {
@@ -173,8 +170,8 @@ sub on_keydown
 	} elsif ($this->isa('LPDB::Schema::Result::Picture')) {
 	    # show picture in other window and raise it
 #	    $self->owner->onTop(0); # hack!!!! can't get Fullscreen to do it...
-	    $self->viewer->IV->viewimage($this); # $this->pathtofile);
-#	    $self->viewer;
+	    $self->viewer->IV->viewimage($this);
+	    $self->viewer->onTop(1);
 	}
 	$self->clear_event;
 	return;
@@ -370,7 +367,7 @@ sub viewer {		 # reuse existing image viewer, or recreate it
 	    name => 'IV',
 	    thumbviewer => $self,
 	    pack => { expand => 1, fill => 'both' },
-	    #    growMode => gm::Client,
+	    # growMode => gm::Client,
 	    );
     }
     $self->{viewer}->select;

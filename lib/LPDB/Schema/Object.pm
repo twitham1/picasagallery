@@ -4,15 +4,9 @@
 
 package LPDB::Schema::Result::Picture;
 
-sub pathtofile {		# return full filesystem path to file
+sub pathtofile {	   # return full filesystem path to image file
     my($self) = @_;
-#    warn "pathtofile for $self\n";
-    my $schema = $self->result_source->schema;
-    my $dir = $schema->resultset('Directory')->find(
-    	{dir_id => $self->dir_id},
-    	{columns => [ qw/directory/]
-    	});
-    my $path = $dir->directory . $self->basename;
+    my $path = $self->dir->directory . $self->basename;
     return $path;
 }
 
@@ -77,11 +71,5 @@ sub stack { # stack of up to 3 paths (first middle last), for thumbnails
 	($num > 1 ?  $rs->slice($num - 1, $num - 1) : undef),
 	);
 }
-
-# sub thumbnail {
-#     my($self) = @_;
-#     warn "thumbnail for $self";
-#     return LPDB::Thumbnail(
-# }
 
 1;

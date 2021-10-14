@@ -60,38 +60,20 @@ sub init {
 
     $self->insert('Prima::Fullscreen', window => $self->owner);
 
-    $self->insert('Prima::Label', name => 'NW', @opt,
-		  left => 25, top => $self->height - 25,
-		  growMode => gm::GrowLoY,
-		  text => "north west",
-	);
-    $self->insert('Prima::Label', name => 'NE', @opt,
-		  right => $self->width - 50, top => $self->height - 25,
-		  growMode => gm::GrowLoX|gm::GrowLoY,
-		  #		   alignment => ta::Right,
-		  text => "north east",
-	);
-    $self->insert('Prima::Label', name => 'SE', @opt,
-		  right => $self->width - 50, bottom => 25,
-		  growMode => gm::GrowLoX,
-		  text => "south east",
-	);
-    $self->insert('Prima::Label', name => 'SW', @opt,
-		  left => 25, bottom => 25,
-		  text => "south west",
-	);
-    $self->insert('Prima::Label', name => 'N', @opt,
-		  left => $self->width / 2, top => $self->height - 25,
-		  growMode => gm::XCenter|gm::GrowLoY,
-		  alignment => ta::Center,
-		  text => "north",
-	);
-    $self->insert('Prima::Label', name => 'S', @opt,
-		  left => $self->width / 2, bottom => 25,
-		  growMode => gm::XCenter,
-		  alignment => ta::Center,
-		  text => "south",
-	);
+    my $top = $self->insert('Prima::Label', name => 'NORTH', text => '',
+			    transparent => 1, # hack, using label as container
+    			    pack => { side => 'top', fill => 'x', pad => 25 });
+    $top->insert('Prima::Label', name => 'NW', pack => { side => 'left' });
+    $top->insert('Prima::Label', name => 'NE', pack => { side => 'right' });
+    $top->insert('Prima::Label', name => 'N', pack => { side => 'top' });
+
+    my $bot = $self->insert('Prima::Label', name => 'SOUTH', text => '',
+			    transparent => 1, # hack, using label as container
+    			    pack => { side => 'bottom', fill => 'x', pad => 25 });
+    $bot->insert('Prima::Label', name => 'SW', pack => { side => 'left' });
+    $bot->insert('Prima::Label', name => 'SE', pack => { side => 'right' });
+    $bot->insert('Prima::Label', name => 'S', pack => { side => 'bottom' });
+
     return %profile;
 }
 
@@ -127,17 +109,21 @@ sub on_size {
     $self->apply_auto_zoom if $self->autoZoom;
 }
 
-sub on_paint {			# update metadata label overlays
+sub on_paint { # update metadata label overlays, later in front of earlier
     my($self, $canvas) = @_;
+    # TODO:  clear labels if info is toggled off
     $self->SUPER::on_paint(@_);
     my $im = $self->image or return;
-    $self->NW->text(sprintf("%.0f%% of %d x %d",
-				   $self->zoom * 100, $im->width, $im->height));
-			   # 0, 0, $self->get_active_area(2));
-    $self->SW->text(scalar localtime $self->picture->time);
-    $self->N->text($self->picture->basename);
-    $self->S->text($self->picture->caption
-			  ? $self->picture->caption : "");
+    (my $path = $self->picture->dir->directory) =~ s{.*/(.+/)}{$1};
+    $self->NORTH->N->text($self->picture->basename);
+    $self->NORTH->NW->text(sprintf("%.0f%% of %d x %d", $self->zoom * 100,
+				   $im->width, $im->height));
+    # TODO: add x/y here in NE !!!
+    $self->SOUTH->S->text($self->picture->caption
+			  ? $self->picture->caption : $path);
+    $self->SOUTH->SE->text(sprintf '%.1fMP',
+			   $im->width * $im->height / 1000000);
+    $self->SOUTH->SW->text(scalar localtime $self->picture->time);
 }
 
 sub on_close {
