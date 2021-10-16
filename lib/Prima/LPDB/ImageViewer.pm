@@ -121,7 +121,7 @@ sub on_paint { # update metadata label overlays, later in front of earlier
     # TODO: add x/y here in NE !!!
     $self->SOUTH->S->text($self->picture->caption
 			  ? $self->picture->caption : $path);
-    $self->SOUTH->SE->text(sprintf '%.1fMP',
+    $self->SOUTH->SE->text(sprintf '%.2f, %.1fMP', $im->width / $im->height,
 			   $im->width * $im->height / 1000000);
     $self->SOUTH->SW->text(scalar localtime $self->picture->time);
 }

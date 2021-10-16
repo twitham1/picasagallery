@@ -11,7 +11,8 @@ use Data::Dumper;
 my $lpdb = new LPDB;
 ok(! defined $lpdb, "no-arg new() returned undef");
 
-$lpdb = new LPDB({dbfile => 'tmp.db'});
+$lpdb = new LPDB({dbfile => 'tmp.db',
+		 thumbfile => 'tmp-thumbs.db'});
 isa_ok($lpdb, 'LPDB', "new({dbfile}");
 
 ok($lpdb->create, "created the tables");
