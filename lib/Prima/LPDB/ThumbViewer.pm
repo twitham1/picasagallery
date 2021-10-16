@@ -141,7 +141,8 @@ sub on_selectitem {		# update metadata labels
     } elsif ($this->isa('LPDB::Schema::Result::Picture')) {
 	$self->owner->NORTH->N->text($this->basename);
 	$self->owner->SOUTH->SW->text(scalar localtime $this->time);
-	$self->owner->SOUTH->SE->text($this->width . 'x' . $this->height);
+#	$self->owner->SOUTH->SE->text($this->width . 'x' . $this->height);
+	$self->owner->SOUTH->SE->text($this->dir->directory);
 	$self->owner->SOUTH->S->text(sprintf "%.1fMP",
 				     $this->width * $this->height / 1000000);
     }

@@ -184,6 +184,11 @@ sub _wanted {
 
 	&_savepathfile("/[Folders]/$dir", $row->file_id);
 
+	&_savepathfile(strftime("/[Timeline]/Years/%Y/",
+				localtime $time), $row->file_id);
+	&_savepathfile(strftime("/[Timeline]/Months/%Y/%m-%b/",
+				localtime $time), $row->file_id);
+
 	my %tags; map { $tags{$_}++ } split /,\s*/,
 		      $info->{Keywords} || $info->{Subject} || '';
 	for my $tag (keys %tags) {
@@ -194,6 +199,7 @@ sub _wanted {
 		  file_id => $row->file_id });
 	    &_savepathfile("/[Tags]/$tag/", $row->file_id);
 	}
+
 	# 	$this->{face}	= $db->faces($dir, $file, $this->{rot}); # picasa data for this pic
 	# 	$this->{album}	= $db->albums($dir, $file);
 	# 	$this->{stars}	= $db->star($dir, $file);

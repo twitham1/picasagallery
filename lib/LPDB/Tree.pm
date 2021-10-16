@@ -34,7 +34,8 @@ sub pathpics {		      # return paths and pictures of parent ID
     }
     if (my $pics = $self->{schema}->resultset('Picture')->search(
 	    {path_id => $id || 0},
-	    {order_by => { -asc => 'basename' },
+#	    {order_by => { -asc => 'basename' }, # sort must be user option!!!
+	    {order_by => { -asc => 'time' }, # sort must be user option!!!
 	     prefetch => 'picture_paths',
 	    })) {
 	push @pics, $pics->all;

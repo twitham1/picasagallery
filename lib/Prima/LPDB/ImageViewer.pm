@@ -54,25 +54,25 @@ sub profile_default
 sub init {
     my $self = shift;
     my %profile = $self->SUPER::init(@_);
-    my @opt = qw/autoHeight 1/; # transparent 1/; # flickers!
+    my @opt = qw/Prima::Label autoHeight 1/; # transparent 1/; # flickers!
 
     $self->{thumbviewer} = $profile{thumbviewer}; # object to return focus to
 
     $self->insert('Prima::Fullscreen', window => $self->owner);
 
-    my $top = $self->insert('Prima::Label', name => 'NORTH', text => '',
+    my $top = $self->insert(@opt, name => 'NORTH', text => '',
 			    transparent => 1, # hack, using label as container
     			    pack => { side => 'top', fill => 'x', pad => 25 });
-    $top->insert('Prima::Label', name => 'NW', pack => { side => 'left' });
-    $top->insert('Prima::Label', name => 'NE', pack => { side => 'right' });
-    $top->insert('Prima::Label', name => 'N', pack => { side => 'top' });
+    $top->insert(@opt, name => 'NW', pack => { side => 'left' });
+    $top->insert(@opt, name => 'NE', pack => { side => 'right' });
+    $top->insert(@opt, name => 'N', pack => { side => 'top' });
 
-    my $bot = $self->insert('Prima::Label', name => 'SOUTH', text => '',
+    my $bot = $self->insert(@opt, name => 'SOUTH', text => '',
 			    transparent => 1, # hack, using label as container
     			    pack => { side => 'bottom', fill => 'x', pad => 25 });
-    $bot->insert('Prima::Label', name => 'SW', pack => { side => 'left' });
-    $bot->insert('Prima::Label', name => 'SE', pack => { side => 'right' });
-    $bot->insert('Prima::Label', name => 'S', pack => { side => 'bottom' });
+    $bot->insert(@opt, name => 'SW', pack => { side => 'left', anchor => 's' });
+    $bot->insert(@opt, name => 'SE', pack => { side => 'right', anchor => 's' });
+    $bot->insert(@opt, name => 'S', pack => { side => 'bottom', anchor => 's' });
 
     return %profile;
 }
@@ -114,15 +114,19 @@ sub on_paint { # update metadata label overlays, later in front of earlier
     # TODO:  clear labels if info is toggled off
     $self->SUPER::on_paint(@_);
     my $im = $self->image or return;
-    (my $path = $self->picture->dir->directory) =~ s{.*/(.+/)}{$1};
     $self->NORTH->N->text($self->picture->basename);
     $self->NORTH->NW->text(sprintf("%.0f%% of %d x %d", $self->zoom * 100,
 				   $im->width, $im->height));
     # TODO: add x/y here in NE !!!
     $self->SOUTH->S->text($self->picture->caption
-			  ? $self->picture->caption : $path);
-    $self->SOUTH->SE->text(sprintf '%.2f, %.1fMP', $im->width / $im->height,
-			   $im->width * $im->height / 1000000);
+			  ? $self->picture->caption
+			  : sprintf '%.2f, %.1fMP', $im->width / $im->height,
+			  $im->width * $im->height / 1000000);
+    # $self->SOUTH->SE->text(sprintf '%.2f, %.1fMP', $im->width / $im->height,
+    # 			   $im->width * $im->height / 1000000);
+    # (my $path = $self->picture->dir->directory) =~ s{.*/(.+/)}{$1};
+    (my $path = $self->picture->dir->directory) =~s{/}{\n}g;
+    $self->SOUTH->SE->text($path);
     $self->SOUTH->SW->text(scalar localtime $self->picture->time);
 }
 
