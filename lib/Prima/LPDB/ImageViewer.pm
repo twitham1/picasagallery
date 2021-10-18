@@ -60,14 +60,14 @@ sub init {
 
     $self->insert('Prima::Fullscreen', window => $self->owner);
 
-    my $top = $self->insert(@opt, name => 'NORTH', text => '',
+    my $top = $self->insert(@opt, name => 'NORTH', text => ' ',
 			    transparent => 1, # hack, using label as container
     			    pack => { side => 'top', fill => 'x', pad => 25 });
     $top->insert(@opt, name => 'NW', pack => { side => 'left' });
     $top->insert(@opt, name => 'NE', pack => { side => 'right' });
     $top->insert(@opt, name => 'N', pack => { side => 'top' });
 
-    my $bot = $self->insert(@opt, name => 'SOUTH', text => '',
+    my $bot = $self->insert(@opt, name => 'SOUTH', text => ' ',
 			    transparent => 1, # hack, using label as container
     			    pack => { side => 'bottom', fill => 'x', pad => 25 });
     $bot->insert(@opt, name => 'SW', pack => { side => 'left', anchor => 's' });
@@ -114,16 +114,18 @@ sub on_paint { # update metadata label overlays, later in front of earlier
     # TODO:  clear labels if info is toggled off
     $self->SUPER::on_paint(@_);
     my $im = $self->image or return;
+    my $th = $self->{thumbviewer};
+    my $x = $th->focusedItem + 1;
+    my $y = $th->count;
     $self->NORTH->N->text($self->picture->basename);
     $self->NORTH->NW->text(sprintf("%.0f%% of %d x %d", $self->zoom * 100,
 				   $im->width, $im->height));
-    # TODO: add x/y here in NE !!!
-    $self->SOUTH->S->text($self->picture->caption
-			  ? $self->picture->caption
-			  : sprintf '%.2f, %.1fMP', $im->width / $im->height,
-			  $im->width * $im->height / 1000000);
-    # $self->SOUTH->SE->text(sprintf '%.2f, %.1fMP', $im->width / $im->height,
-    # 			   $im->width * $im->height / 1000000);
+    $self->NORTH->NE->text(sprintf '%.2f  %.1fMP  %d / %d',
+			   $im->width / $im->height,
+			   $im->width * $im->height / 1000000,
+			   $x, $y);
+    $self->SOUTH->S->text($self->picture->caption ?
+			  $self->picture->caption : '');
     # (my $path = $self->picture->dir->directory) =~ s{.*/(.+/)}{$1};
     (my $path = $self->picture->dir->directory) =~s{/}{\n}g;
     $self->SOUTH->SE->text($path);
@@ -188,16 +190,23 @@ sub on_keydown
 
     return if $self->{stretch};
 
-    return unless grep { $key == $_ } (
-	kb::Left, kb::Right, kb::Down, kb::Up
+    my $c = $code & 0xFF;
+    return unless $c >= ord '0' and $c <= ord '9'
+	or grep { $key == $_ } (
+	kb::Left, kb::Right, kb::Down, kb::Up,
     );
+
+    if ($self->autoZoom) {	# navigate both windows
+	my $th = $self->{thumbviewer};
+	$th->key_down($code, $key);
+	$th->key_down($code, kb::Enter);
+	return;
+    }
 
     my $xstep = int($self-> width  / 5) || 1;
     my $ystep = int($self-> height / 5) || 1;
 
     my ($dx, $dy) = $self-> deltas;
-
-    # TODO: prev/next picture if not scrolling
 
     $dx += $xstep if $key == kb::Right;
     $dx -= $xstep if $key == kb::Left;

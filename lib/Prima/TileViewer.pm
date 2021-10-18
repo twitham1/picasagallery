@@ -44,8 +44,8 @@ sub profile_default {
 # allow remote control number pad to scroll to tenths of large pages
 sub on_keydown {
     my ($self, $code, $key, $mod) = @_;
-    $self->notify(q(MouseUp),0,0,0) if defined $self->{mouseTransaction};
-    return if $mod & km::DeadKey;
+    # $self->notify(q(MouseUp),0,0,0) if defined $self->{mouseTransaction};
+    # return if $mod & km::DeadKey;
 
     if ($key == kb::Prior) {
 	$self->bigger;
