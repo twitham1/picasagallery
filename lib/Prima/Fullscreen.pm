@@ -81,6 +81,7 @@ sub fullscreen {
 	$win->origin(0, 1);
 	$win->size(@d);
 	$win->onTop(1);
+	$::application->pointerVisible(0);
 	return 1;
     } elsif (@where) {		# restore orignal frame
 	$win->onTop(0);
@@ -88,6 +89,7 @@ sub fullscreen {
 	# $win->borderStyle(bs::Sizeable);
 	$win->frameSize(@where[0,1]);
 	$win->frameOrigin(@where[2,3]);
+	$::application->pointerVisible(1);
 	return 0;
     }
 }
