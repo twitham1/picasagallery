@@ -102,9 +102,9 @@ sub _dirtimes {
     my($id, $time) = @_;
     my $row = $schema->resultset('Directory')->find(
 	{ dir_id => $id },
-	{ columns => [qw/dir_id time end/]});
-    $row->time($time)
-	unless $row->time and $row->time < $time;
+	{ columns => [qw/dir_id begin end/]});
+    $row->begin($time)
+	unless $row->begin and $row->begin < $time;
     $row->end($time)
 	unless $row->end and $row->end > $time;
     $row->is_changed
@@ -198,7 +198,7 @@ sub _wanted {
 	    ? $row->update
 	    : $row->discard_changes;
 
-	&_dirtimes($dir_id, $modified);
+	&_dirtimes($dir_id, $time);
 
 	&_savepathfile("/[Folders]/$dir", $row->file_id);
 

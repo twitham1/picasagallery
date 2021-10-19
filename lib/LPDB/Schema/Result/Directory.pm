@@ -43,7 +43,7 @@ Physical path to a collection of pictures
 
 ID of parent directory, 0 for / root
 
-=head2 time
+=head2 begin
 
   data_type: 'integer'
   is_nullable: 1
@@ -66,7 +66,7 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "parent_id",
   { data_type => "integer", is_nullable => 1 },
-  "time",
+  "begin",
   { data_type => "integer", is_nullable => 1 },
   "end",
   { data_type => "integer", is_nullable => 1 },
@@ -116,8 +116,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-10-19 13:57:15
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:tbMjhRvNMpfoiUL6dBzi9Q
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-10-19 15:25:37
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:B4K4NSzD2QwJbrDxx7+P2g
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
 1;

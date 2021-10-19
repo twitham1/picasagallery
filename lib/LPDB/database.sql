@@ -63,17 +63,19 @@ INSERT INTO table_comments (table_name, comment_text) VALUES
 INSERT INTO column_comments (table_name, column_name, comment_text) VALUES
    ('Directories', 'directory', 'Physical path to a collection of pictures'),
    ('Directories', 'parent_id', 'ID of parent directory, 0 for / root'),
-   ('Directories', 'time', 'time of first picture in the directory'),
-   ('Directories', 'end', 'time of last picture in the directory');
+   ('Directories', 'begin',	'time of first picture in the directory'),
+   ('Directories', 'end',	'time of last picture in the directory');
    
 CREATE TABLE IF NOT EXISTS Directories (
    dir_id	INTEGER PRIMARY KEY NOT NULL,
    directory	TEXT UNIQUE NOT NULL,
    parent_id	INTEGER,
-   time		INTEGER,
+   begin	INTEGER,
    end		INTEGER
    );
-CREATE INDEX IF NOT EXISTS dir_index ON Directories (directory, dir_id);
+CREATE INDEX IF NOT EXISTS dir_index ON Directories (directory);
+CREATE INDEX IF NOT EXISTS dir_begin_index ON Directories (begin);
+CREATE INDEX IF NOT EXISTS dir_end_index ON Directories (end);
 INSERT INTO Directories (directory, parent_id) VALUES ('/', 0);
 
 ---------------------------------------- Virtual File System
@@ -89,7 +91,7 @@ CREATE TABLE IF NOT EXISTS Paths (
    path		TEXT UNIQUE NOT NULL,
    parent_id	INTEGER
    );
-CREATE INDEX IF NOT EXISTS path_index ON Paths (path, path_id);
+CREATE INDEX IF NOT EXISTS path_index ON Paths (path);
 INSERT INTO Paths (path, parent_id) VALUES ('/', 0);
 
 ---------------------------------------- PICTURE PATH many2many

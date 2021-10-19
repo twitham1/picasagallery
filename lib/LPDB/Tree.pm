@@ -35,9 +35,10 @@ sub pathpics {		      # return paths and pictures of parent ID
 #	    {order_by => { -asc => 'basename' }, # sort must be user option!!!
 	     #	    {order_by => { -asc => 'time' }, # sort must be user option!!!
 	    # group_by => { -asc => 'dir' },
-	    {order_by => [ { -asc => 'dir.time' },
+	    {order_by => [ { -asc => 'dir.begin' },
 			   # { -asc => 'basename' } ] ,
 			   { -asc => 'me.time' } ] ,
+#	     group_by => 'dir_id',
 	     prefetch => [ 'picture_paths', 'dir' ],
 	    })) {
 	push @pics, $pics->all;
