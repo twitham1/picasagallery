@@ -96,6 +96,22 @@ sub update {
 	return $id{$this};
     }
 }
+
+# update time range of a directory
+sub _dirtimes {
+    my($id, $time) = @_;
+    my $row = $schema->resultset('Directory')->find(
+	{ dir_id => $id },
+	{ columns => [qw/dir_id time end/]});
+    $row->time($time)
+	unless $row->time and $row->time < $time;
+    $row->end($time)
+	unless $row->end and $row->end > $time;
+    $row->is_changed
+	? $row->update
+	: $row->discard_changes;
+}
+
 # add a path and its parents to the virtual Paths table
 {
     my %id;			# cache: {path} = id
@@ -181,6 +197,8 @@ sub _wanted {
 	$row->is_changed
 	    ? $row->update
 	    : $row->discard_changes;
+
+	&_dirtimes($dir_id, $modified);
 
 	&_savepathfile("/[Folders]/$dir", $row->file_id);
 

@@ -28,33 +28,35 @@ sub pathpics {		      # return paths and pictures of parent ID
 	    {parent_id => $id || 0},
 	    {order_by => { -asc => 'path' },
 	    })) {
-	while (my $row = $paths->next) {
-	    push @dirs, $row;
-	}
+	push @dirs, $paths->all;
     }
     if (my $pics = $self->{schema}->resultset('Picture')->search(
 	    {path_id => $id || 0},
 #	    {order_by => { -asc => 'basename' }, # sort must be user option!!!
-	    {order_by => { -asc => 'time' }, # sort must be user option!!!
-	     prefetch => 'picture_paths',
+	     #	    {order_by => { -asc => 'time' }, # sort must be user option!!!
+	    # group_by => { -asc => 'dir' },
+	    {order_by => [ { -asc => 'dir.time' },
+			   # { -asc => 'basename' } ] ,
+			   { -asc => 'me.time' } ] ,
+	     prefetch => [ 'picture_paths', 'dir' ],
 	    })) {
 	push @pics, $pics->all;
     }
     return \@dirs, \@pics;
 }
 
-sub node {			# return Path or Picture of ID
-    my($self, $id) = @_;
-    my $obj;
-    if ($id < 0) {
-	$obj = $self->{schema}->resultset('Path')->find(
-	    { path_id => -1 * $id});
-    } else {
-	$obj = $self->{schema}->resultset('Picture')->find(
-	    { file_id => $id});
-    }
-#    warn "node $id = $obj\n";
-    return $obj;
-}
+# sub node {			# return Path or Picture of ID
+#     my($self, $id) = @_;
+#     my $obj;
+#     if ($id < 0) {
+# 	$obj = $self->{schema}->resultset('Path')->find(
+# 	    { path_id => -1 * $id});
+#     } else {
+# 	$obj = $self->{schema}->resultset('Picture')->find(
+# 	    { file_id => $id});
+#     }
+# #    warn "node $id = $obj\n";
+#     return $obj;
+# }
 
 1;

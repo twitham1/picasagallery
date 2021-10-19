@@ -62,12 +62,16 @@ INSERT INTO table_comments (table_name, comment_text) VALUES
 
 INSERT INTO column_comments (table_name, column_name, comment_text) VALUES
    ('Directories', 'directory', 'Physical path to a collection of pictures'),
-   ('Directories', 'parent_id', 'ID of parent directory, 0 for / root');
+   ('Directories', 'parent_id', 'ID of parent directory, 0 for / root'),
+   ('Directories', 'time', 'time of first picture in the directory'),
+   ('Directories', 'end', 'time of last picture in the directory');
    
 CREATE TABLE IF NOT EXISTS Directories (
    dir_id	INTEGER PRIMARY KEY NOT NULL,
    directory	TEXT UNIQUE NOT NULL,
-   parent_id	INTEGER
+   parent_id	INTEGER,
+   time		INTEGER,
+   end		INTEGER
    );
 CREATE INDEX IF NOT EXISTS dir_index ON Directories (directory, dir_id);
 INSERT INTO Directories (directory, parent_id) VALUES ('/', 0);

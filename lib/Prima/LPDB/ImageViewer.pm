@@ -56,7 +56,7 @@ sub profile_default
 sub init {
     my $self = shift;
     my %profile = $self->SUPER::init(@_);
-    my @opt = qw/Prima::Label autoHeight 1/; # transparent 1/; # flickers!
+    my @opt = qw/Prima::Label autoHeight 1/;
 
     $self->{thumbviewer} = $profile{thumbviewer}; # object to return focus to
 
@@ -262,8 +262,6 @@ sub status
 1;
 
 =pod
-
-=back
 
 =head1 SEE ALSO
 L<Prima::ThumbViewer>, L<LPDB>

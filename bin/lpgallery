@@ -38,6 +38,12 @@ use Prima::LPDB::ThumbViewer;
 
 my $dbfile    = '.lpdb.db';
 my $thumbfile = '.lpdb-thumb.db';
+
+if (grep /tmp/, @ARGV) {      # hack!!!! make DB location configurable
+    $dbfile = '/tmp/.lpdb.db';
+    $thumbfile = '/tmp/.lpdb-thumb.db';
+}
+
 my $create = -f $dbfile && -s _ ? 0 : 1;
 my $lpdb;			# LPDB object, a local picture database
 
@@ -47,7 +53,7 @@ if ($child = fork) {		# GUI starts after child is updating DB
     sleep 5 if $create;
     $lpdb = new LPDB({dbfile => $dbfile,
 		      thumbfile => $thumbfile,
-		      #		     sqltrace => 1,
+#		      		     sqltrace => 1,
 		     });
 } else {			# child updates DB, creating if needed
     unlink $dbfile if $create and ! -s $dbfile;
@@ -65,7 +71,7 @@ END {
 }
 
 # huge for couch viewing, why is this line needed?!!!?
-$::application->font->size(22);
+$::application->font->size(20);
 
 # without above, get_default_font is too small.  I use xrdb -load file
 # of this content for large text viewing from the couch:
@@ -73,7 +79,7 @@ $::application->font->size(22);
 # Prima.Color: white
 # Prima.Back: black
 # Prima.HiliteBackColor: gray33
-# Prima.Font: Helvetica-22
+# Prima.Font: Helvetica-20
 
 my $lv;				# ListViewer
 my $iv;				# ImageViewer
@@ -104,6 +110,8 @@ $lv = $w->insert(
 
 $lv->smaller(6);		# resize thumbs to fill the window
 $lv->focusedItem(0);
+
+# $::application->pointerVisible(0);
 
 run Prima;
 

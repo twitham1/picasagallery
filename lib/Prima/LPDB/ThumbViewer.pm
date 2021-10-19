@@ -192,6 +192,10 @@ sub on_keydown
 	$self->popup->popup($sz[0]/2, $sz[1]/2);
 	return;
     }
+    if ($code == 5) {		# ctrl-e = crops, in menu
+	$self->key_down(ord 'c');
+	return;
+    }
     $self->SUPER::on_keydown( $code, $key, $mod);
 }
 sub on_drawitem

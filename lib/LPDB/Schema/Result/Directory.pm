@@ -43,6 +43,20 @@ Physical path to a collection of pictures
 
 ID of parent directory, 0 for / root
 
+=head2 time
+
+  data_type: 'integer'
+  is_nullable: 1
+
+time of first picture in the directory
+
+=head2 end
+
+  data_type: 'integer'
+  is_nullable: 1
+
+time of last picture in the directory
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -51,6 +65,10 @@ __PACKAGE__->add_columns(
   "directory",
   { data_type => "text", is_nullable => 0 },
   "parent_id",
+  { data_type => "integer", is_nullable => 1 },
+  "time",
+  { data_type => "integer", is_nullable => 1 },
+  "end",
   { data_type => "integer", is_nullable => 1 },
 );
 
@@ -98,9 +116,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-10-13 00:56:51
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Gw3f/O/210mxlFtEVZ9V4A
-
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-10-19 13:57:15
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:tbMjhRvNMpfoiUL6dBzi9Q
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
 1;
