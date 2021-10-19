@@ -35,10 +35,10 @@ sub init {
     $self->{window} = $profile{window} or
 	die "window required";
     $profile{window}->onDeactivate(sub {
-	warn "deactivated @_";
+#	warn "deactivated @_";
 	$_[0]->onTop(0) });
     $profile{window}->onActivate(sub {
-	warn "activated @_";
+#	warn "activated @_";
 	# $_[0]->fullscreen &&
 	$_[0]->onTop(1) });
     return \%profile;

@@ -33,8 +33,11 @@ sub profile_default
 	alignment   => ta::Center,
 	autoZoom => 1,
 	stretch => 0,
+	info => 0,
 	popupItems => [
-	    # ['~Menu', 'm', ord 'm'],
+	    ['~Escape' => sub { $_[0]->key_down(0, kb::Escape) } ],
+	    ['info', '~Info', 'i', ord 'i' =>
+	     sub { $_[0]->info($_[0]->popup->toggle($_[1]) ) }],
 	    ['~Zoom' => [
 		 ['fullscreen', '~Full Screen', 'f', ord 'f' =>
 		  sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
@@ -45,7 +48,6 @@ sub profile_default
 		 ['smaller', 'Zoom ~Out', 'PageDown', ord '-' =>
 		  sub { $_[0]->key_down(0, kb::Next ) }],
 	     ]],
-	    ['~Escape' => sub { $_[0]->key_down(0, kb::Escape) } ],
 	]);
     @$def{keys %prf} = values %prf;
     return $def;
@@ -73,6 +75,8 @@ sub init {
     $bot->insert(@opt, name => 'SW', pack => { side => 'left', anchor => 's' });
     $bot->insert(@opt, name => 'SE', pack => { side => 'right', anchor => 's' });
     $bot->insert(@opt, name => 'S', pack => { side => 'bottom', anchor => 's' });
+
+    $self->info;		# set info visibility
 
     return %profile;
 }
@@ -109,11 +113,25 @@ sub on_size {
     $self->apply_auto_zoom if $self->autoZoom;
 }
 
+sub info {
+    my($self, $on) = @_;
+    $self->{info} = $on
+	if defined $on;
+    if ($self->{info}) {
+	$self->NORTH->show;
+	$self->SOUTH->show;
+    } else {
+	$self->NORTH->hide;
+	$self->SOUTH->hide;
+    }
+    $self->{info};
+}
+
 sub on_paint { # update metadata label overlays, later in front of earlier
     my($self, $canvas) = @_;
-    # TODO:  clear labels if info is toggled off
     $self->SUPER::on_paint(@_);
     my $im = $self->image or return;
+    $im = $self->picture or return;
     my $th = $self->{thumbviewer};
     my $x = $th->focusedItem + 1;
     my $y = $th->count;
@@ -124,8 +142,13 @@ sub on_paint { # update metadata label overlays, later in front of earlier
 			   $im->width / $im->height,
 			   $im->width * $im->height / 1000000,
 			   $x, $y);
-    $self->SOUTH->S->text($self->picture->caption ?
-			  $self->picture->caption : '');
+    if ($self->picture->caption) {
+	$self->SOUTH->S->text($self->picture->caption);
+	$self->SOUTH->S->show;
+    } else {
+	$self->SOUTH->S->text('');
+	$self->SOUTH->S->hide;
+    }
     # (my $path = $self->picture->dir->directory) =~ s{.*/(.+/)}{$1};
     (my $path = $self->picture->dir->directory) =~s{/}{\n}g;
     $self->SOUTH->SE->text($path);
@@ -182,6 +205,9 @@ sub on_keydown
 	my @sz = $self->size;
 	$self->popup->popup($sz[0]/2, $sz[1]/2);
 	return;
+    }
+   if ($code == 9) {		# ctrl-i = info toggle, in menu
+	$self->key_down(ord 'i');
     }
     # if ($key == kb::F11) {
     # 	warn "f11 hit";

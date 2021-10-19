@@ -155,7 +155,7 @@ sub cwd {
 sub on_keydown
 {
     my ($self, $code, $key, $mod) = @_;
-    warn "keydown  @_";
+#    warn "keydown  @_";
     my $idx = $self->focusedItem;
     if ($key == kb::Enter && $idx >= 0) {
 	my $this = $self->{items}[$idx];
