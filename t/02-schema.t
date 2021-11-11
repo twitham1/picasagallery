@@ -58,7 +58,7 @@ is($lpdb->dirs, 2, 'total directory count');
 # is($lpdb->averages, "1841 KB (6195 KP) 3135 x 2026 (1.547)",
 #    'Folders averages');
 my $children = $lpdb->children('dir');
-is("@$children", "[Folders]/ [Tags]/", 'Virtual FS root');
+is("@$children", "[Folders]/ [Tags]/ [Timeline]/", 'Virtual FS root');
 is($lpdb->bytes, 21853510 , 'bytes of [Folders]/');
 $lpdb->next;			# move to Tags
 $lpdb->down;			# step in, now in [Tags]/ Gracelyn

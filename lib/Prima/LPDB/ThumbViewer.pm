@@ -64,17 +64,18 @@ sub init {
     $self->{thumb} = new LPDB::Thumbnail($self->{lpdb});
     $self->{viewer} = undef;
 
-    # # Does this speed up thumbnail generation?  It might deadlock more than 1 run at a time
-    #     $self->{timer} = Prima::Timer->create(
-    # 	timeout => 3000, # milliseconds
-    # 	onTick => sub {
-    # 	    warn "tick!\n";
-    # 	    $self->{lpdb}->{tschema}->txn_commit;
-    # 	    $self->{lpdb}->{tschema}->txn_begin;
-    # 	}
-    # 	);
-    #     $self->{lpdb}->{tschema}->txn_begin;
-    # #    $self->{timer}->start;
+    # This appears to speed up thumbnail generation, but it might
+    # deadlock more than 1 run at a time, a case I never have
+    $self->{timer} = Prima::Timer->create(
+    	timeout => 5000,	# milliseconds
+    	onTick => sub {
+    	    # warn "tick!\n";
+    	    $self->{lpdb}->{tschema}->txn_commit;
+    	    $self->{lpdb}->{tschema}->txn_begin;
+    	}
+    	);
+    $self->{lpdb}->{tschema}->txn_begin;
+    $self->{timer}->start;
 
     my %profile = $self->SUPER::init(@_);
 

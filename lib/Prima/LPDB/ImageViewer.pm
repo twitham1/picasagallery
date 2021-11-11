@@ -34,10 +34,14 @@ sub profile_default
 	autoZoom => 1,
 	stretch => 0,
 	info => 0,
+	overlay => 0,
+	buffer => 1,
 	popupItems => [
 	    ['~Escape' => sub { $_[0]->key_down(0, kb::Escape) } ],
 	    ['info', '~Info', 'i', ord 'i' =>
 	     sub { $_[0]->info($_[0]->popup->toggle($_[1]) ) }],
+	    ['overlay', '~Overlay', 'o', ord 'o' =>
+	     sub { $_[0]->overlay($_[0]->popup->toggle($_[1]) ) }],
 	    ['~Zoom' => [
 		 ['fullscreen', '~Full Screen', 'f', ord 'f' =>
 		  sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
@@ -96,6 +100,13 @@ sub viewimage
     }
     $i->AutoOrient;		# automated rot fix via EXIF!!!
 
+    if ($self->overlay) {
+	$self->alignment($self->alignment == ta::Left ? ta::Right : ta::Left);
+	$self->valignment($self->valignment == ta::Top ? ta::Bottom : ta::Top);
+    } else {
+	$self->valignment(ta::Middle);
+	$self->alignment(ta::Center);
+    }
     $self->image(magick_to_prima($i));
     $self->{picture} = $picture;
     $self->{fileName} = $filename;
@@ -111,6 +122,13 @@ sub on_size {
     my $self = shift;
     #    $self->font->height($self->width/50); # hack?!!!
     $self->apply_auto_zoom if $self->autoZoom;
+}
+
+sub overlay {
+    my($self, $on) = @_;
+    $self->{overlay} = $on
+	if defined $on;
+    $self->{overlay};
 }
 
 sub info {
@@ -257,6 +275,110 @@ sub status
     }
     $w->text($str);
     $w->name($str);
+}
+
+# !!! hack !!! this copy from SUPER tweaked only to support image
+# !!! {overlay} mode.  This option should be in SUPER instead.
+sub on_paint
+{
+	my ( $self, $canvas) = @_;
+	my @size   = $self-> size;
+
+	$self-> rect_bevel( $canvas, Prima::rect->new(@size)->inclusive,
+		width  => $self-> {borderWidth},
+		panel  => 1,
+		fill   => $self-> {image} ? undef : $self->backColor,
+	);
+	return 1 unless $self->{image};
+
+	my @r = $self-> get_active_area( 0, @size);
+	$canvas-> clipRect( @r);
+	$canvas-> translate( @r[0,1]);
+	my $imY  = $self-> {imageY};
+	my $imX  = $self-> {imageX};
+	my $z = $self-> {zoom};
+	my $imYz = int($imY * $z);
+	my $imXz = int($imX * $z);
+	my $winY = $r[3] - $r[1];
+	my $winX = $r[2] - $r[0];
+	my $deltaY = ($imYz - $winY - $self-> {deltaY} > 0) ? $imYz - $winY - $self-> {deltaY}:0;
+	my ($xa,$ya) = ($self-> {alignment}, $self-> {valignment});
+	my ($iS, $iI) = ($self-> {integralScreen}, $self-> {integralImage});
+	my ( $atx, $aty, $xDest, $yDest);
+
+	if ( $self->{stretch}) {
+		$atx = $aty = $xDest = $yDest = 0;
+		$imXz = $r[2] - $r[0];
+		$imYz = $r[3] - $r[1];
+		goto PAINT;
+	}
+
+	if ( $imYz < $winY) {
+		if ( $ya == ta::Top) {
+			$aty = $winY - $imYz;
+		} elsif ( $ya != ta::Bottom) {
+			$aty = int(($winY - $imYz)/2 + .5);
+		} else {
+			$aty = 0;
+		}
+		unless ($self->{overlay}) {
+		    $canvas-> clear( 0, 0, $winX-1, $aty-1) if $aty > 0;
+		    $canvas-> clear( 0, $aty + $imYz, $winX-1, $winY-1) if $aty + $imYz < $winY;
+		}
+		$yDest = 0;
+	} else {
+		$aty   = -($deltaY % $iS);
+		$yDest = ($deltaY + $aty) / $iS * $iI;
+		$imYz = int(($winY - $aty + $iS - 1) / $iS) * $iS;
+		$imY = $imYz / $iS * $iI;
+	}
+
+	if ( $imXz < $winX) {
+		if ( $xa == ta::Right) {
+			$atx = $winX - $imXz;
+		} elsif ( $xa != ta::Left) {
+			$atx = int(($winX - $imXz)/2 + .5);
+		} else {
+			$atx = 0;
+		}
+		unless ($self->{overlay}) {
+		    $canvas-> clear( 0, $aty, $atx - 1, $aty + $imYz - 1) if $atx > 0;
+		    $canvas-> clear( $atx + $imXz, $aty, $winX - 1, $aty + $imYz - 1) if $atx + $imXz < $winX;
+		}
+		$xDest = 0;
+	} else {
+		$atx   = -($self-> {deltaX} % $iS);
+		$xDest = ($self-> {deltaX} + $atx) / $iS * $iI;
+		$imXz = int(($winX - $atx + $iS - 1) / $iS) * $iS;
+		$imX = $imXz / $iS * $iI;
+	}
+
+PAINT:
+	$canvas-> clear( $atx, $aty, $atx + $imXz, $aty + $imYz) if $self-> {icon};
+
+	# # maybe smooth resize the image here!!!
+
+	# my %copy = ( %{$self->{image}} ); # how to make a copy?
+	# my $tmp = \%copy;
+	# bless($tmp, 'Prima::Image');
+	# use Data::Dumper;
+	# print Dumper $self->{image}, $tmp;
+	# $tmp->scaling(ist::Gaussian); # should be configurable!!!
+	# $tmp->size($imXz, $imYz);
+	# return $canvas-> put_image_indirect(
+	#     $tmp,
+	#     $atx, $aty,
+	#     0, 0,
+	#     $imXz, $imYz, $imXz, $imYz,
+	#     rop::CopyPut
+	#     );
+	return $canvas-> put_image_indirect(
+		$self-> {image},
+		$atx, $aty,
+		$xDest, $yDest,
+		$imXz, $imYz, $imX, $imY,
+		rop::CopyPut
+	);
 }
 
 1;
