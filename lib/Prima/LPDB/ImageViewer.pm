@@ -35,7 +35,7 @@ sub profile_default
 	stretch => 0,
 	info => 0,
 	overlay => 0,
-	buffer => 1,
+#	buffer => 1,
 	popupItems => [
 	    ['~Escape' => sub { $_[0]->key_down(0, kb::Escape) } ],
 	    ['info', '~Info', 'i', ord 'i' =>
@@ -147,7 +147,7 @@ sub info {
 
 sub on_paint { # update metadata label overlays, later in front of earlier
     my($self, $canvas) = @_;
-    $self->SUPER::on_paint(@_);
+    $self->SUPERon_paint(@_);	# hack!!! see below!!!
     my $im = $self->image or return;
     $im = $self->picture or return;
     my $th = $self->{thumbviewer};
@@ -279,7 +279,7 @@ sub status
 
 # !!! hack !!! this copy from SUPER tweaked only to support image
 # !!! {overlay} mode.  This option should be in SUPER instead.
-sub on_paint
+sub SUPERon_paint
 {
 	my ( $self, $canvas) = @_;
 	my @size   = $self-> size;
