@@ -46,7 +46,6 @@ sub init {
     return \%profile;
 }
 
-my @where;			# memory of non-fullscreen frame
 sub fullscreen {
     # my($win, $which) = @_;
     my($self, $which) = @_;
@@ -60,7 +59,7 @@ sub fullscreen {
 	return $d[0] == $w[0] && $d[1] == $w[1];
     }
     if ($which) {		# going to fullscreen
-	@where = @w;		# remember size/origin to return to
+	$self->{where} = \@w;	# remember size/origin to return to
 	# my $x = $f[0] - $w[0];
 	# my $y = $f[1] - $w[1];
 	# this loses Alt-tab control on xfce:
@@ -85,12 +84,12 @@ sub fullscreen {
 	$win->onTop(1);
 	$::application->pointerVisible(0);
 	return 1;
-    } elsif (@where) {		# restore orignal frame
+    } elsif ($self->{where}) {	# restore orignal frame
 	$win->onTop(0);
 	# $win->borderIcons(bi::All);
 	# $win->borderStyle(bs::Sizeable);
-	$win->frameSize(@where[0,1]);
-	$win->frameOrigin(@where[2,3]);
+	$win->frameSize((@{$self->{where}})[0,1]);
+	$win->frameOrigin((@{$self->{where}})[2,3]);
 	$::application->pointerVisible(1);
 	return 0;
     }
