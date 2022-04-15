@@ -35,14 +35,14 @@ sub init {
     $self->{window} = $profile{window} or
 	die "window required";
     $profile{window}->onDeactivate(sub {
-#	warn "deactivated @_";
+	warn "deactivated @_";
 	$_[0]->onTop(0)
 				   });
-#     $profile{window}->onActivate(sub {
-# #	warn "activated @_";
-# 	# $_[0]->fullscreen &&
-# 	$_[0]->onTop(1)
-# 				 });
+    $profile{window}->onActivate(sub {
+	warn "activated @_";
+	# $_[0]->fullscreen &&
+	    $_[0]->onTop(1)
+				 });
     return \%profile;
 }
 
@@ -54,7 +54,7 @@ sub fullscreen {
     my @d = $::application->size;		      # desktop size
     my @f = ($win->frameSize, $win->frameOrigin);     # frame size/pos
     my @w = ($win->size, $win->origin);		      # window size/pos
-    warn "window $win is @w framed by @f";
+    warn "$win is @w framed by @f";
     unless (defined $which) {
 	return $d[0] == $w[0] && $d[1] == $w[1];
     }

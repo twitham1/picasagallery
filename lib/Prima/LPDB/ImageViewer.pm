@@ -243,7 +243,18 @@ sub on_keydown
     if ($self->autoZoom) {	# navigate both windows
 	my $th = $self->{thumbviewer};
 	$th->key_down($code, $key);
-	$th->key_down($code, kb::Enter);
+	my $idx = $th->focusedItem;
+	my $this = $th->{items}[$idx];
+	if ($this->isa('LPDB::Schema::Result::Path')) {
+	    warn "this node is a path $idx";
+	    #    my ($self, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col) = @_;
+	    # Prima::LPDB::ThumbViewer::draw_path($self, $self, $idx, 5, 5, 200, 200, 0, 0, 0, 0);
+	    # $self->draw_path($self, $idx, 5, 5, 200, 200, 0, 0, 0, 0);
+	    $self->key_down($code, kb::Escape);
+	} else {
+	    $th->key_down($code, kb::Enter);
+	}
+	$self->clear_event;
 	return;
     }
 
