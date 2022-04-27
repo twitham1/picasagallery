@@ -45,8 +45,8 @@ sub profile_default
 	    ['~Zoom' => [
 		 ['fullscreen', '~Full Screen', 'f', ord 'f' =>
 		  sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
-		 ['*autozoom', '~Auto Zoom', 'a', ord 'a' =>
-		  sub { $_[0]->autoZoom($_[0]->popup->toggle($_[1]) )} ],
+		 # ['*autozoom', '~Auto Zoom', 'a', ord 'a' =>
+		 #  sub { $_[0]->autoZoom($_[0]->popup->toggle($_[1]) )} ],
 		 ['bigger', 'Zoom ~In', 'PageUp', ord '=' =>
 		  sub { $_[0]->key_down(0, kb::Prior ) }],
 		 ['smaller', 'Zoom ~Out', 'PageDown', ord '-' =>
@@ -154,11 +154,13 @@ sub on_paint { # update metadata label overlays, later in front of earlier
     my $x = $th->focusedItem + 1;
     my $y = $th->count;
     $self->NORTH->N->text($self->picture->basename);
-    $self->NORTH->NW->text(sprintf("%.0f%% of %d x %d", $self->zoom * 100,
-				   $im->width, $im->height));
-    $self->NORTH->NE->text(sprintf '%.2f  %.1fMP  %d / %d',
-			   $im->width / $im->height,
+    $self->NORTH->NW->text(sprintf("%.0f%% of %dx%d=%.2f",
+				   $self->zoom * 100,
+				   $im->width, $im->height,
+				   $im->width / $im->height));
+    $self->NORTH->NE->text(sprintf '%.1fMP %.0fKB %d / %d',
 			   $im->width * $im->height / 1000000,
+			   $im->bytes / 1024,
 			   $x, $y);
     if ($self->picture->caption) {
 	$self->SOUTH->S->text($self->picture->caption);

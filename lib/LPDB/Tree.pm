@@ -16,22 +16,25 @@ sub new {
     my($class, $lpdb) = @_;
     my $self = { schema => $lpdb->schema,
 		 conf => $lpdb->conf,
+		 id => 0,	# default id is last one
     };
     bless $self, $class;
     return $self;
 }
 
 sub pathpics {		      # return paths and pictures of parent ID
-    my($self, $id) = @_;
+    my($self, $id, $sort) = @_;
     my(@dirs, @pics);
+    $id ||= $self->{id};
+    $self->{id} = $id;
     if (my $paths = $self->{schema}->resultset('Path')->search(
-	    {parent_id => $id || 0},
+	    {parent_id => $id},
 	    {order_by => { -asc => 'path' },
 	    })) {
 	push @dirs, $paths->all;
     }
     if (my $pics = $self->{schema}->resultset('Picture')->search(
-	    {path_id => $id || 0},
+	    {path_id => $id},
 #	    {order_by => { -asc => 'basename' }, # sort must be user option!!!
 	     #	    {order_by => { -asc => 'time' }, # sort must be user option!!!
 	    # group_by => { -asc => 'dir' },
@@ -43,7 +46,7 @@ sub pathpics {		      # return paths and pictures of parent ID
 	    })) {
 	push @pics, $pics->all;
     }
-    return \@dirs, \@pics;
+    return $sort ? (\@pics, \@dirs) : (\@dirs, \@pics);
 }
 
 # sub node {			# return Path or Picture of ID

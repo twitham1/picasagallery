@@ -50,10 +50,10 @@ my $lpdb;			# LPDB object, a local picture database
 my $child;
 if ($child = fork) {		# GUI starts after child is updating DB
     warn "$0: $$ forked $child to update $dbfile\n";
-    sleep 5 if $create;
+    sleep 10 if $create;
     $lpdb = new LPDB({dbfile => $dbfile,
 		      thumbfile => $thumbfile,
-#		      		     sqltrace => 1,
+#		      sqltrace => 1,
 		     });
 } else {			# child updates DB, creating if needed
     unlink $dbfile if $create and ! -s $dbfile;
@@ -110,8 +110,6 @@ $lv = $w->insert(
 
 $lv->smaller(6);		# resize thumbs to fill the window
 $lv->focusedItem(0);
-
-# $::application->pointerVisible(0);
 
 run Prima;
 

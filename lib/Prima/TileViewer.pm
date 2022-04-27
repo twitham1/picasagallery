@@ -47,13 +47,13 @@ sub on_keydown {
     # $self->notify(q(MouseUp),0,0,0) if defined $self->{mouseTransaction};
     # return if $mod & km::DeadKey;
 
-    if ($key == kb::Prior) {
-	$self->bigger;
-	return;
-    } elsif ($key == kb::Next) {
-	$self->smaller;
-	return;
-    }
+    # if ($key == kb::Prior) {
+    # 	$self->bigger;
+    # 	return;
+    # } elsif ($key == kb::Next) {
+    # 	$self->smaller;
+    # 	return;
+    # }
 
     my $c = $code & 0xFF;
     if ($c >= ord '0' and $c <= ord '9' and $self->{count}) {

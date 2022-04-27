@@ -1,6 +1,7 @@
-# here is how I can add methods to the DB objects (rows)!:
+# Here is where we add methods to the DB objects (rows)
 
-# use LPDB::Thumbnail;
+# ------------------------------------------------------------
+# Picture extensions
 
 package LPDB::Schema::Result::Picture;
 
@@ -14,6 +15,9 @@ sub pathtofile {	   # return full filesystem path to image file
 #     my($self) = @_;
 #     return 
 # }
+
+# ------------------------------------------------------------
+# Path extensions
 
 package LPDB::Schema::Result::Path;
 
@@ -38,7 +42,13 @@ package LPDB::Schema::Result::Path;
 #     	});
 # }
 
-sub resultset {
+sub basename {			# final component of path
+    $_[0]->path =~ m{(.*/)(.+/?)} and
+	return $2;
+    return '/';
+}
+
+sub resultset {		 # all files below logical path, in time order
     my($self) = @_;
     my $schema = $self->result_source->schema;
     return $schema->resultset('PathView')->search(
@@ -55,12 +65,6 @@ sub picturecount {
 
 sub stack { # stack of up to 3 paths (first middle last), for thumbnails
     my($self) = @_;
-    # my $schema = $self->result_source->schema;
-    # my $rs = $schema->resultset('PathView')->search(
-    # 	{path => { like => $self->path . '%'},
-    # 	 time => { '!=' => undef } },
-    # 	{order_by => { -asc => 'time' },
-    # 	});
     my $rs = $self->resultset;
     my $num = $rs->count
 	or return ();
@@ -70,6 +74,10 @@ sub stack { # stack of up to 3 paths (first middle last), for thumbnails
 	($half && $half != $num - 1 ?  $rs->slice($half, $half) : undef),
 	($num > 1 ?  $rs->slice($num - 1, $num - 1) : undef),
 	);
+}
+
+sub time {			# begin time of the path
+    return ($_[0]->stack)[0]->time;
 }
 
 1;

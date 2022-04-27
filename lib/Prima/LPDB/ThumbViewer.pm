@@ -1,6 +1,6 @@
 =head1 NAME
 
-Prima::ThumbViewer - Browse a tree of image thumbnails from LPDB
+Prima::LPDB::ThumbViewer - Browse a tree of image thumbnails from LPDB
 
 =head1 DESCRIPTION
 
@@ -33,12 +33,22 @@ sub profile_default
     my $def = $_[ 0]-> SUPER::profile_default;
     my %prf = (
 	popupItems => [ 
+	    ['~Sort' => [
+		 ['sort', '~Dirs Last', 'd', ord 'd' =>
+		  sub { $_[0]->{sort} = $_[0]->popup->toggle($_[1]);
+			$_[0]->goto($_[0]->current);
+		  }
+		 ]]],
 	    ['~Zoom' => [
 		 ['fullscreen', '~Full Screen', 'f', ord 'f' =>
 		  sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
-		 ['bigger', 'Zoom ~In', 'PageUp', ord '=' =>
+		 # ['bigger', 'Zoom ~In', 'PageUp', ord '=' =>
+		 #  sub { $_[0]->bigger } ],
+		 # ['smaller', 'Zoom ~Out', 'PageDown', ord '-' =>
+		 #  sub { $_[0]->smaller } ],
+		 ['bigger', 'Zoom ~In', 'z', ord '=' =>
 		  sub { $_[0]->bigger } ],
-		 ['smaller', 'Zoom ~Out', 'PageDown', ord '-' =>
+		 ['smaller', 'Zoom ~Out', 'q', ord '-' =>
 		  sub { $_[0]->smaller } ],
 	     ]],
 	    ['~Options' => [
@@ -86,10 +96,12 @@ sub init {
     my $top = $self->owner->insert('Prima::Label', name => 'NORTH', text => '',
 				   transparent => 1, # hack, using label as container
 				   pack => { side => 'top', fill => 'x', pad => 5 });
-    $top->insert('Prima::Label', name => 'NW', pack => { side => 'left' });
-    $top->insert('Prima::Label', name => 'NE', pack => { side => 'right' });
+    $top->insert('Prima::Label', name => 'NW', pack => { side => 'left' },
+		 text => 'Use arrow keys to navigate');
+    $top->insert('Prima::Label', name => 'NE', pack => { side => 'right' },
+		 text => 'Hit M for Menu');
     $top->insert('Prima::Label', name => 'N', pack => { side => 'top' },
-		 text => 'Hit M for Menu!');
+		 text => 'Enter = select / Escape = back');
 
     $self->pack(expand => 1, fill => 'both');
 
@@ -100,8 +112,7 @@ sub init {
     $bot->insert('Prima::Label', name => 'SE', pack => { side => 'right' });
     $bot->insert('Prima::Label', name => 'S', pack => { side => 'bottom' });
 
-    $self->items($self->children(1));
-    $self->focusedItem(-1);
+    $self->items($self->children('/'));
     $self->focusedItem(0);
     $self->repaint;
     $self->selected(1);
@@ -110,19 +121,41 @@ sub init {
     return %profile;
 }
 
-sub children {
-    my($self, $id) = @_;
-    my @id;
-    my($path, $file) = $self->{tree}->pathpics($id || 0);
+sub current {			# path to current selected item
+    my($self) = @_;
+    $self->focusedItem < 0 and return '/';
+    $self->cwd . $self->{items}[$self->focusedItem]->basename;
+}
+
+sub children {			# return children of given text path
+    my($self, $p) = @_;
+    my $id = 0;
+    if ($p and my $obj = $self->{tree}->{schema}->resultset('Path')->find(
+	    { path => $p})) {
+	$id =  $obj->path_id;
+    }
+    my($path, $file) = $self->{tree}->pathpics($id || 0, $self->{sort});
     return [ @$path, @$file ];
     # TODO: option for dirs to be first/last/mixed with pics by name or date
 }
 
-sub push {	   # navigation path: must push pairs of (focusedItem in path_id)
-    push @{$_[0]->{navstack}}, $_[1], $_[2];
-}
-sub pop {
-    return pop @{$_[0]->{navstack}};
+sub goto {  # for robot navigation (slideshow) also used by escape key
+    my($self, $path) = @_;
+#    warn "goto: $path\n";
+    $path =~ m{(.*/)(.+/?)} or warn "bad path $path" and return;
+    $self->cwd($1);
+    $self->items($self->children($1));
+    $self->focusedItem(0);
+    my $n = $self->count;
+    for (my $i = 0; $i < $n; $i++) { # select myself in parent
+	if ($self->{items}[$i]->basename eq $2) {
+	    $self->focusedItem($i);
+	    last;
+	}
+    }
+    $self->repaint;
+    # my $n = $self->focusedItem;
+    # $self->focusedItem(++$n);
 }
 
 sub on_selectitem {		# update metadata labels
@@ -138,14 +171,16 @@ sub on_selectitem {		# update metadata labels
 	my @p = $this->stack;
 	$self->owner->SOUTH->SW->text(scalar localtime $p[0]->time);
 	$self->owner->SOUTH->SE->text($p[2] ? scalar localtime $p[2]->time : '  ');
-	$self->owner->SOUTH->S->text($this->picturecount);
+	$self->owner->SOUTH->S->text($this->picturecount . ' images');
     } elsif ($this->isa('LPDB::Schema::Result::Picture')) {
 	$self->owner->NORTH->N->text($this->basename);
 	$self->owner->SOUTH->SW->text(scalar localtime $this->time);
-#	$self->owner->SOUTH->SE->text($this->width . 'x' . $this->height);
 	$self->owner->SOUTH->SE->text($this->dir->directory);
-	$self->owner->SOUTH->S->text(sprintf "%.1fMP",
-				     $this->width * $this->height / 1000000);
+	$self->owner->SOUTH->S->text(sprintf '%dx%d=%.2f  %.1fMP %.0fKB',
+				     $this->width , $this->height,
+				     $this->width / $this->height,
+				     $this->width * $this->height / 1000000,
+				     $this->bytes / 1024);
     }
 }
 sub cwd {
@@ -162,9 +197,8 @@ sub on_keydown
 	my $this = $self->{items}[$idx];
 	# warn $self->focusedItem, " is entered\n";
 	if ($this->isa('LPDB::Schema::Result::Path')) {
-	    $self->push($idx, $this->parent_id);
 	    $self->cwd($this->path);
-	    $self->items($self->children($this->path_id));
+	    $self->items($self->children($this->path));
 	    $self->focusedItem(-1);
 	    $self->repaint;
 	    $self->focusedItem(0);
@@ -177,14 +211,8 @@ sub on_keydown
 	}
 	$self->clear_event;
 	return;
-    } elsif ($key == kb::Escape && @{$self->{navstack}} > 1) {
-	$self->cwd =~ m{(.*/)(.+/?)} and
-	    $self->cwd($1);
-	$self->items($self->children($self->pop));
-	$self->focusedItem(-1);
-	$self->repaint;
-	$self->focusedItem($self->pop || 0);
-	$self->repaint;
+    } elsif ($key == kb::Escape) {
+	$self->goto($self->cwd);
 	$self->clear_event;
 	return;
     }
@@ -257,8 +285,8 @@ sub _draw_thumb {		# pos 0 = full size, pos 1,2,3 = picture stack
 	: $pos == 1 ? ($x1 + $b, $y2 - $b - $dh) # North West
 	: $pos == 2 ? (($x1 + $x2)/2 - $dw/2, ($y1 + $y2)/2 - $dh/2) # center
 	: $pos == 3 ? ($x2 - $b - $dw, $y1 + $b) # South East
-	: ($x1, $y1));		# should never happen
-    $canvas->put_image_indirect($im, $x, $y, $sx, $sy, $dw, $dh, $sw, $sh,
+	: ($x1, $y1));		# should never happen 
+   $canvas->put_image_indirect($im, $x, $y, $sx, $sy, $dw, $dh, $sw, $sh,
 				$self->rop)
 	or warn "put_image failed: $@";
     if (!$pos and !$b) {       # overlay rectangle on focused pictures
@@ -282,20 +310,6 @@ sub draw_path {
 
     my ($thumb, $im);
     my $path = $self->{items}[$idx];
-    # my $first = $path->first;
-    # $thumb = $self->{thumb}->get($first->file_id);
-    # $thumb or return "warn: can't get thumb!\n";
-    # $im = magick_to_prima($thumb);
-    # my $b = $self->_draw_thumb($im, 1, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
-
-    # my $last = $path->last;
-    # unless ($first->file_id == $last->file_id) { # same if only one
-    # 	$thumb = $self->{thumb}->get($last->file_id);
-    # 	$thumb or return "warn: can't get thumb!\n";
-    # 	$im = magick_to_prima($thumb);
-    # 	$self->_draw_thumb($im, 2, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
-    # }
-
     my $b = 0;			# border size
     my @where = (1, 2, 3);
     my($first, $last);
@@ -344,9 +358,11 @@ sub draw_picture {
     $b += 5;			# now text border
     # my $str = sprintf "%s\n%dx%d", $pic->basename,
     #     $pic->width, $pic->height;
-    # my $str = localtime $pic->time;
-    # $canvas->draw_text($str, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
-    # 		   dt::Right|dt::Top|dt::Default); # dt::VCenter
+    my $str = $pic->width > 1.8 * $pic->height ? '--' # wide / portrait marks
+	: $pic->width < $pic->height ? '|' : '';
+    $str and
+	$canvas->draw_text($str, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
+			   dt::Right|dt::Top|dt::Default);
     $pic->caption and
 	$canvas->draw_text($pic->caption, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
 			   dt::Center|dt::Bottom|dt::Default); # dt::VCenter
