@@ -53,7 +53,7 @@ if ($child = fork) {		# GUI starts after child is updating DB
     sleep 10 if $create;
     $lpdb = new LPDB({dbfile => $dbfile,
 		      thumbfile => $thumbfile,
-#		      sqltrace => 1,
+		      # sqltrace => 1,
 		     });
 } else {			# child updates DB, creating if needed
     unlink $dbfile if $create and ! -s $dbfile;

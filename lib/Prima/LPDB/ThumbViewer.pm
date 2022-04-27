@@ -32,13 +32,36 @@ sub profile_default
 {
     my $def = $_[ 0]-> SUPER::profile_default;
     my %prf = (
-	popupItems => [ 
+	popupItems => [
 	    ['~Sort' => [
-		 ['sort', '~Dirs Last', 'd', ord 'd' =>
-		  sub { $_[0]->{sort} = $_[0]->popup->toggle($_[1]);
-			$_[0]->goto($_[0]->current);
-		  }
-		 ]]],
+		 ['~Paths' => [
+		      ['*(pname' => '~Name' => 'sorter' ],
+		      [')ptime' => '~Time' => 'sorter' ],
+		      [],
+		      ['*(pasc' => '~Ascending' => 'sorter' ],
+		      [')pdsc' => '~Descending' => 'sorter' ],
+		  ]],
+		 ['~Albums' => [
+		      ['(aname' => '~Name' => 'sorter' ],
+		      ['*atime' => '~Time' => 'sorter' ],
+		      ['(askip' => '~Skip' => 'sorter' ],
+		      [],
+		      ['*(aasc' => '~Ascending' => 'sorter' ],
+		      [')adsc' => '~Descending' => 'sorter' ],
+		  ]],
+		 ['~Images' => [
+		      ['(iname' => '~Name' => 'sorter' ],
+		      ['*)itime' => '~Time' => 'sorter' ],
+		      [],
+		      ['*(iasc' => '~Ascending' => 'sorter' ],
+		      [')idsc' => '~Descending' => 'sorter' ],
+		  ]],
+		 ['~Mixed Pages' => [
+		      ['*(pfirst' => '~Paths First' => 'sorter' ],
+		      [')ifirst' => '~Images First' => 'sorter' ],
+		  ]],
+
+	     ]],
 	    ['~Zoom' => [
 		 ['fullscreen', '~Full Screen', 'f', ord 'f' =>
 		  sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
@@ -121,10 +144,9 @@ sub init {
     return %profile;
 }
 
-sub current {			# path to current selected item
-    my($self) = @_;
-    $self->focusedItem < 0 and return '/';
-    $self->cwd . $self->{items}[$self->focusedItem]->basename;
+sub sorter {
+    my($self, $name, $val) = @_;
+    $self->goto($self->current); # applies the new sort
 }
 
 sub children {			# return children of given text path
@@ -134,9 +156,25 @@ sub children {			# return children of given text path
 	    { path => $p})) {
 	$id =  $obj->path_id;
     }
-    my($path, $file) = $self->{tree}->pathpics($id || 0, $self->{sort});
-    return [ @$path, @$file ];
-    # TODO: option for dirs to be first/last/mixed with pics by name or date
+    my $m = $self->popup;
+    my @sort;		      # menu sort options to database order_by
+    $m->checked('atime') and push @sort,
+    { ($m->checked('adsc') ? '-desc' : '-asc') => 'dir.begin' },
+    { '-asc' => 'dir.directory' };
+    $m->checked('aname') and push @sort,
+    { ($m->checked('adsc') ? '-desc' : '-asc') => 'dir.directory' };
+    $m->checked('itime') and push @sort,
+    { ($m->checked('idsc') ? '-desc' : '-asc') => 'me.time' };
+    $m->checked('iname') and push @sort,
+    { ($m->checked('idsc') ? '-desc' : '-asc') => 'me.basename' };
+    my($path, $file) = $self->{tree}->pathpics($id || 0, \@sort);
+    return [ $m->checked('ifirst') ? (@$file, @$path) : (@$path, @$file) ];
+}
+
+sub current {			# path to current selected item
+    my($self) = @_;
+    $self->focusedItem < 0 and return '/';
+    $self->cwd . $self->{items}[$self->focusedItem]->basename;
 }
 
 sub goto {  # for robot navigation (slideshow) also used by escape key

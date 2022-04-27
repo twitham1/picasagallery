@@ -35,18 +35,12 @@ sub pathpics {		      # return paths and pictures of parent ID
     }
     if (my $pics = $self->{schema}->resultset('Picture')->search(
 	    {path_id => $id},
-#	    {order_by => { -asc => 'basename' }, # sort must be user option!!!
-	     #	    {order_by => { -asc => 'time' }, # sort must be user option!!!
-	    # group_by => { -asc => 'dir' },
-	    {order_by => [ { -asc => 'dir.begin' },
-			   # { -asc => 'basename' } ] ,
-			   { -asc => 'me.time' } ] ,
-#	     group_by => 'dir_id',
+	    {order_by => $sort || [],
 	     prefetch => [ 'picture_paths', 'dir' ],
 	    })) {
 	push @pics, $pics->all;
     }
-    return $sort ? (\@pics, \@dirs) : (\@dirs, \@pics);
+    return \@dirs, \@pics;
 }
 
 # sub node {			# return Path or Picture of ID
