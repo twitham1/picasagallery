@@ -47,6 +47,9 @@ sub basename {			# final component of path
 	return $2;
     return '/';
 }
+sub pathtofile {		# alias used by goto of ThumbViewer
+    $_[0]->basename;
+}
 
 sub resultset {		 # all files below logical path, in time order
     my($self) = @_;
@@ -76,8 +79,13 @@ sub stack { # stack of up to 3 paths (first middle last), for thumbnails
 	);
 }
 
-sub time {			# begin time of the path
-    return ($_[0]->stack)[0]->time;
+sub time {		 # return begin/middle/end time from the stack
+    my($self, $n) = @_;	 # 0, 1, 2
+    my @s = $self->stack;
+    $n < 3 or return $s[0]->time;
+    return $s[$n] ? $s[$n]->time :
+	$s[--$n] ? $s[$n]->time
+	: $s[0]->time;
 }
 
 1;

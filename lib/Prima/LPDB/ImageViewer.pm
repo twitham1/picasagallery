@@ -47,9 +47,9 @@ sub profile_default
 		  sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
 		 # ['*autozoom', '~Auto Zoom', 'a', ord 'a' =>
 		 #  sub { $_[0]->autoZoom($_[0]->popup->toggle($_[1]) )} ],
-		 ['bigger', 'Zoom ~In', 'PageUp', ord '=' =>
+		 ['bigger', 'Zoom ~In', 'z', ord 'z' =>
 		  sub { $_[0]->key_down(0, kb::Prior ) }],
-		 ['smaller', 'Zoom ~Out', 'PageDown', ord '-' =>
+		 ['smaller', 'Zoom ~Out', 'q', ord 'q' =>
 		  sub { $_[0]->key_down(0, kb::Next ) }],
 	     ]],
 	]);

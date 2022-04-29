@@ -43,6 +43,25 @@ sub pathpics {		      # return paths and pictures of parent ID
     return \@dirs, \@pics;
 }
 
+sub related {			# paths related to given path or picture
+    my($self, $path, $id) = @_;
+    my %path = ( $path => 1 );
+    if ($id and my $paths = $self->{schema}->resultset('PicturePath')->search(
+    	    {"me.file_id" => $id},
+	    {prefetch => [ 'path', 'file' ]},
+	)) {
+	while (my $one = $paths->next) { # can this be done without loop?
+	    $path{$one->path->path . '/' . $one->file->pathtofile } = 1;
+	}
+    }
+    my %root;
+    $path =~ s{//.*}{};		# trim away pathtofile to list parents
+    while ($path =~ s{[^/]+/?$}{}) {
+	$root{$path} = 1 if length $path > 1;
+    }
+    return ((sort keys %path), (reverse sort keys %root));
+}
+
 # sub node {			# return Path or Picture of ID
 #     my($self, $id) = @_;
 #     my $obj;

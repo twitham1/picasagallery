@@ -30,57 +30,64 @@ use vars qw(@ISA);
 my $lv;
 sub profile_default
 {
+    # TODO!!! fix path sorting!!! in children or pathpics
     my $def = $_[ 0]-> SUPER::profile_default;
     my %prf = (
 	popupItems => [
+	    ['navto' => '~Navigate To' => [
+		 ['/[Folders]/' => '/[Folders]/' => 'goto'],
+	     ]],
 	    ['~Sort' => [
 		 ['~Paths' => [
-		      ['*(pname' => '~Name' => 'sorter' ],
-		      [')ptime' => '~Time' => 'sorter' ],
+		      ['*(pname' => '~Name' => 'sorter'],
+		      ['pfirst' => '~First Time' => 'sorter'],
+		      ['pmid' => '~Middle Time' => 'sorter'],
+		      [')plast' => '~Last Time' => 'sorter'],
 		      [],
-		      ['*(pasc' => '~Ascending' => 'sorter' ],
-		      [')pdsc' => '~Descending' => 'sorter' ],
+		      ['*(pasc' => '~Ascending' => 'sorter'],
+		      [')pdsc' => '~Descending' => 'sorter'],
 		  ]],
-		 ['~Albums' => [
-		      ['(aname' => '~Name' => 'sorter' ],
-		      ['*atime' => '~Time' => 'sorter' ],
-		      ['(askip' => '~Skip' => 'sorter' ],
+		 ['~Gallery Groups' => [
+		      ['(gname' => '~Name' => 'sorter'],
+		      ['*gfirst' => '~First Time' => 'sorter'],
+		      ['glast' => '~Last Time' => 'sorter'],
+		      [')gskip' => '~Ungrouped' => 'sorter'],
 		      [],
-		      ['*(aasc' => '~Ascending' => 'sorter' ],
-		      [')adsc' => '~Descending' => 'sorter' ],
+		      ['*(aasc' => '~Ascending' => 'sorter'],
+		      [')adsc' => '~Descending' => 'sorter'],
 		  ]],
 		 ['~Images' => [
-		      ['(iname' => '~Name' => 'sorter' ],
-		      ['*)itime' => '~Time' => 'sorter' ],
+		      ['(iname' => '~Name' => 'sorter'],
+		      ['*)itime' => '~Time' => 'sorter'],
 		      [],
-		      ['*(iasc' => '~Ascending' => 'sorter' ],
-		      [')idsc' => '~Descending' => 'sorter' ],
+		      ['*(iasc' => '~Ascending' => 'sorter'],
+		      [')idsc' => '~Descending' => 'sorter'],
 		  ]],
-		 ['~Mixed Pages' => [
-		      ['*(pfirst' => '~Paths First' => 'sorter' ],
-		      [')ifirst' => '~Images First' => 'sorter' ],
+		 ['~Mixed Folders' => [
+		      ['*(galsfirst' => '~Galleries First' => 'sorter'],
+		      [')picsfirst' => '~Images First' => 'sorter'],
 		  ]],
 
 	     ]],
 	    ['~Zoom' => [
 		 ['fullscreen', '~Full Screen', 'f', ord 'f' =>
-		  sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
+		  sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )}],
 		 # ['bigger', 'Zoom ~In', 'PageUp', ord '=' =>
-		 #  sub { $_[0]->bigger } ],
+		 #  sub { $_[0]->bigger }],
 		 # ['smaller', 'Zoom ~Out', 'PageDown', ord '-' =>
-		 #  sub { $_[0]->smaller } ],
-		 ['bigger', 'Zoom ~In', 'z', ord '=' =>
-		  sub { $_[0]->bigger } ],
-		 ['smaller', 'Zoom ~Out', 'q', ord '-' =>
-		  sub { $_[0]->smaller } ],
+		 #  sub { $_[0]->smaller }],
+		 ['bigger', 'Zoom ~In', 'z', ord 'z' =>
+		  sub { $_[0]->bigger }],
+		 ['smaller', 'Zoom ~Out', 'q', ord 'q' =>
+		  sub { $_[0]->smaller }],
 	     ]],
 	    ['~Options' => [
 		 ['crops', '~Crop', 'c', ord 'c' =>
 		  sub { $_[0]->{crops} = $_[0]->popup->toggle($_[1]);
 			$_[0]->repaint;
-		  } ],
+		  }],
 	     ]],
-	    ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close } ],
+	    ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close }],
 	    # ['quit', '~Quit', 'Ctrl+Q', '^q' => \&myclose ],
 	]);
     @$def{keys %prf} = values %prf;
@@ -120,11 +127,11 @@ sub init {
 				   transparent => 1, # hack, using label as container
 				   pack => { side => 'top', fill => 'x', pad => 5 });
     $top->insert('Prima::Label', name => 'NW', pack => { side => 'left' },
-		 text => 'Use arrow keys to navigate');
-    $top->insert('Prima::Label', name => 'NE', pack => { side => 'right' },
 		 text => 'Hit M for Menu');
-    $top->insert('Prima::Label', name => 'N', pack => { side => 'top' },
+    $top->insert('Prima::Label', name => 'NE', pack => { side => 'right' },
 		 text => 'Enter = select / Escape = back');
+    $top->insert('Prima::Label', name => 'N', pack => { side => 'top' },
+		 text => 'Use arrow keys to navigate');
 
     $self->pack(expand => 1, fill => 'both');
 
@@ -144,13 +151,14 @@ sub init {
     return %profile;
 }
 
-sub sorter {
+sub sorter {	    # applies current sort/filter via children of goto
     my($self, $name, $val) = @_;
-    $self->goto($self->current); # applies the new sort
+    $self->goto($self->current);
 }
 
 sub children {			# return children of given text path
     my($self, $p) = @_;
+    $p =~ s{/+}{/};		# cleanup
     my $id = 0;
     if ($p and my $obj = $self->{tree}->{schema}->resultset('Path')->find(
 	    { path => $p})) {
@@ -158,49 +166,66 @@ sub children {			# return children of given text path
     }
     my $m = $self->popup;
     my @sort;		      # menu sort options to database order_by
-    $m->checked('atime') and push @sort,
-    { ($m->checked('adsc') ? '-desc' : '-asc') => 'dir.begin' },
+    $m->checked('gname') and push @sort,
+    { ($m->checked('gdsc') ? '-desc' : '-asc') => 'dir.directory' };
+    $m->checked('gfirst') and push @sort,
+    { ($m->checked('gdsc') ? '-desc' : '-asc') => 'dir.begin' },
     { '-asc' => 'dir.directory' };
-    $m->checked('aname') and push @sort,
-    { ($m->checked('adsc') ? '-desc' : '-asc') => 'dir.directory' };
+    $m->checked('glast') and push @sort,
+    { ($m->checked('gdsc') ? '-desc' : '-asc') => 'dir.end' },
+    { '-asc' => 'dir.directory' };
+    # else gskip sorts by files only:
     $m->checked('itime') and push @sort,
     { ($m->checked('idsc') ? '-desc' : '-asc') => 'me.time' };
     $m->checked('iname') and push @sort,
     { ($m->checked('idsc') ? '-desc' : '-asc') => 'me.basename' };
     my($path, $file) = $self->{tree}->pathpics($id || 0, \@sort);
-    return [ $m->checked('ifirst') ? (@$file, @$path) : (@$path, @$file) ];
-}
-
-sub current {			# path to current selected item
-    my($self) = @_;
-    $self->focusedItem < 0 and return '/';
-    $self->cwd . $self->{items}[$self->focusedItem]->basename;
+    my @path = sort {		# sort paths per menu selection
+    	($m->checked('pname') ? $a->path cmp $b->path : 0) ||
+    	    ($m->checked('pfirst') ? $a->time(0) <=> $b->time(0) : 0) ||
+    	    ($m->checked('pmid') ? $a->time(1) <=> $b->time(1) : 0) ||
+    	    ($m->checked('plast') ? $a->time(2) <=> $b->time(2) : 0)
+    } @$path;
+    @path = reverse @path if $m->checked('pdsc');
+    return [ $m->checked('picsfirst') ? (@$file, @path) : (@path, @$file) ];
 }
 
 sub goto {  # for robot navigation (slideshow) also used by escape key
     my($self, $path) = @_;
-#    warn "goto: $path\n";
-    $path =~ m{(.*/)(.+/?)} or warn "bad path $path" and return;
+    # warn "goto: $path";
+    $path =~ m{(.*/)/(.+/?)} or	   # path // pathtofile
+	$path =~ m{(.*/)(.+/?)} or # path / basename
+	warn "bad path $path" and return;
     $self->cwd($1);
     $self->items($self->children($1));
+    $self->focusedItem(-1);
+    $self->repaint;
     $self->focusedItem(0);
     my $n = $self->count;
     for (my $i = 0; $i < $n; $i++) { # select myself in parent
-	if ($self->{items}[$i]->basename eq $2) {
+	if ($self->{items}[$i]->pathtofile eq $2) {
 	    $self->focusedItem($i);
 	    last;
 	}
     }
     $self->repaint;
-    # my $n = $self->focusedItem;
-    # $self->focusedItem(++$n);
 }
 
+sub current {			# path to current selected item
+    my($self) = @_;
+    $self->focusedItem < 0 and return '/';
+    my $this = $self->{items}[$self->focusedItem];
+    $self->cwd . ($this->basename =~ m{/$} ? $this->basename
+		  : '/' . $this->pathtofile);
+}
+
+sub _trimfile { (my $t = $_) =~ s{//.*}{}; $t }
 sub on_selectitem {		# update metadata labels
     my ($self, $idx, $state) = @_;
     my $x = $idx->[0] + 1;
     my $y = $self->count;
     my $this = $self->{items}[$idx->[0]];
+    my $id = 0;			# file_id of image only, for related
     $self->owner->NORTH->NW->text($self->cwd);
     $self->owner->NORTH->NE->text("$x / $y");
     if ($this->isa('LPDB::Schema::Result::Path')) {
@@ -219,13 +244,21 @@ sub on_selectitem {		# update metadata labels
 				     $this->width / $this->height,
 				     $this->width * $this->height / 1000000,
 				     $this->bytes / 1024);
+	$id = $this->file_id;
     }
+    my $me = $self->current;
+    $self->popup->submenu('navto',
+			  [ map { [ $me eq $_ ? "*$_" : $_,
+				    _trimfile($_), 'goto' ] }
+			    $self->{tree}->related($me, $id) ]);
 }
+
 sub cwd {
     my($self, $cwd) = @_;
     $cwd and $self->{cwd} = $cwd;
     return $self->{cwd} || '/';
 }
+
 sub on_keydown
 {
     my ($self, $code, $key, $mod) = @_;
@@ -256,7 +289,7 @@ sub on_keydown
     }
     if ($code == ord 'm' or $code == ord '?' or $code == 13) { # popup menu
 	my @sz = $self->size;
-	$self->popup->popup($sz[0]/2, $sz[1]/2);
+	$self->popup->popup(20, $sz[1] - 20); # near top left
 	return;
     }
     if ($code == 5) {		# ctrl-e = crops, in menu
