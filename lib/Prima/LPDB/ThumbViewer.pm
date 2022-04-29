@@ -82,10 +82,10 @@ sub profile_default
 		  sub { $_[0]->smaller }],
 	     ]],
 	    ['~Options' => [
-		 ['crops', '~Crop', 'c', ord 'c' =>
-		  sub { $_[0]->{crops} = $_[0]->popup->toggle($_[1]);
-			$_[0]->repaint;
-		  }],
+		 # ['*@croppaths', 'Crop ~Paths', 'Ctrl+B', '^b' => sub { $_[0]->repaint }],
+		 # ['@cropimages', 'Crop ~Images', 'f', ord 'f' => sub { $_[0]->repaint }],
+		 ['*@croppaths', 'Crop ~Paths' => sub { $_[0]->repaint }],
+		 ['@cropimages', 'Crop ~Images' => sub { $_[0]->repaint }],
 	     ]],
 	    ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close }],
 	    # ['quit', '~Quit', 'Ctrl+Q', '^q' => \&myclose ],
@@ -340,7 +340,8 @@ sub _draw_thumb {		# pos 0 = full size, pos 1,2,3 = picture stack
 	$DX = ($DW - $DH * $src) / 2;
 	$DW = $DH * $src;
     }
-    if ($self->{crops}) {      # crop source to destination
+    if ($pos and $self->popup->checked('croppaths') or
+	!$pos and $self->popup->checked('cropimages')) {
 	if ($src > $dst) {    # image wider than cell: crop left/right
 	    $sx = ($sw - $sh * $dst) / 2;
 	    $sw = $sh * $dst;
@@ -362,7 +363,7 @@ sub _draw_thumb {		# pos 0 = full size, pos 1,2,3 = picture stack
 	or warn "put_image failed: $@";
     if (!$pos and !$b) {       # overlay rectangle on focused pictures
         my ($x, $y, $w, $h);
-        if ($self->{crops}) {	      # show original aspect rectangle
+        if ($self->popup->checked('cropimages')) { # show aspect rectangle
 	    $canvas->color(cl::LightRed); # cropped portion
 	    $canvas->rectangle($x1 + $DX, $y1 + $DY,
 			       $x1 + $DX + $DW, $y1 + $DY + $DH);

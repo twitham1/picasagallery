@@ -202,6 +202,7 @@ sub _wanted {
 
 	&_savepathfile("/[Folders]/$dir", $row->file_id);
 
+	&_savepathfile("/[Timeline]/All Time/", $row->file_id);
 	&_savepathfile(strftime("/[Timeline]/Years/%Y/",
 				localtime $time), $row->file_id);
 	&_savepathfile(strftime("/[Timeline]/Months/%Y/%m-%b/",
