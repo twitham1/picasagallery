@@ -15,19 +15,6 @@ similar to picasagallery or mythgallery, like for mythtv
 
 # by twitham@sbcglobal.net in 2020 based on picasagallery of 2013
 
-# TODO: navigation object needed, sortable by basename or average
-# time, via a database view over all files and virtual dirs:
-
-# basename, displayed for dirs
-# count, displayed for dirs (changes by filtering)
-# average time of all photos (could change by filtering?)
-# caption, optionally displayed for files (Picasa description for dirs)
-# parent node, / for root [dirs]
-
-# now all navigation/sorting is available from DB queries: start with
-# all nodes that have / parent, drill down from there.  GUI can
-# concatenate the full path to node and know all siblings.
-
 use strict;
 use warnings;
 use Prima;
@@ -44,9 +31,23 @@ if (grep /tmp/, @ARGV) {      # hack!!!! make DB location configurable
     $thumbfile = '/tmp/.lpdb-thumb.db';
 }
 
+# don't accidentally recurse: create database only with confirmation
 my $create = -f $dbfile && -s _ ? 0 : 1;
-my $lpdb;			# LPDB object, a local picture database
+if ($create) {
+    #     -t STDIN or die "bailing out, $conf->{cache} not configured here!\n";
+    #     print "$conf->{cache} doesn't exist here!
+    # Shall I create it and recurse for pictures?  yes/no [no] : ";
+    -t STDIN or die "bailing out, $dbfile not found here!\n";
+    print "$dbfile doesn't exist here!
+	Shall I create it and recurse for pictures?  yes/no [no] : ";
+    my $ans = <>;
+    $ans =~ /^\s*y/i
+	or die "cd to root of pictures and re-run\n";
+    print "\n\nPlease wait 10 seconds for DB creation, ",
+	"then GUI should appear\n\n";
+}
 
+my $lpdb;			# LPDB object, a local picture database
 my $child;
 if ($child = fork) {		# GUI starts after child is updating DB
     warn "$0: $$ forked $child to update $dbfile\n";
@@ -56,7 +57,7 @@ if ($child = fork) {		# GUI starts after child is updating DB
 		      # sqltrace => 1,
 		     });
 } else {			# child updates DB, creating if needed
-    unlink $dbfile if $create and ! -s $dbfile;
+    unlink $dbfile if $create;
     $lpdb = new LPDB({dbfile => $dbfile,
     		      thumbfile => $thumbfile,
     		      #		     sqltrace => 1,
@@ -76,10 +77,10 @@ $::application->font->size(20);
 # without above, get_default_font is too small.  I use xrdb -load file
 # of this content for large text viewing from the couch:
 
+# Prima.Font: Helvetica-20
 # Prima.Color: white
 # Prima.Back: black
 # Prima.HiliteBackColor: gray33
-# Prima.Font: Helvetica-20
 
 my $lv;				# ListViewer
 my $iv;				# ImageViewer
@@ -93,6 +94,9 @@ $w = Prima::MainWindow->create(
     );
 
 sub myclose { $w->deselect; $::application->close } # segfaults!??!!!
+
+# my($x, $y) = (sv::XIcon, sv::YIcon); # see Window.pod on icon setting
+# die "$x x $y"; 
 
 # print sort map {"$_->{name}\n"} @{$::application-> fonts}; # see available fonts!!!
 
