@@ -156,13 +156,7 @@ sub sorter {	    # applies current sort/filter via children of goto
 }
 
 sub children {			# return children of given text path
-    my($self, $p) = @_;
-    $p =~ s{/+}{/};		# cleanup
-    my $id = 0;
-    if ($p and my $obj = $self->{tree}->{schema}->resultset('Path')->find(
-	    { path => $p})) {
-	$id =  $obj->path_id;
-    }
+    my($self, $parent) = @_;
     my $m = $self->popup;
     my @sort;		      # menu sort options to database order_by
     $m->checked('gname') and push @sort,
@@ -178,7 +172,7 @@ sub children {			# return children of given text path
     { ($m->checked('idsc') ? '-desc' : '-asc') => 'me.time' };
     $m->checked('iname') and push @sort,
     { ($m->checked('idsc') ? '-desc' : '-asc') => 'me.basename' };
-    my($path, $file) = $self->{tree}->pathpics($id || 0, \@sort);
+    my($path, $file) = $self->{tree}->pathpics($parent || '/', \@sort);
     my @path = sort {		# sort paths per menu selection
     	($m->checked('pname') ? $a->path cmp $b->path : 0) ||
     	    ($m->checked('pfirst') ? $a->time(0) <=> $b->time(0) : 0) ||

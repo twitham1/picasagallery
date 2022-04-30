@@ -22,15 +22,19 @@ sub new {
     return $self;
 }
 
-sub pathpics {		      # return paths and pictures of parent ID
-    my($self, $id, $sort) = @_;
+sub pathpics {		     # return paths and pictures in given path
+    my($self, $parent, $sort) = @_;
     my(@dirs, @pics);
-    $id ||= $self->{id};
+    $parent =~ s{/+}{/};	# cleanup
+    my $id = $self->{id};
+    if ($parent and my $obj =
+	$self->{schema}->resultset('Path')->find(
+	    { path => $parent})) {
+	$id =  $obj->path_id;
+    }
     $self->{id} = $id;
     if (my $paths = $self->{schema}->resultset('Path')->search(
-	    {parent_id => $id},
-	    {order_by => { -asc => 'path' },
-	    })) {
+	    {parent_id => $id})) {
 	push @dirs, $paths->all;
     }
     if (my $pics = $self->{schema}->resultset('Picture')->search(

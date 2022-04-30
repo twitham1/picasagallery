@@ -49,10 +49,11 @@ sub get {
 sub put {
     my($self, $id, $cid) = @_;
     $cid ||= 0;
-#    warn "putting $id/$cid in $self\n";
+    # warn "putting $id/$cid in $self\n";
     my $schema = $self->{schema};
     my $this = $schema->resultset('Picture')->find(
-    	{file_id => $id});
+    	{file_id => $id},
+	{columns => [qw/basename dir_id/]});
     my $path = $this->pathtofile;
     -f $path or
 	warn "$path doesn't exist\n" and return;
