@@ -81,7 +81,6 @@ sub init {
     $bot->insert(@opt, name => 'S', pack => { side => 'bottom', anchor => 's' });
 
     $self->info;		# set info visibility
-
     return %profile;
 }
 

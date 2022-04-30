@@ -85,11 +85,23 @@ $::application->font->size(20);
 my $lv;				# ListViewer
 my $iv;				# ImageViewer
 my $w;
+my $icon;
+for (@INC) {			# find icon for the application
+    my $file = "$_/LPDB/lpdb.png";
+    if (-f $file) {
+	my $icon = Prima::Icon->create;
+	if ($icon->load($file)) {
+	    $::application->icon($icon);
+	    last;
+	} else {
+	    warn "icon $file: $@";
+	}
+    }
+}
 $w = Prima::MainWindow->create(
     name => 'LPG',
     text => 'Local Picture Gallery',
     packPropagate => 0,
-    #size => [1920, 1080],
     size => [1600, 900],
     );
 

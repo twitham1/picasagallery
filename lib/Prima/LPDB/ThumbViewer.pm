@@ -30,11 +30,10 @@ use vars qw(@ISA);
 my $lv;
 sub profile_default
 {
-    # TODO!!! fix path sorting!!! in children or pathpics
     my $def = $_[ 0]-> SUPER::profile_default;
     my %prf = (
 	popupItems => [
-	    ['navto' => '~Navigate To' => [
+	    ['navto' => '~Navigate To' => [ # replaced by on_selectitem
 		 ['/[Folders]/' => '/[Folders]/' => 'goto'],
 	     ]],
 	    ['~Sort' => [
