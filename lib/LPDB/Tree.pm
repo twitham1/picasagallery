@@ -54,16 +54,16 @@ sub related {			# paths related to given path or picture
     	    {"me.file_id" => $id},
 	    {prefetch => [ 'path', 'file' ]},
 	)) {
-	while (my $one = $paths->next) { # can this be done without loop?
+	while (my $one = $paths->next) {
 	    $path{$one->path->path . '/' . $one->file->pathtofile } = 1;
 	}
+	return sort keys %path;
     }
-    my %root;
     $path =~ s{//.*}{};		# trim away pathtofile to list parents
     while ($path =~ s{[^/]+/?$}{}) {
-	$root{$path} = 1 if length $path > 1;
+    	$path{$path} = 1 if length $path > 1;
     }
-    return ((sort keys %path), (reverse sort keys %root));
+    return reverse sort keys %path;
 }
 
 # sub node {			# return Path or Picture of ID
