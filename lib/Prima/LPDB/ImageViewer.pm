@@ -25,10 +25,6 @@ use vars qw(@ISA);
 sub profile_default
 {
     my $def = $_[ 0]-> SUPER::profile_default;
-    my @delay = map { ["ss$_", $_, 'delay' ] } qw/1 2 3 4 5 7 10 15 20 30 45 60/;
-    $delay[0][0] =~ s/^/(/;	# slide show delay group begin
-    $delay[2][0] =~ s/^/*/;	# default entry
-    $delay[-1][0] =~ s/^/)/;	# group end
     my %prf = (
 	size => [1600, 900],
 	selectable => 1,
@@ -38,7 +34,7 @@ sub profile_default
 	autoZoom => 1,
 	stretch => 0,
 	timer => undef,
-	seconds => 3,
+	seconds => 4,
 #	buffer => 1,
 	popupItems => [
 	    ['~Escape back to Thumb Gallery' =>
@@ -47,7 +43,8 @@ sub profile_default
 	    ['@overlay', '~Overlay Images', 'o', ord 'o' => sub {  $_[0]->repaint }],
 	    [],
 	    ['@slideshow', '~Play/Pause Slide Show', 'p',  ord 'p' => 'slideshow'],
-	    ['Slide Show ~Seconds' => [@delay]],
+	    ['faster', '~Faster Show', "Ctrl+Shift+F", km::Ctrl | km::Shift | ord('F') => 'delay'],
+	    ['slower', '~Slower Show', "Ctrl+Shift+B", km::Ctrl | km::Shift | ord('B') => 'delay'],
 	    [],
 	    ['fullscreen', '~Full Screen', 'f', ord 'f' =>
 	     sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
@@ -178,7 +175,7 @@ sub on_close {
 sub on_keydown
 {
     my ( $self, $code, $key, $mod) = @_;
-
+#    warn "keydown: @_";
     if ($key == kb::Enter) {
 	$self->autoZoom(!$self->autoZoom);
 	if ($self->autoZoom) {
@@ -285,12 +282,15 @@ sub status
 }
 
 sub delay {
-    $_[1] =~ /ss(\d+)/ and $_[0]->{seconds} = $1;
-    $_[0]->slideshow;
+    my($self, $name) = @_;
+    $self->{seconds} ||= 4;
+    $name =~ /ss(\d+)/ and $self->{seconds} = $1;
+    $name =~ /faster/ and $self->{seconds} /= 2;
+    $name =~ /slower/ and $self->{seconds} *= 2;
+    $self->slideshow;
 }
 sub slideshow {
     my($self) = @_;
-#    $self->autoZoom(1);
     $self->{timer} ||= Prima::Timer->create(
     	timeout => 3000,	# milliseconds
     	onTick => sub {
@@ -299,14 +299,15 @@ sub slideshow {
 	    $self->CENTER->hide;
     	}
     	);
+    $self->{seconds} ||= 4;
+    my $sec = $self->{seconds};
     if ($self->popup->checked('slideshow') and $self->autoZoom) {
-	my $sec = $self->{seconds} || 3;
-	$self->CENTER->text(">> PLAY $sec seconds >>");
+	$self->CENTER->text(">> PLAY @ $sec seconds >>");
 	$self->CENTER->show;
 	$self->{timer}->timeout($sec * 1000);
 	$self->{timer}->start;
     } else {
-	$self->CENTER->text("[[ STOP ]]");
+	$self->CENTER->text(sprintf "[[ STOP @ $sec seconds ]]", $sec);
 	$self->CENTER->show;
 	$self->{timer}->stop;
     }
