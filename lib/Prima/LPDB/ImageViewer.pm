@@ -284,7 +284,6 @@ sub status
 sub delay {
     my($self, $name) = @_;
     $self->{seconds} ||= 4;
-    $name =~ /ss(\d+)/ and $self->{seconds} = $1;
     $name =~ /faster/ and $self->{seconds} /= 2;
     $name =~ /slower/ and $self->{seconds} *= 2;
     $self->slideshow;
@@ -307,7 +306,7 @@ sub slideshow {
 	$self->{timer}->timeout($sec * 1000);
 	$self->{timer}->start;
     } else {
-	$self->CENTER->text(sprintf "[[ STOP @ $sec seconds ]]", $sec);
+	$self->CENTER->text("[[ STOP @ $sec seconds ]]");
 	$self->CENTER->show;
 	$self->{timer}->stop;
     }

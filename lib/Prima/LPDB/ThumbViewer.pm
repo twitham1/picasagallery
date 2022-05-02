@@ -131,10 +131,12 @@ sub init {
     my $bot = $self->owner->insert('Prima::Label', name => 'SOUTH', text => '',
 				   transparent => 1, # hack, using label as container
 				   pack => { side => 'bottom', fill => 'x', pad => 5 });
-    $bot->insert('Prima::Label', name => 'SW', pack => { side => 'left' });
+    $bot->insert('Prima::Label', name => 'SW', pack => { side => 'left' },
+		 text => 'beginning date and time');
     $bot->insert('Prima::Label', name => 'SE', pack => { side => 'right' },
-		 text => 'physical Gallery paths appear here');
-    $bot->insert('Prima::Label', name => 'S', pack => { side => 'bottom' });
+		 text => 'gallery: physical path of images');
+    $bot->insert('Prima::Label', name => 'S', pack => { side => 'bottom' },
+		 text => 'statistics');
 
     $self->items($self->children('/'));
     $self->focusedItem(0);

@@ -85,19 +85,39 @@ $::application->font->size(20);
 my $lv;				# ListViewer
 my $iv;				# ImageViewer
 my $w;
-my $icon;
-for (@INC) {			# find icon for the application
-    my $file = "$_/LPDB/lpdb.png";
-    if (-f $file) {
-	my $icon = Prima::Icon->create;
-	if ($icon->load($file)) {
-	    $::application->icon($icon);
-	    last;
-	} else {
-	    warn "icon $file: $@";
-	}
-    }
+# my $icon;
+# for (@INC) {			# find icon for the application
+#     my $file = "$_/LPDB/lpdb.png";
+#     if (-f $file) {
+# 	my $icon = Prima::Icon->create;
+# 	if ($icon->load($file)) {
+# 	    $::application->icon($icon);
+# 	    last;
+# 	} else {
+# 	    warn "icon $file: $@";
+# 	}
+#     }
+# }
+{
+    my $size = 160;
+    my $ot = $size / 3;		# one third
+    my $tt = $size * 2 / 3;	# two thirds
+    my $i = Prima::Icon->new(
+	width => $size,
+	height => $size,
+	type   => im::bpp24,
+	);
+    $i->begin_paint;
+    $i->color(cl::Blue);
+    $i->bar(0, $size, $tt, $ot);
+    $i->color(cl::Red);
+    $i->bar($ot/2, $tt+$ot/2, $tt+$ot/2, $ot/2);
+    $i->color(cl::Green);
+    $i->bar($ot, $tt, $size, 0);
+    $i->end_paint;
+    $::application->icon($i);
 }
+
 $w = Prima::MainWindow->create(
     name => 'LPG',
     text => 'Local Picture Gallery',
