@@ -33,26 +33,22 @@ sub profile_default
 	alignment   => ta::Center,
 	autoZoom => 1,
 	stretch => 0,
-	info => 0,
-	overlay => 0,
 #	buffer => 1,
 	popupItems => [
-	    ['~Escape' => sub { $_[0]->key_down(0, kb::Escape) } ],
-	    ['info', '~Info', 'i', ord 'i' =>
-	     sub { $_[0]->info($_[0]->popup->toggle($_[1]) ) }],
-	    ['overlay', '~Overlay', 'o', ord 'o' =>
-	     sub { $_[0]->overlay($_[0]->popup->toggle($_[1]) ) }],
-	    ['~Zoom' => [
-		 ['fullscreen', '~Full Screen', 'f', ord 'f' =>
-		  sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
-		 # ['*autozoom', '~Auto Zoom', 'a', ord 'a' =>
-		 #  sub { $_[0]->autoZoom($_[0]->popup->toggle($_[1]) )} ],
-		 ['bigger', 'Zoom ~In', 'z', ord 'z' =>
-		  sub { $_[0]->key_down(0, kb::Prior ) }],
-		 ['smaller', 'Zoom ~Out', 'q', ord 'q' =>
-		  sub { $_[0]->key_down(0, kb::Next ) }],
-	     ]],
-	]);
+	    ['~Escape back to Thumb Gallery' =>
+	     sub { $_[0]->key_down(0, kb::Escape) } ],
+	    ['@info', '~Information', 'i', ord 'i' => sub { $_[0]->repaint }],
+	    ['@overlay', '~Overlay Images', 'o', ord 'o' => sub {  $_[0]->repaint }],
+	    [],
+	    ['fullscreen', '~Full Screen', 'f', ord 'f' =>
+	     sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
+	    ['bigger', '~Zoom In', 'z', ord 'z' =>
+	     sub { $_[0]->key_down(0, kb::Prior ) }],
+	    ['smaller', 'Zoom ~Out', 'q', ord 'q' =>
+	     sub { $_[0]->key_down(0, kb::Next ) }],
+#	    ['autozoom', '~Toggle Size', 'Enter', sub {} ], # fixt this!!!!!
+	],
+	);
     @$def{keys %prf} = values %prf;
     return $def;
 }
@@ -80,7 +76,6 @@ sub init {
     $bot->insert(@opt, name => 'SE', pack => { side => 'right', anchor => 's' });
     $bot->insert(@opt, name => 'S', pack => { side => 'bottom', anchor => 's' });
 
-    $self->info;		# set info visibility
     return %profile;
 }
 
@@ -99,7 +94,7 @@ sub viewimage
     }
     $i->AutoOrient;		# automated rot fix via EXIF!!!
 
-    if ($self->overlay) {
+    if ($self->popup->checked('overlay')) {
 	$self->alignment($self->alignment == ta::Left ? ta::Right : ta::Left);
 	$self->valignment($self->valignment == ta::Top ? ta::Bottom : ta::Top);
     } else {
@@ -123,30 +118,14 @@ sub on_size {
     $self->apply_auto_zoom if $self->autoZoom;
 }
 
-sub overlay {
-    my($self, $on) = @_;
-    $self->{overlay} = $on
-	if defined $on;
-    $self->{overlay};
-}
-
-sub info {
-    my($self, $on) = @_;
-    $self->{info} = $on
-	if defined $on;
-    if ($self->{info}) {
-	$self->NORTH->show;
-	$self->SOUTH->show;
-    } else {
-	$self->NORTH->hide;
-	$self->SOUTH->hide;
-    }
-    $self->{info};
-}
-
 sub on_paint { # update metadata label overlays, later in front of earlier
     my($self, $canvas) = @_;
     $self->SUPERon_paint(@_);	# hack!!! see below!!!
+    unless ($self->popup->checked('info')) {
+	$self->NORTH->hide;
+	$self->SOUTH->hide;
+	return;
+    }
     my $im = $self->image or return;
     $im = $self->picture or return;
     my $th = $self->{thumbviewer};
@@ -172,6 +151,8 @@ sub on_paint { # update metadata label overlays, later in front of earlier
     (my $path = $self->picture->dir->directory) =~s{/}{\n}g;
     $self->SOUTH->SE->text($path);
     $self->SOUTH->SW->text(scalar localtime $self->picture->time);
+    $self->NORTH->show;
+    $self->SOUTH->show;
 }
 
 sub on_close {
@@ -222,7 +203,7 @@ sub on_keydown
     }
     if ($code == ord 'm' or $code == ord '?' or $code == 13) { # popup menu
 	my @sz = $self->size;
-	$self->popup->popup($sz[0]/2, $sz[1]/2);
+	$self->popup->popup(50, $sz[1] - 50); # near top left
 	return;
     }
    if ($code == 9) {		# ctrl-i = info toggle, in menu
@@ -268,7 +249,7 @@ sub on_keydown
     $dx -= $xstep if $key == kb::Left;
     $dy += $ystep if $key == kb::Down;
     $dy -= $ystep if $key == kb::Up;
-    $self-> deltas($dx, $dy);
+    $self->deltas($dx, $dy);
 }
 
 sub status
@@ -333,7 +314,7 @@ sub SUPERon_paint
 		} else {
 			$aty = 0;
 		}
-		unless ($self->{overlay}) {
+		unless ($self->popup->checked('overlay')) {
 		    $canvas-> clear( 0, 0, $winX-1, $aty-1) if $aty > 0;
 		    $canvas-> clear( 0, $aty + $imYz, $winX-1, $winY-1) if $aty + $imYz < $winY;
 		}
@@ -353,7 +334,7 @@ sub SUPERon_paint
 		} else {
 			$atx = 0;
 		}
-		unless ($self->{overlay}) {
+		unless ($self->popup->checked('overlay')) {
 		    $canvas-> clear( 0, $aty, $atx - 1, $aty + $imYz - 1) if $atx > 0;
 		    $canvas-> clear( $atx + $imXz, $aty, $winX - 1, $aty + $imYz - 1) if $atx + $imXz < $winX;
 		}

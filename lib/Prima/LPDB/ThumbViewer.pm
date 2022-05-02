@@ -138,7 +138,8 @@ sub init {
 				   transparent => 1, # hack, using label as container
 				   pack => { side => 'bottom', fill => 'x', pad => 5 });
     $bot->insert('Prima::Label', name => 'SW', pack => { side => 'left' });
-    $bot->insert('Prima::Label', name => 'SE', pack => { side => 'right' });
+    $bot->insert('Prima::Label', name => 'SE', pack => { side => 'right' },
+		 text => 'physical Gallery paths appear here');
     $bot->insert('Prima::Label', name => 'S', pack => { side => 'bottom' });
 
     $self->items($self->children('/'));
