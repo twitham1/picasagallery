@@ -25,6 +25,10 @@ use vars qw(@ISA);
 sub profile_default
 {
     my $def = $_[ 0]-> SUPER::profile_default;
+    my @delay = map { ["ss$_", $_, 'delay' ] } qw/1 2 3 4 5 7 10 15 20 30 45 60/;
+    $delay[0][0] =~ s/^/(/;	# slide show delay group begin
+    $delay[2][0] =~ s/^/*/;	# default entry
+    $delay[-1][0] =~ s/^/)/;	# group end
     my %prf = (
 	size => [1600, 900],
 	selectable => 1,
@@ -33,12 +37,17 @@ sub profile_default
 	alignment   => ta::Center,
 	autoZoom => 1,
 	stretch => 0,
+	timer => undef,
+	seconds => 3,
 #	buffer => 1,
 	popupItems => [
 	    ['~Escape back to Thumb Gallery' =>
 	     sub { $_[0]->key_down(0, kb::Escape) } ],
 	    ['@info', '~Information', 'i', ord 'i' => sub { $_[0]->repaint }],
 	    ['@overlay', '~Overlay Images', 'o', ord 'o' => sub {  $_[0]->repaint }],
+	    [],
+	    ['@slideshow', '~Play/Pause Slide Show', 'p',  ord 'p' => 'slideshow'],
+	    ['Slide Show ~Seconds' => [@delay]],
 	    [],
 	    ['fullscreen', '~Full Screen', 'f', ord 'f' =>
 	     sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
@@ -68,6 +77,8 @@ sub init {
     $top->insert(@opt, name => 'NW', pack => { side => 'left' });
     $top->insert(@opt, name => 'NE', pack => { side => 'right' });
     $top->insert(@opt, name => 'N', pack => { side => 'top' });
+
+    $self->insert(@opt, name => 'CENTER', text => ' ', pack => { side => 'top' });
 
     my $bot = $self->insert(@opt, name => 'SOUTH', text => ' ',
 			    transparent => 1, # hack, using label as container
@@ -112,15 +123,16 @@ sub viewimage
     $self->status;
 }
 
-sub on_size {
-    my $self = shift;
-    #    $self->font->height($self->width/50); # hack?!!!
-    $self->apply_auto_zoom if $self->autoZoom;
-}
+# sub on_size {
+#     my $self = shift;
+#     #    $self->font->height($self->width/50); # hack?!!!
+#     $self->apply_auto_zoom if $self->autoZoom;
+# }
 
 sub on_paint { # update metadata label overlays, later in front of earlier
     my($self, $canvas) = @_;
     $self->SUPERon_paint(@_);	# hack!!! see below!!!
+    $self->CENTER->hide;	# play/stop indicator
     unless ($self->popup->checked('info')) {
 	$self->NORTH->hide;
 	$self->SOUTH->hide;
@@ -192,6 +204,8 @@ sub on_keydown
 	return;
     }
     if ($key == kb::Escape) {	# return focus to caller
+	$self->popup->checked('slideshow', 0);
+	$self->slideshow;	# stop any show
 	my $owner = $self->{thumbviewer};
 	$owner->selected(1);
 	$owner->focused(1);
@@ -268,6 +282,34 @@ sub status
     }
     $w->text($str);
     $w->name($str);
+}
+
+sub delay {
+    $_[1] =~ /ss(\d+)/ and $_[0]->{seconds} = $1;
+    $_[0]->slideshow;
+}
+sub slideshow {
+    my($self) = @_;
+#    $self->autoZoom(1);
+    $self->{timer} ||= Prima::Timer->create(
+    	timeout => 3000,	# milliseconds
+    	onTick => sub {
+	    $self->autoZoom or return;
+	    $self->key_down(0, kb::Right );
+	    $self->CENTER->hide;
+    	}
+    	);
+    if ($self->popup->checked('slideshow') and $self->autoZoom) {
+	my $sec = $self->{seconds} || 3;
+	$self->CENTER->text(">> PLAY $sec seconds >>");
+	$self->CENTER->show;
+	$self->{timer}->timeout($sec * 1000);
+	$self->{timer}->start;
+    } else {
+	$self->CENTER->text("[[ STOP ]]");
+	$self->CENTER->show;
+	$self->{timer}->stop;
+    }
 }
 
 # !!! hack !!! this copy from SUPER tweaked only to support image

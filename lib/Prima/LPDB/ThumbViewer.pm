@@ -71,18 +71,12 @@ sub profile_default
 	    ['~Zoom' => [
 		 ['fullscreen', '~Full Screen', 'f', ord 'f' =>
 		  sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )}],
-		 # ['bigger', 'Zoom ~In', 'PageUp', ord '=' =>
-		 #  sub { $_[0]->bigger }],
-		 # ['smaller', 'Zoom ~Out', 'PageDown', ord '-' =>
-		 #  sub { $_[0]->smaller }],
 		 ['bigger', 'Zoom ~In', 'z', ord 'z' =>
 		  sub { $_[0]->bigger }],
 		 ['smaller', 'Zoom ~Out', 'q', ord 'q' =>
 		  sub { $_[0]->smaller }],
 	     ]],
 	    ['~Options' => [
-		 # ['*@croppaths', 'Crop ~Paths', 'Ctrl+B', '^b' => sub { $_[0]->repaint }],
-		 # ['@cropimages', 'Crop ~Images', 'f', ord 'f' => sub { $_[0]->repaint }],
 		 ['*@croppaths', 'Crop ~Paths' => sub { $_[0]->repaint }],
 		 ['@cropimages', 'Crop ~Images' => sub { $_[0]->repaint }],
 	     ]],
