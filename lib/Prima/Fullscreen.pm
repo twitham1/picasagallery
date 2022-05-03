@@ -6,7 +6,8 @@ Prima::Fullscreen - Try to toggle a window to full screen
 
 This approach to fullscreen keeps the window borders but displays them
 off-screen.  It may or may not work with random window managers.
-Tested only on xfce on Ubuntu 20.04.
+Tested only on xfce on Ubuntu 20.04 where panel hiding is required in
+panel preferences.
 
 =cut
 
@@ -19,38 +20,10 @@ use Prima::Classes;
 use vars qw(@ISA);
 @ISA = qw(Prima::Object);
 
-{
-    my %RNT = (
-	%{Prima::Component->notification_types()},
-	Activate   => nt::Default,
-	Deactivate   => nt::Default,
-	);
-
-    sub notification_types { return \%RNT; }
-}
-
-sub init {
-    my $self = shift;
-    my %profile = $self->SUPER::init(@_);
-    $self->{window} = $profile{window} or
-	die "window required";
-    $profile{window}->onDeactivate(sub {
-	# warn "deactivated @_";
-	$_[0]->onTop(0)
-				   });
-    $profile{window}->onActivate(sub {
-	# warn "activated @_";
-	# $_[0]->fullscreen &&
-	    $_[0]->onTop(1)
-				 });
-    return \%profile;
-}
-
 sub fullscreen {
     # my($win, $which) = @_;
     my($self, $which) = @_;
     my $win = $self->owner;
-    # my $win = $self->{window};
     my @d = $::application->size;		      # desktop size
     my @f = ($win->frameSize, $win->frameOrigin);     # frame size/pos
     my @w = ($win->size, $win->origin);		      # window size/pos
@@ -77,15 +50,16 @@ sub fullscreen {
 	# } while (($win->origin)[1] && $y < 100);
 	# $win->onTop(0);
 	# without this, xfce taskbar overlays my fullscreen:
-	$win->onTop(1);
+	# (until I configured his preferences to "hide = intelligent")
+	# $win->onTop(1);
 	# on xfce/ubuntu, 0,0 is not right but 0,1 is close:
 	$win->origin(0, 1);
 	$win->size(@d);
-	$win->onTop(1);
-	$::application->pointerVisible(0);
+	# $win->onTop(1);
+	$::application->pointerVisible(0); # TODO: make configurable!!!
 	return 1;
     } elsif ($self->{where}) {	# restore orignal frame
-	$win->onTop(0);
+	# $win->onTop(0);
 	# $win->borderIcons(bi::All);
 	# $win->borderStyle(bs::Sizeable);
 	$win->frameSize((@{$self->{where}})[0,1]);

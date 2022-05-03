@@ -52,7 +52,7 @@ sub profile_default
 	     sub { $_[0]->key_down(0, kb::Prior ) }],
 	    ['smaller', 'Zoom ~Out', 'q', ord 'q' =>
 	     sub { $_[0]->key_down(0, kb::Next ) }],
-#	    ['autozoom', '~Toggle Size', 'Enter', sub {} ], # fixt this!!!!!
+	    ['*@autozoom', '~Auto Zoom', 'Enter', kb::Enter, 'autozoom' ],
 	],
 	);
     @$def{keys %prf} = values %prf;
@@ -112,19 +112,13 @@ sub viewimage
     $self->image(magick_to_prima($i));
     $self->{picture} = $picture;
     $self->{fileName} = $filename;
-    $self->autoZoom(1);
+    $self->popup->checked('autozoom', 1);
     $self->apply_auto_zoom;
     $self->repaint;
     $self->selected(1);
     $self->focused(1);
     $self->status;
 }
-
-# sub on_size {
-#     my $self = shift;
-#     #    $self->font->height($self->width/50); # hack?!!!
-#     $self->apply_auto_zoom if $self->autoZoom;
-# }
 
 sub on_paint { # update metadata label overlays, later in front of earlier
     my($self, $canvas) = @_;
@@ -172,31 +166,38 @@ sub on_close {
 #    $owner->owner->restore;
     $owner->owner->select;
 }
+
+sub autozoom {
+    my($self, $which) = @_;
+    $which and
+	$self->autoZoom($self->popup->checked('autozoom'));
+    if ($self->autoZoom) {
+	$self->apply_auto_zoom;
+    } else {
+	$self->zoom(1);		# scroll to center:
+	my @sz = $self->image->size;
+	my @ar = $self->get_active_area(2);
+	$self->deltaX($sz[0]/2 - $ar[0]/2);
+	$self->deltaY($sz[1]/2 - $ar[1]/2);
+    }
+    $self->repaint;
+    $self->autoZoom;
+}
+
 sub on_keydown
 {
     my ( $self, $code, $key, $mod) = @_;
 #    warn "keydown: @_";
     if ($key == kb::Enter) {
-	$self->autoZoom(!$self->autoZoom);
-	if ($self->autoZoom) {
-	    $self->apply_auto_zoom;
-	} else {
-	    $self->zoom(1);	# scroll to center:
-	    my @sz = $self->image->size;
-	    my @ar = $self->get_active_area(2);
-	    $self->deltaX($sz[0]/2 - $ar[0]/2);
-	    $self->deltaY($sz[1]/2 - $ar[1]/2);
-	}
-	$self->repaint;
-	return;
+	return;			# now in sub autozoom
     }
     if ($key == kb::Prior) {
-	$self->autoZoom(0);
+	$self->popup->checked('autozoom', 0);
 	$self->zoom($self->zoom * 1.2);
 	return;
     }
     if ($key == kb::Next) {
-	$self->autoZoom(0);
+	$self->popup->checked('autozoom', 0);
 	$self->zoom($self->zoom / 1.2);
 	return;
     }
@@ -208,12 +209,16 @@ sub on_keydown
 	$owner->focused(1);
 #	$owner->owner->restore;
 	$owner->owner->select;
-	$owner->owner->onTop(1)
-	    if $owner->fullscreen; # hack!!!! can't get Fullscreen to do it...
+	# $owner->owner->onTop(1)
+	#     if $owner->fullscreen; # hack!!!! can't get Fullscreen to do it...
 	return;
     }
     if ($code == ord 'm' or $code == ord '?' or $code == 13) { # popup menu
 	my @sz = $self->size;
+	if ($self->popup->checked('slideshow')) {
+	    $self->popup->checked('slideshow', 0);
+	    $self->slideshow;
+	}
 	$self->popup->popup(50, $sz[1] - 50); # near top left
 	return;
     }
@@ -239,7 +244,7 @@ sub on_keydown
 	my $idx = $th->focusedItem;
 	my $this = $th->{items}[$idx];
 	if ($this->isa('LPDB::Schema::Result::Path')) {
-	    warn "this node is a path $idx";
+	    # warn "this node is a path $idx";
 	    #    my ($self, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col) = @_;
 	    # Prima::LPDB::ThumbViewer::draw_path($self, $self, $idx, 5, 5, 200, 200, 0, 0, 0, 0);
 	    # $self->draw_path($self, $idx, 5, 5, 200, 200, 0, 0, 0, 0);
@@ -270,9 +275,10 @@ sub status
     my $img = $self->image;
     my $str;
     if ($img) {
+	my $play = $self->popup->checked('slideshow') ? 'Play: ' : '';
 	$str = $self->{fileName};
 	$str =~ s/([^\\\/]*)$/$1/;
-	$str = sprintf("%s (%dx%dx%d bpp)", $1,
+	$str = sprintf("%s%s (%dx%dx%d bpp)", $play, $1,
 		       $img->width, $img->height, $img->type & im::BPP);
     } else {
 	$str = '.Untitled';

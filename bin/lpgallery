@@ -6,6 +6,15 @@
 
 lpgallery - remote-control (keyboard) driven local picture browser
 
+=head1 SYNOPSIS
+
+lpgallery [startup file]
+
+lpgallery is a keyboard driven local picture browser for LPDB, similar
+to mythgallery of mythtv.  The main window navigates a thumbnail tree
+of multiple virtual paths to galleries of the images.  A second window
+presents any one image at a time.
+
 =head1 FEATURES
 
 UNDER CONSTRUCTION - for getting Prima LPDB browser up and running,
@@ -85,20 +94,7 @@ $::application->font->size(20);
 my $lv;				# ListViewer
 my $iv;				# ImageViewer
 my $w;
-# my $icon;
-# for (@INC) {			# find icon for the application
-#     my $file = "$_/LPDB/lpdb.png";
-#     if (-f $file) {
-# 	my $icon = Prima::Icon->create;
-# 	if ($icon->load($file)) {
-# 	    $::application->icon($icon);
-# 	    last;
-# 	} else {
-# 	    warn "icon $file: $@";
-# 	}
-#     }
-# }
-{
+{			    # my application icon: stack of 3 "images"
     my $size = 160;
     my $ot = $size / 3;		# one third
     my $tt = $size * 2 / 3;	# two thirds
@@ -126,9 +122,6 @@ $w = Prima::MainWindow->create(
     );
 
 sub myclose { $w->deselect; $::application->close } # segfaults!??!!!
-
-# my($x, $y) = (sv::XIcon, sv::YIcon); # see Window.pod on icon setting
-# die "$x x $y"; 
 
 # print sort map {"$_->{name}\n"} @{$::application-> fonts}; # see available fonts!!!
 

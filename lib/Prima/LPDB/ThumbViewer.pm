@@ -33,7 +33,8 @@ sub profile_default
     my $def = $_[ 0]-> SUPER::profile_default;
     my %prf = (
 	popupItems => [
-	    ['navto' => '~Navigate To' => [ # replaced by on_selectitem
+	    ['navto' => '~Navigate To' => [
+		 # replaced by on_selectitem
 		 ['/[Folders]/' => '/[Folders]/' => 'goto'],
 	     ]],
 	    ['~Sort' => [
@@ -68,18 +69,19 @@ sub profile_default
 		  ]],
 
 	     ]],
-	    ['~Zoom' => [
-		 ['fullscreen', '~Full Screen', 'f', ord 'f' =>
-		  sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )}],
-		 ['bigger', 'Zoom ~In', 'z', ord 'z' =>
-		  sub { $_[0]->bigger }],
-		 ['smaller', 'Zoom ~Out', 'q', ord 'q' =>
-		  sub { $_[0]->smaller }],
-	     ]],
-	    ['~Options' => [
-		 ['*@croppaths', 'Crop ~Paths' => sub { $_[0]->repaint }],
-		 ['@cropimages', 'Crop ~Images' => sub { $_[0]->repaint }],
-	     ]],
+	    [],
+	    ['fullscreen', '~Full Screen', 'f', ord 'f' =>
+	     sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )}],
+	    ['bigger', 'Zoom ~In', 'z', ord 'z' =>
+	     sub { $_[0]->bigger }],
+	    ['smaller', 'Zoom ~Out', 'q', ord 'q' =>
+	     sub { $_[0]->smaller }],
+	    [],
+	    ['*@croppaths', 'Crop ~Paths', 'Ctrl+Shift+T',
+	     km::Ctrl | km::Shift | ord('t') => sub { $_[0]->repaint }],
+	    ['@cropimages', 'Crop ~Images', 'Ctrl+E',
+	     km::Ctrl | ord('e') => sub { $_[0]->repaint }],
+	    [],
 	    ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close }],
 	    # ['quit', '~Quit', 'Ctrl+Q', '^q' => \&myclose ],
 	]);
@@ -222,9 +224,19 @@ sub on_selectitem {		# update metadata labels
 	$this->path =~ m{(.*/)(.+/?)};
 	$self->owner->NORTH->N->text($2);
 	my @p = $this->stack;
+	my $span = $p[2] ? $p[2]->time - $p[0]->time : 1;
+	my $len =
+	    $span > 3*365*86400 ? sprintf('%.0f years',  $span / 365 / 86400)
+	    : $span > 90 *86400 ? sprintf('%.0f months', $span/30.4375/86400)
+	    : $span > 48 * 3600 ? sprintf('%.0f days',   $span / 86400)
+	    : $span >      3600 ? sprintf('%.0f hours',  $span / 3600)
+	    : $span >        60 ? sprintf('%.0f minutes', $span / 60)
+	    : '1 minute';
+	my $n = $this->picturecount;
+	my $p = $n > 1 ? 's' : '';
 	$self->owner->SOUTH->SW->text(scalar localtime $p[0]->time);
+	$self->owner->SOUTH->S->text("$n image$p in $len");
 	$self->owner->SOUTH->SE->text($p[2] ? scalar localtime $p[2]->time : '  ');
-	$self->owner->SOUTH->S->text($this->picturecount . ' images');
     } elsif ($this->isa('LPDB::Schema::Result::Picture')) {
 	$self->owner->NORTH->N->text($this->basename);
 	$self->owner->SOUTH->SW->text(scalar localtime $this->time);
@@ -268,7 +280,7 @@ sub on_keydown
 	    # show picture in other window and raise it
 #	    $self->owner->onTop(0); # hack!!!! can't get Fullscreen to do it...
 	    $self->viewer->IV->viewimage($this);
-	    $self->viewer->onTop(1);
+#	    $self->viewer->onTop(1); # if $self->fullscreen;
 	}
 	$self->clear_event;
 	return;
@@ -279,7 +291,7 @@ sub on_keydown
     }
     if ($code == ord 'm' or $code == ord '?' or $code == 13) { # popup menu
 	my @sz = $self->size;
-	$self->popup->popup(20, $sz[1] - 20); # near top left
+	$self->popup->popup(50, $sz[1] - 50); # near top left
 	return;
     }
     if ($code == 5) {		# ctrl-e = crops, in menu
@@ -420,8 +432,8 @@ sub draw_picture {
     $b += 5;			# now text border
     # my $str = sprintf "%s\n%dx%d", $pic->basename,
     #     $pic->width, $pic->height;
-    my $str = $pic->width > 1.8 * $pic->height ? '--' # wide / portrait marks
-	: $pic->width < $pic->height ? '|' : '';
+    my $str = $pic->width > 1.8 * $pic->height ? '==' # wide / portrait flags
+	: $pic->width < $pic->height ? '||' : '';
     $str and
 	$canvas->draw_text($str, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
 			   dt::Right|dt::Top|dt::Default);
