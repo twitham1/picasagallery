@@ -6,7 +6,7 @@ Prima::LPDB::ThumbViewer - Browse a tree of image thumbnails from LPDB
 
 The heart of C<lpgallery>, this class connects C<Prima::TileViewer> to
 an C<LPDB> database, presenting its paths and pictures in a keyboard-
-driven interactive thumbnail browser.  It also [re]opens a
+driven interactive thumbnail browser.  It also [re]creates a
 C<Prima::LPDB::ImageViewer> to display a selected picture.
 
 =cut
@@ -212,7 +212,7 @@ sub current {			# path to current selected item
 }
 
 sub _trimfile { (my $t = $_) =~ s{//.*}{}; $t }
-sub on_selectitem {		# update metadata labels
+sub on_selectitem { # update metadata labels, later in front of earlier
     my ($self, $idx, $state) = @_;
     my $x = $idx->[0] + 1;
     my $y = $self->count;
@@ -234,18 +234,18 @@ sub on_selectitem {		# update metadata labels
 	    : '1 minute';
 	my $n = $this->picturecount;
 	my $p = $n > 1 ? 's' : '';
-	$self->owner->SOUTH->SW->text(scalar localtime $p[0]->time);
 	$self->owner->SOUTH->S->text("$n image$p in $len");
 	$self->owner->SOUTH->SE->text($p[2] ? scalar localtime $p[2]->time : '  ');
+	$self->owner->SOUTH->SW->text(scalar localtime $p[0]->time);
     } elsif ($this->isa('LPDB::Schema::Result::Picture')) {
 	$self->owner->NORTH->N->text($this->basename);
-	$self->owner->SOUTH->SW->text(scalar localtime $this->time);
 	$self->owner->SOUTH->SE->text($this->dir->directory);
 	$self->owner->SOUTH->S->text(sprintf '%dx%d=%.2f  %.1fMP %.0fKB',
 				     $this->width , $this->height,
 				     $this->width / $this->height,
 				     $this->width * $this->height / 1000000,
 				     $this->bytes / 1024);
+	$self->owner->SOUTH->SW->text(scalar localtime $this->time);
 	$id = $this->file_id;
     }
     my $me = $self->current;
