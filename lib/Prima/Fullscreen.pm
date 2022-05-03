@@ -32,7 +32,7 @@ sub fullscreen {
 	return $d[0] == $w[0] && $d[1] == $w[1];
     }
     if ($which) {		# going to fullscreen
-	$self->{where} = \@w;	# remember size/origin to return to
+	$self->{where} = \@f;	# remember size/origin to return to
 	# my $x = $f[0] - $w[0];
 	# my $y = $f[1] - $w[1];
 	# this loses Alt-tab control on xfce:

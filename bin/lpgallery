@@ -32,24 +32,37 @@ use Prima::Image::Magick qw/:all/;
 use LPDB;
 use Prima::LPDB::ThumbViewer;
 
-my $dbfile    = '.lpdb.db';
-my $thumbfile = '.lpdb-thumb.db';
+my $usage = "usage: $0 [startup perl configuration files, see manual]";
 
-if (grep /tmp/, @ARGV) {      # hack!!!! make DB location configurable
-    $dbfile = '/tmp/.lpdb.db';
-    $thumbfile = '/tmp/.lpdb-thumb.db';
+# configuration file options that can be overridden in files:
+our $conf = {
+    dbfile => '.lpdb.db',
+    thumbfile => '.lpdb-thumb.db',
+    dbtrace => 0,		# see SQL of database?
+    thumbtrace => 0,		# see SQL of thumbs?
+    thumbviewer => sub {},     # called at startup, gets viewer object
+    imageviewer => sub {},     # called at startup, gets viewer object
+};
+
+for (@ARGV) {
+    if (-f $_) {
+	my $tmp = require $_ or die "$usage\n$_: $!";
+	map { $conf->{$_} = $tmp->{$_} } keys %$tmp;
+    } else {
+	die $usage;
+    }
 }
 
 # don't accidentally recurse: create database only with confirmation
-my $create = -f $dbfile && -s _ ? 0 : 1;
+my $create = -f $conf->{dbfile} && -s _ ? 0 : 1;
 if ($create) {
     #     -t STDIN or die "bailing out, $conf->{cache} not configured here!\n";
     #     print "$conf->{cache} doesn't exist here!
     # Shall I create it and recurse for pictures?  yes/no [no] : ";
-    -t STDIN or die "bailing out, $dbfile not found here!\n";
-    print "$dbfile doesn't exist here!
+    -t STDIN or die "bailing out, $conf->{dbfile} not found here!\n";
+    print "$conf->{dbfile} doesn't exist here!
 	Shall I create it and recurse for pictures?  yes/no [no] : ";
-    my $ans = <>;
+    my $ans = <STDIN>;
     $ans =~ /^\s*y/i
 	or die "cd to root of pictures and re-run\n";
     print "\n\nPlease wait 10 seconds for DB creation, ",
@@ -59,21 +72,21 @@ if ($create) {
 my $lpdb;			# LPDB object, a local picture database
 my $child;
 if ($child = fork) {		# GUI starts after child is updating DB
-    warn "$0: $$ forked $child to update $dbfile\n";
+    warn "$0: $$ forked $child to update $conf->{dbfile}\n";
     sleep 10 if $create;
-    $lpdb = new LPDB({dbfile => $dbfile,
-		      thumbfile => $thumbfile,
-		      # sqltrace => 1,
+    $lpdb = new LPDB({dbfile => $conf->{dbfile},
+		      thumbfile => $conf->{thumbfile},
+		      sqltrace => $conf->{dbtrace},
 		     });
 } else {			# child updates DB, creating if needed
-    unlink $dbfile if $create;
-    $lpdb = new LPDB({dbfile => $dbfile,
-    		      thumbfile => $thumbfile,
-    		      #		     sqltrace => 1,
+    unlink $conf->{dbfile} if $create;
+    $lpdb = new LPDB({dbfile => $conf->{dbfile},
+    		      thumbfile => $conf->{thumbfile},
+		      sqltrace => $conf->{thumbtrace},
     		     });
     $lpdb->create if $create;
     $lpdb->update('.');
-    warn "$0: $$ done updating $dbfile\n";
+    warn "$0: $$ done updating $conf->{dbfile}\n";
     exit;
 }
 END {
@@ -139,6 +152,10 @@ $lv = $w->insert(
 
 $lv->smaller(6);		# resize thumbs to fill the window
 $lv->focusedItem(0);
+
+if ($conf->{thumbviewer}) {	# optional startup configuration
+    &{$conf->{thumbviewer}}($lv);
+}
 
 run Prima;
 

@@ -447,6 +447,7 @@ sub draw_picture {
 
 sub viewer {		 # reuse existing image viewer, or recreate it
     my $self = shift;
+    my $iv;
     if ($self and $self->{viewer} and
 	Prima::Object::alive($self->{viewer})) {
 	$self->{viewer}->restore
@@ -468,6 +469,11 @@ sub viewer {		 # reuse existing image viewer, or recreate it
     }
     $self->{viewer}->select;
     $self->{viewer}->repaint;
+
+    my $conf = $main::conf || {};	# set by main program
+    if ($conf->{imageviewer}) {	# optional startup configuration
+	&{$conf->{imageviewer}}($self->{viewer}->IV);
+    }
     $self->{viewer};
 }
 
