@@ -139,10 +139,10 @@ sub on_paint { # update metadata label overlays, later in front of earlier
 				   $self->zoom * 100,
 				   $im->width, $im->height,
 				   $im->width / $im->height));
-    $self->NORTH->NE->text(sprintf '%.1fMP %.0fKB %d / %d',
+    $self->NORTH->NE->text(sprintf '%.1fMP %.0fKB, %.0f%% = %d / %d',
 			   $im->width * $im->height / 1000000,
 			   $im->bytes / 1024,
-			   $x, $y);
+			   $x / $y * 100, $x, $y);
     if ($self->picture->caption) {
 	$self->SOUTH->S->text($self->picture->caption);
 	$self->SOUTH->S->show;

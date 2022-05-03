@@ -216,10 +216,11 @@ sub on_selectitem { # update metadata labels, later in front of earlier
     my ($self, $idx, $state) = @_;
     my $x = $idx->[0] + 1;
     my $y = $self->count;
+    my $p = sprintf '%.0f', $x / $y * 100;
     my $this = $self->{items}[$idx->[0]];
     my $id = 0;			# file_id of image only, for related
     $self->owner->NORTH->NW->text($self->cwd);
-    $self->owner->NORTH->NE->text("$x / $y");
+    $self->owner->NORTH->NE->text("$p% = $x / $y");
     if ($this->isa('LPDB::Schema::Result::Path')) {
 	$this->path =~ m{(.*/)(.+/?)};
 	$self->owner->NORTH->N->text($2);
