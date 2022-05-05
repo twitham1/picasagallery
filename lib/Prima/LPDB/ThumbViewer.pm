@@ -53,8 +53,8 @@ sub profile_default
 		      ['glast' => '~Last Time' => 'sorter'],
 		      [')gskip' => '~Ungrouped' => 'sorter'],
 		      [],
-		      ['*(aasc' => '~Ascending' => 'sorter'],
-		      [')adsc' => '~Descending' => 'sorter'],
+		      ['*(gasc' => '~Ascending' => 'sorter'],
+		      [')gdsc' => '~Descending' => 'sorter'],
 		  ]],
 		 ['~Images' => [
 		      ['(iname' => '~Name' => 'sorter'],
