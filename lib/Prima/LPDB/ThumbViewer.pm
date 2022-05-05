@@ -82,6 +82,8 @@ sub profile_default
 	    ['@cropimages', 'Crop ~Images', 'Ctrl+E',
 	     km::Ctrl | ord('e') => sub { $_[0]->repaint }],
 	    [],
+	    ['help', '~Help', 'h', ord('h') => sub {
+		$::application->open_help("file://$0") }],
 	    ['quit', '~Quit', 'Ctrl+Q', '^q' => sub { $::application->close }],
 	    # ['quit', '~Quit', 'Ctrl+Q', '^q' => \&myclose ],
 	]);

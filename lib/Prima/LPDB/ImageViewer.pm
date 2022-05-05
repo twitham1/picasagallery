@@ -116,8 +116,8 @@ sub viewimage
     $self->popup->checked('autozoom', 1);
     $self->apply_auto_zoom;
     $self->repaint;
-    $self->selected(1);
-    $self->focused(1);
+    # $self->selected(1);
+    # $self->focused(1);
     $self->status;
 }
 
@@ -162,8 +162,8 @@ sub on_paint { # update metadata label overlays, later in front of earlier
 sub on_close {
     my $owner = $_[0]->{thumbviewer};
     $owner or return;
-    $owner->selected(1);
-    $owner->focused(1);
+    # $owner->selected(1);
+    # $owner->focused(1);
 #    $owner->owner->restore;
     $owner->owner->select;
 }
@@ -206,8 +206,8 @@ sub on_keydown
 	$self->popup->checked('slideshow', 0);
 	$self->slideshow;	# stop any show
 	my $owner = $self->{thumbviewer};
-	$owner->selected(1);
-	$owner->focused(1);
+	# $owner->selected(1);
+	# $owner->focused(1);
 #	$owner->owner->restore;
 	$owner->owner->select;
 	return;
