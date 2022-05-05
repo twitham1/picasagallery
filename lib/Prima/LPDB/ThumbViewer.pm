@@ -143,8 +143,8 @@ sub init {
     $self->items($self->children('/'));
     $self->focusedItem(0);
     $self->repaint;
-    $self->selected(1);
-    $self->focused(1);
+    # $self->selected(1);
+    # $self->focused(1);
     $self->select;
     return %profile;
 }
@@ -279,9 +279,7 @@ sub on_keydown
 	    $self->repaint;
 	} elsif ($this->isa('LPDB::Schema::Result::Picture')) {
 	    # show picture in other window and raise it
-#	    $self->owner->onTop(0); # hack!!!! can't get Fullscreen to do it...
 	    $self->viewer->IV->viewimage($this);
-#	    $self->viewer->onTop(1); # if $self->fullscreen;
 	}
 	$self->clear_event;
 	return;
@@ -467,14 +465,15 @@ sub viewer {		 # reuse existing image viewer, or recreate it
 	    pack => { expand => 1, fill => 'both' },
 	    # growMode => gm::Client,
 	    );
+	$w->repaint;
+	my $conf = $main::conf || {}; # set by main program
+	if ($conf->{imageviewer}) {   # optional startup configuration
+	    &{$conf->{imageviewer}}($self->{viewer}->IV);
+	}
     }
-    $self->{viewer}->select;
+    # $self->{viewer}->select;
+    $self->{viewer}->bring_to_front;
     $self->{viewer}->repaint;
-
-    my $conf = $main::conf || {};	# set by main program
-    if ($conf->{imageviewer}) {	# optional startup configuration
-	&{$conf->{imageviewer}}($self->{viewer}->IV);
-    }
     $self->{viewer};
 }
 

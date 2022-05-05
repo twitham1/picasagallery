@@ -27,11 +27,13 @@ sub fullscreen {
     my @d = $::application->size;		      # desktop size
     my @f = ($win->frameSize, $win->frameOrigin);     # frame size/pos
     my @w = ($win->size, $win->origin);		      # window size/pos
-    warn "$win is @w framed by @f";
-    unless (defined $which) {
-	return $d[0] == $w[0] && $d[1] == $w[1];
-    }
+    my $full = $d[0] == $w[0] && $d[1] == $w[1];      # full screen now?
+    my $to = $which || '';			      # target
+    warn "$win is\t@w framed by\t@f,  full=$full, to=$to";
+    defined $which
+	or return $full;
     if ($which) {		# going to fullscreen
+	$full and return 1;
 	$self->{where} = \@f;	# remember size/origin to return to
 	# my $x = $f[0] - $w[0];
 	# my $y = $f[1] - $w[1];

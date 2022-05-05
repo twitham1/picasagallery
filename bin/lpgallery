@@ -44,12 +44,15 @@ our $conf = {
     imageviewer => sub {},     # called at startup, gets viewer object
 };
 
-for (@ARGV) {
+# configuration files: last option setting wins
+for ("$ENV{HOME}/.lpdb.pl", "./.lpdb.pl", @ARGV) {
     if (-f $_) {
+	s{^(\w+)}{./$1};
+	warn "using config $_\n";
 	my $tmp = require $_ or die "$usage\n$_: $!";
 	map { $conf->{$_} = $tmp->{$_} } keys %$tmp;
     } else {
-	die $usage;
+	warn "no config at $_\n";
     }
 }
 
@@ -152,7 +155,9 @@ $lv = $w->insert(
 
 $lv->smaller(6);		# resize thumbs to fill the window
 $lv->focusedItem(0);
+$w->repaint;
 
+#$::application->yield;
 if ($conf->{thumbviewer}) {	# optional startup configuration
     &{$conf->{thumbviewer}}($lv);
 }

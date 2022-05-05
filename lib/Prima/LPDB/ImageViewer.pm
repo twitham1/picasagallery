@@ -39,11 +39,12 @@ sub profile_default
 	popupItems => [
 	    ['~Escape back to Thumb Gallery' =>
 	     sub { $_[0]->key_down(0, kb::Escape) } ],
+	    [],
 	    ['@info', '~Information', 'i', ord 'i' => sub { $_[0]->repaint }],
 	    ['@overlay', '~Overlay Images', 'o', ord 'o' => sub {  $_[0]->repaint }],
 	    [],
 	    ['@slideshow', '~Play/Pause Slide Show', 'p',  ord 'p' => 'slideshow'],
-	    ['faster', '~Faster Show', "Ctrl+Shift+F", km::Ctrl | km::Shift | ord('F') => 'delay'],
+	    ['faster', 'Fas~ter Show', "Ctrl+Shift+F", km::Ctrl | km::Shift | ord('F') => 'delay'],
 	    ['slower', '~Slower Show', "Ctrl+Shift+B", km::Ctrl | km::Shift | ord('B') => 'delay'],
 	    [],
 	    ['fullscreen', '~Full Screen', 'f', ord 'f' =>
@@ -209,8 +210,6 @@ sub on_keydown
 	$owner->focused(1);
 #	$owner->owner->restore;
 	$owner->owner->select;
-	# $owner->owner->onTop(1)
-	#     if $owner->fullscreen; # hack!!!! can't get Fullscreen to do it...
 	return;
     }
     if ($code == ord 'm' or $code == ord '?' or $code == 13) { # popup menu
