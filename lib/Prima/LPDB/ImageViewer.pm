@@ -67,6 +67,9 @@ sub init {
 
     $self->{thumbviewer} = $profile{thumbviewer}; # object to return focus to
 
+    $self->{exif} = new Image::ExifTool; # for collecting picture metadata
+    $self->{exif}->Options(FastScan => 1); # , DateFormat => $conf->{datefmt});
+
     $self->insert('Prima::Fullscreen', window => $self->owner);
 
     my $top = $self->insert(@opt, name => 'NORTH', text => ' ',
@@ -135,7 +138,7 @@ sub on_paint { # update metadata label overlays, later in front of earlier
     my $th = $self->{thumbviewer};
     my $x = $th->focusedItem + 1;
     my $y = $th->count;
-    $self->NORTH->N->text($self->picture->basename);
+    $self->NORTH->N->text($im->basename);
     $self->NORTH->NW->text(sprintf("%.0f%% of %dx%d=%.2f",
 				   $self->zoom * 100,
 				   $im->width, $im->height,
@@ -144,17 +147,28 @@ sub on_paint { # update metadata label overlays, later in front of earlier
 			   $im->width * $im->height / 1000000,
 			   $im->bytes / 1024,
 			   $x / $y * 100, $x, $y);
-    if ($self->picture->caption) {
-	$self->SOUTH->S->text($self->picture->caption);
-	$self->SOUTH->S->show;
-    } else {
-	$self->SOUTH->S->text('');
-	$self->SOUTH->S->hide;
-    }
-    # (my $path = $self->picture->dir->directory) =~ s{.*/(.+/)}{$1};
-    (my $path = $self->picture->dir->directory) =~s{/}{\n}g;
-    $self->SOUTH->SE->text($path);
-    $self->SOUTH->SW->text(scalar localtime $self->picture->time);
+    my $info = $self->{exif}->ImageInfo($im->pathtofile);
+    # use Data::Dumper;
+    # warn "info $im: ", Dumper $info;
+    my @info;
+    my $make = $info->{Make} || '';
+    push @info, $make if $make;
+    (my $model = $info->{Model} || '') =~ s/$make//g; # redundant
+    push @info, $model if $model;
+    push @info, "$info->{ExposureTime}s" if $info->{ExposureTime};
+    push @info, $info->{FocalLength} if $info->{FocalLength};
+    push @info, "($info->{FocalLengthIn35mmFormat})"
+	if $info->{FocalLengthIn35mmFormat};
+    push @info, "f/$info->{FNumber}" if $info->{FNumber};
+    push @info, "ISO: $info->{ISO}" if $info->{ISO};
+    push @info, $info->{Flash} if $info->{Flash};
+    push @info, $info->{Orientation} if
+	$info->{Orientation} and $info->{Orientation} =~ /Rotate/;
+    my $path = $im->dir->directory;
+    $self->SOUTH->S->text($im->caption ? join "\n",
+			  $im->caption, $path : $path);
+    $self->SOUTH->SE->text(join "\n", @info);
+    $self->SOUTH->SW->text(scalar localtime $im->time);
     $self->NORTH->show;
     $self->SOUTH->show;
 }
