@@ -79,7 +79,7 @@ sub profile_default
 	    [],
 	    ['*@croppaths', 'Crop ~Paths', 'Ctrl+Shift+T',
 	     km::Ctrl | km::Shift | ord('t') => sub { $_[0]->repaint }],
-	    ['@cropimages', 'Crop ~Images', 'Ctrl+E',
+	    ['@cropimages', '~Crop Images', 'Ctrl+E',
 	     km::Ctrl | ord('e') => sub { $_[0]->repaint }],
 	    [],
 	    ['help', '~Help', 'h', ord('h') => sub {

@@ -128,6 +128,13 @@ sub on_paint { # update metadata label overlays, later in front of earlier
     my($self, $canvas) = @_;
     $self->SUPERon_paint(@_);	# hack!!! see below!!!
     $self->CENTER->hide;	# play/stop indicator
+    my $th = $self->{thumbviewer};
+    my $x = $th->focusedItem + 1;
+    my $y = $th->count;
+    my($w, $h) = $self->size;
+    my $each = $w / $y;		# might need improved: minimum width
+    $self->color(cl::Magenta);
+    $self->bar($each * ($x - 1), $h, $each * $x, $h - 10);
     unless ($self->popup->checked('info')) {
 	$self->NORTH->hide;
 	$self->SOUTH->hide;
@@ -135,9 +142,6 @@ sub on_paint { # update metadata label overlays, later in front of earlier
     }
     my $im = $self->image or return;
     $im = $self->picture or return;
-    my $th = $self->{thumbviewer};
-    my $x = $th->focusedItem + 1;
-    my $y = $th->count;
     $self->NORTH->N->text($im->basename);
     $self->NORTH->NW->text(sprintf("%.0f%% of %dx%d=%.2f",
 				   $self->zoom * 100,
