@@ -37,6 +37,16 @@ sub profile_default
 		 # replaced by on_selectitem
 		 ['/[Folders]/' => '/[Folders]/' => 'goto'],
 	     ]],
+	    ['Filte~r' => [
+		 ['@tags' => '~Tags' => 'sorter'],
+		 ['@captions' => '~Captions' => 'sorter'],
+		 [],
+		 ['*(unlimited' => '~Unlimited' => 'sorter'],
+		 ['year3' => '3 Years' => 'sorter'],
+		 ['year' => '1 ~Year' => 'sorter'],
+		 ['month' => '1 ~Month' => 'sorter'],
+		 [')day' => '1 ~Day' => 'sorter'],
+	     ]],
 	    ['~Sort' => [
 		 ['~Paths' => [
 		      ['*(pname' => '~Name' => 'sorter'],
@@ -152,7 +162,7 @@ sub init {
 }
 
 sub sorter {	    # applies current sort/filter via children of goto
-    my($self, $name, $val) = @_;
+    my($self) = @_;
     $self->goto($self->current);
 }
 
@@ -173,7 +183,16 @@ sub children {			# return children of given text path
     { ($m->checked('idsc') ? '-desc' : '-asc') => 'me.time' };
     $m->checked('iname') and push @sort,
     { ($m->checked('idsc') ? '-desc' : '-asc') => 'me.basename' };
-    my($path, $file) = $self->{tree}->pathpics($parent || '/', \@sort);
+    my @filter;		# menu filter options to database where clause
+    $m->checked('tags') and push @filter,
+	tag_id => { '!=', undef };
+    $m->checked('captions') and push @filter,
+	caption => { '!=', undef };
+    $m->checked('year3') and push @filter,
+	time => { '>', time - 3 * 365 * 86400 };
+    $m->checked('year') and push @filter,
+	time => { '>', time - 365 * 86400 };
+    my($path, $file) = $self->{tree}->pathpics($parent || '/', \@sort, \@filter);
     my @path = sort {		# sort paths per menu selection
     	($m->checked('pname') ? $a->path cmp $b->path : 0) ||
     	    ($m->checked('pfirst') ? $a->time(0) <=> $b->time(0) : 0) ||
@@ -207,7 +226,7 @@ sub goto {  # for robot navigation (slideshow) also used by escape key
 
 sub current {			# path to current selected item
     my($self) = @_;
-    $self->focusedItem < 0 and return '/';
+    $self->focusedItem < 0 and return $self->cwd || '/';
     my $this = $self->{items}[$self->focusedItem];
     $self->cwd . ($this->basename =~ m{/$} ? $this->basename
 		  : '/' . $this->pathtofile);
@@ -261,6 +280,11 @@ sub on_selectitem { # update metadata labels, later in front of earlier
 sub cwd {
     my($self, $cwd) = @_;
     $cwd and $self->{cwd} = $cwd;
+    if ($cwd) {			# hack: assume no images
+	$self->owner->NORTH->N->text('0 images, check filters!');
+	$self->owner->NORTH->NE->text('0 / 0');
+	$self->owner->SOUTH->hide;
+    }
     return $self->{cwd} || '/';
 }
 

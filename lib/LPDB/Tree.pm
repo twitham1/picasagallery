@@ -23,8 +23,10 @@ sub new {
 }
 
 sub pathpics {		     # return paths and pictures in given path
-    my($self, $parent, $sort) = @_;
+    my($self, $parent, $sort, $filter) = @_;
     my(@dirs, @pics);
+    my @filter;
+    @filter = @$filter if $filter;
     $parent =~ s{/+}{/};	# cleanup
     my $id = $self->{id};
     if ($parent and my $obj =
@@ -38,9 +40,9 @@ sub pathpics {		     # return paths and pictures in given path
 	push @dirs, $paths->all;
     }
     if (my $pics = $self->{schema}->resultset('Picture')->search(
-	    {path_id => $id},
+	    {path_id => $id, @filter},
 	    {order_by => $sort || [],
-	     prefetch => [ 'picture_paths', 'dir' ],
+	     prefetch => [ 'picture_paths', 'dir', 'picture_tags'],
 	    })) {
 	push @pics, $pics->all;
     }

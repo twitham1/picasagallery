@@ -59,6 +59,7 @@ sub resultset {		 # all files below logical path, in time order
 	 time => { '!=' => undef } },
 	{order_by => { -asc => 'time' },
 	 group_by => 'file_id',
+	 columns => [ qw/time file_id dir_id/ ],
     	});
 }
 
