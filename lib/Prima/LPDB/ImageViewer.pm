@@ -132,7 +132,7 @@ sub on_paint { # update metadata label overlays, later in front of earlier
     my $x = $th->focusedItem + 1;
     my $y = $th->count;
     my($w, $h) = $self->size;
-    my $each = $w / $y;		# might need improved: minimum width
+    my $each = $w / $y;	   # TODO: move to a new frame progress object
     $self->color(cl::Magenta);
     $self->bar($each * ($x - 1), $h, $each * $x, $h - 10);
     unless ($self->popup->checked('info')) {
@@ -168,13 +168,19 @@ sub on_paint { # update metadata label overlays, later in front of earlier
     push @info, $info->{Flash} if $info->{Flash};
     push @info, $info->{Orientation} if
 	$info->{Orientation} and $info->{Orientation} =~ /Rotate/;
+    ($x, $y) = $th->xofy($th->focusedItem);
     my $path = $im->dir->directory;
+    $path .= " : $x / $y";
     $self->SOUTH->S->text($im->caption ? join "\n",
 			  $im->caption, $path : $path);
     $self->SOUTH->SE->text(join "\n", @info);
     $self->SOUTH->SW->text(scalar localtime $im->time);
     $self->NORTH->show;
     $self->SOUTH->show;
+    $each = $h / $y;	   # TODO: move to a new frame progress object
+    $self->color(cl::Magenta);
+    $self->bar(0, $h - $each * ($x - 1), 5, $h - $each * $x);
+    $self->color(cl::Fore);
 }
 
 sub on_close {

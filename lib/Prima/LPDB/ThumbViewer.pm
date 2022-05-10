@@ -247,17 +247,18 @@ sub on_selectitem { # update metadata labels, later in front of earlier
     my $p = sprintf '%.0f', $x / $y * 100;
     my $this = $self->{items}[$idx->[0]];
     my $id = 0;			# file_id of image only, for related
-    $self->owner->NORTH->NW->text($self->cwd);
+    my $owner = $self->owner;
+    $owner->NORTH->NW->text($self->cwd);
     my $progress = "$p% = $x / $y";
     @{$self->{filter}} and $progress = "[ $progress ]";
-    $self->owner->NORTH->NE->text($progress);
+    $owner->NORTH->NE->text($progress);
     if ($this->isa('LPDB::Schema::Result::Path')) {
 	$this->path =~ m{(.*/)(.+/?)};
-	$self->owner->NORTH->N->text($2);
+	$owner->NORTH->N->text($2);
 	$self->{filter} and $this->{filter} = $self->{filter};
 	my @p = $this->stack;
 	my $span = $p[2] ? $p[2]->time - $p[0]->time : 1;
-	my $len =
+	my $len =		# timespan of selection
 	    $span > 3*365*86400 ? sprintf('%.0f years',  $span / 365 / 86400)
 	    : $span > 90 *86400 ? sprintf('%.0f months', $span/30.4375/86400)
 	    : $span > 48 * 3600 ? sprintf('%.0f days',   $span / 86400)
@@ -266,21 +267,22 @@ sub on_selectitem { # update metadata labels, later in front of earlier
 	    : '1 minute';
 	my $n = $this->picturecount;
 	my $p = $n > 1 ? 's' : '';
-	$self->owner->SOUTH->S->text("$n image$p in $len" .
-				     (@{$self->{filter}} ? ' (filtered)' : ''));
-	$self->owner->SOUTH->SE->text($p[2] ? scalar localtime $p[2]->time
-				      : '  ');
-	$self->owner->SOUTH->SW->text($p[0] ? scalar localtime $p[0]->time
-				      : 'Check ~Menu -> AND Filters!');
+	$owner->SOUTH->S->text("$n image$p in $len" .
+			       (@{$self->{filter}} ? ' (filtered)' : ''));
+	$owner->SOUTH->SE->text($p[2] ? scalar localtime $p[2]->time
+				: '  ');
+	$owner->SOUTH->SW->text($p[0] ? scalar localtime $p[0]->time
+				: 'Check ~Menu -> AND Filters!');
     } elsif ($this->isa('LPDB::Schema::Result::Picture')) {
-	$self->owner->NORTH->N->text($this->basename);
-	$self->owner->SOUTH->SE->text($this->dir->directory);
-	$self->owner->SOUTH->S->text(sprintf '%dx%d=%.2f  %.1fMP %.0fKB',
-				     $this->width , $this->height,
-				     $this->width / $this->height,
-				     $this->width * $this->height / 1000000,
-				     $this->bytes / 1024);
-	$self->owner->SOUTH->SW->text(scalar localtime $this->time);
+	my($x, $y) = $self->xofy($idx->[0]);
+	$owner->NORTH->N->text($this->basename);
+	$owner->SOUTH->SE->text($this->dir->directory . " : $x / $y");
+	$owner->SOUTH->S->text(sprintf '%dx%d=%.2f  %.1fMP %.0fKB',
+			       $this->width , $this->height,
+			       $this->width / $this->height,
+			       $this->width * $this->height / 1000000,
+			       $this->bytes / 1024);
+	$owner->SOUTH->SW->text(scalar localtime $this->time);
 	$id = $this->file_id;
     }
     my $me = $self->current;
@@ -288,6 +290,30 @@ sub on_selectitem { # update metadata labels, later in front of earlier
 			  [ map { [ $me eq $_ ? "*$_" : $_,
 				    _trimfile($_), 'goto' ] }
 			    $self->{tree}->related($me, $id) ]);
+}
+sub xofy {	      # find pic position in current gallery directory
+    my($self, $me) = @_;
+    my $all = $self->{items};
+    my $max = $self->count;
+    my $this = $all->[$me];
+    my $dir = $this->dir->directory;
+    my $first = $me;
+    while ($first > -1
+	   and $all->[$first]->isa('LPDB::Schema::Result::Picture')
+	   and $all->[$first]->dir->directory eq $dir) {
+	$first--;
+    }
+    my $last = $me;
+    while ($last < $max
+	   and $all->[$last]->isa('LPDB::Schema::Result::Picture')
+	   and $all->[$last]->dir->directory eq $dir) {
+	$last++;
+    }
+    $last--;
+    my $x = $me - $first;
+    my $y = $last - $first;
+    # warn "$first -> $me -> $last == ($x of $y)";
+    return $x, $y;
 }
 
 sub cwd {
