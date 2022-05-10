@@ -37,15 +37,16 @@ sub profile_default
 		 # replaced by on_selectitem
 		 ['/[Folders]/' => '/[Folders]/' => 'goto'],
 	     ]],
-	    ['Filte~r' => [
+	    ['~AND Filters' => [
 		 ['@tags' => '~Tags' => 'sorter'],
 		 ['@captions' => '~Captions' => 'sorter'],
 		 [],
 		 ['*(unlimited' => '~Unlimited' => 'sorter'],
+		 ['year10' => '10 Years' => 'sorter'],
 		 ['year3' => '3 Years' => 'sorter'],
 		 ['year' => '1 ~Year' => 'sorter'],
-		 ['month' => '1 ~Month' => 'sorter'],
-		 [')day' => '1 ~Day' => 'sorter'],
+		 ['quarter' => '3 Months' => 'sorter'],
+		 [')month' => '1 ~Month' => 'sorter'],
 	     ]],
 	    ['~Sort' => [
 		 ['~Paths' => [
@@ -134,7 +135,7 @@ sub init {
 				   transparent => 1, # hack, using label as container
 				   pack => { side => 'top', fill => 'x', pad => 5 });
     $top->insert('Prima::Label', name => 'NW', pack => { side => 'left' },
-		 text => 'Hit M for Menu');
+		 text => 'Hit ~M for Menu');
     $top->insert('Prima::Label', name => 'NE', pack => { side => 'right' },
 		 text => 'Enter = select / Escape = back');
     $top->insert('Prima::Label', name => 'N', pack => { side => 'top' },
@@ -183,16 +184,22 @@ sub children {			# return children of given text path
     { ($m->checked('idsc') ? '-desc' : '-asc') => 'me.time' };
     $m->checked('iname') and push @sort,
     { ($m->checked('idsc') ? '-desc' : '-asc') => 'me.basename' };
-    my @filter;		# menu filter options to database where clause
-    $m->checked('tags') and push @filter,
+    my $filter = $self->{filter} = []; # menu filter options to database where
+    $m->checked('tags') and push @$filter,
 	tag_id => { '!=', undef };
-    $m->checked('captions') and push @filter,
+    $m->checked('captions') and push @$filter,
 	caption => { '!=', undef };
-    $m->checked('year3') and push @filter,
-	time => { '>', time - 3 * 365 * 86400 };
-    $m->checked('year') and push @filter,
-	time => { '>', time - 365 * 86400 };
-    my($path, $file) = $self->{tree}->pathpics($parent || '/', \@sort, \@filter);
+    $m->checked('year10') and push @$filter,
+	time => { '>', time - 10 * 365.25 * 86400 };
+    $m->checked('year3') and push @$filter,
+	time => { '>', time - 3 * 365.25 * 86400 };
+    $m->checked('year') and push @$filter,
+	time => { '>', time - 365.25 * 86400 };
+    $m->checked('quarter') and push @$filter,
+	time => { '>', time - 90 * 86400 };
+    $m->checked('month') and push @$filter,
+	time => { '>', time - 31 * 86400 };
+    my($path, $file) = $self->{tree}->pathpics($parent || '/', \@sort, \@$filter);
     my @path = sort {		# sort paths per menu selection
     	($m->checked('pname') ? $a->path cmp $b->path : 0) ||
     	    ($m->checked('pfirst') ? $a->time(0) <=> $b->time(0) : 0) ||
@@ -241,10 +248,13 @@ sub on_selectitem { # update metadata labels, later in front of earlier
     my $this = $self->{items}[$idx->[0]];
     my $id = 0;			# file_id of image only, for related
     $self->owner->NORTH->NW->text($self->cwd);
-    $self->owner->NORTH->NE->text("$p% = $x / $y");
+    my $progress = "$p% = $x / $y";
+    @{$self->{filter}} and $progress = "[ $progress ]";
+    $self->owner->NORTH->NE->text($progress);
     if ($this->isa('LPDB::Schema::Result::Path')) {
 	$this->path =~ m{(.*/)(.+/?)};
 	$self->owner->NORTH->N->text($2);
+	$self->{filter} and $this->{filter} = $self->{filter};
 	my @p = $this->stack;
 	my $span = $p[2] ? $p[2]->time - $p[0]->time : 1;
 	my $len =
@@ -256,9 +266,12 @@ sub on_selectitem { # update metadata labels, later in front of earlier
 	    : '1 minute';
 	my $n = $this->picturecount;
 	my $p = $n > 1 ? 's' : '';
-	$self->owner->SOUTH->S->text("$n image$p in $len");
-	$self->owner->SOUTH->SE->text($p[2] ? scalar localtime $p[2]->time : '  ');
-	$self->owner->SOUTH->SW->text(scalar localtime $p[0]->time);
+	$self->owner->SOUTH->S->text("$n image$p in $len" .
+				     (@{$self->{filter}} ? ' (filtered)' : ''));
+	$self->owner->SOUTH->SE->text($p[2] ? scalar localtime $p[2]->time
+				      : '  ');
+	$self->owner->SOUTH->SW->text($p[0] ? scalar localtime $p[0]->time
+				      : 'Check ~Menu -> AND Filters!');
     } elsif ($this->isa('LPDB::Schema::Result::Picture')) {
 	$self->owner->NORTH->N->text($this->basename);
 	$self->owner->SOUTH->SE->text($this->dir->directory);
@@ -283,7 +296,6 @@ sub cwd {
     if ($cwd) {			# hack: assume no images
 	$self->owner->NORTH->N->text('0 images, check filters!');
 	$self->owner->NORTH->NE->text('0 / 0');
-	$self->owner->SOUTH->hide;
     }
     return $self->{cwd} || '/';
 }
@@ -412,6 +424,10 @@ sub draw_path {
     my $b = 0;			# border size
     my @where = (1, 2, 3);
     my($first, $last);
+    $self->{filter} and $path->{filter} = $self->{filter};
+    $canvas->color(cl::Back);
+    $canvas->bar($x1, $y1, $x2, $y2); # clear the tile
+    $canvas->color(cl::Fore);
     for my $pic ($path->stack) {
 	my $where = shift @where;
 	$pic or next;
@@ -437,8 +453,8 @@ sub draw_path {
     # $canvas->draw_text($n, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
     # 		       dt::Center|dt::VCenter|dt::Default);
     
-    $str = strftime("%b %d %Y", localtime $first->time);
-    my $end = strftime("%b %d %Y", localtime $last->time);
+    $str = $first ? strftime("%b %d %Y", localtime $first->time) : 'FILTERED OUT!';
+    my $end = $last ? strftime("%b %d %Y", localtime $last->time) : '';
     $str eq $end or $str .= "\n$end";
     $canvas->draw_text($str, $x1 + $b, $y1 + $b, $x2 - $b, $y2 - $b,
 		       dt::Left|dt::Bottom|dt::Default);

@@ -56,7 +56,8 @@ sub resultset {		 # all files below logical path, in time order
     my $schema = $self->result_source->schema;
     return $schema->resultset('PathView')->search(
     	{path => { like => $self->path . '%'},
-	 time => { '!=' => undef } },
+	 time => { '!=' => undef },
+	 @{$self->{filter}} },
 	{order_by => { -asc => 'time' },
 	 group_by => 'file_id',
 	 columns => [ qw/time file_id dir_id/ ],
