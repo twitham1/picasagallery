@@ -53,7 +53,8 @@ sub profile_default
 		      ['*(pname' => '~Name' => 'sorter'],
 		      ['pfirst' => '~First Time' => 'sorter'],
 		      ['pmid' => '~Middle Time' => 'sorter'],
-		      [')plast' => '~Last Time' => 'sorter'],
+		      ['plast' => '~Last Time' => 'sorter'],
+		      [')prnd' => '~Random' => 'sorter'],
 		      [],
 		      ['*(pasc' => '~Ascending' => 'sorter'],
 		      [')pdsc' => '~Descending' => 'sorter'],
@@ -62,6 +63,7 @@ sub profile_default
 		      ['(gname' => '~Name' => 'sorter'],
 		      ['*gfirst' => '~First Time' => 'sorter'],
 		      ['glast' => '~Last Time' => 'sorter'],
+#['grnd' => '~Random' => 'sorter'], # !!! currently doesn't work, as it breaks the groups, same as skip:
 		      [')gskip' => '~Ungrouped' => 'sorter'],
 		      [],
 		      ['*(gasc' => '~Ascending' => 'sorter'],
@@ -69,7 +71,8 @@ sub profile_default
 		  ]],
 		 ['~Images' => [
 		      ['(iname' => '~Name' => 'sorter'],
-		      ['*)itime' => '~Time' => 'sorter'],
+		      ['*itime' => '~Time' => 'sorter'],
+		      [')irnd' => '~Random' => 'sorter'],
 		      [],
 		      ['*(iasc' => '~Ascending' => 'sorter'],
 		      [')idsc' => '~Descending' => 'sorter'],
@@ -171,19 +174,27 @@ sub children {			# return children of given text path
     my($self, $parent) = @_;
     my $m = $self->popup;
     my @sort;		      # menu sort options to database order_by
-    $m->checked('gname') and push @sort,
-    { ($m->checked('gdsc') ? '-desc' : '-asc') => 'dir.directory' };
-    $m->checked('gfirst') and push @sort,
-    { ($m->checked('gdsc') ? '-desc' : '-asc') => 'dir.begin' },
-    { '-asc' => 'dir.directory' };
-    $m->checked('glast') and push @sort,
-    { ($m->checked('gdsc') ? '-desc' : '-asc') => 'dir.end' },
-    { '-asc' => 'dir.directory' };
-    # else gskip sorts by files only:
-    $m->checked('itime') and push @sort,
-    { ($m->checked('idsc') ? '-desc' : '-asc') => 'me.time' };
-    $m->checked('iname') and push @sort,
-    { ($m->checked('idsc') ? '-desc' : '-asc') => 'me.basename' };
+    if ($m->checked('gname')) {
+	push @sort,
+	{ ($m->checked('gdsc') ? '-desc' : '-asc') => 'dir.directory' };
+    } elsif ($m->checked('gfirst')) {
+	push @sort,
+	{ ($m->checked('gdsc') ? '-desc' : '-asc') => 'dir.begin' },
+	{ '-asc' => 'dir.directory' };
+    } elsif ($m->checked('glast')) {
+	push @sort,
+	{ ($m->checked('gdsc') ? '-desc' : '-asc') => 'dir.end' },
+	{ '-asc' => 'dir.directory' };
+    }				# else gskip sorts by files only:
+    if ($m->checked('itime')) {
+	push @sort,
+	{ ($m->checked('idsc') ? '-desc' : '-asc') => 'me.time' };
+    } elsif ($m->checked('iname')) {
+	push @sort,
+	{ ($m->checked('idsc') ? '-desc' : '-asc') => 'me.basename' }
+    } elsif ($m->checked('irnd')) {
+	push @sort, { '-asc' => 'RANDOM()' }
+    }
     my $filter = $self->{filter} = []; # menu filter options to database where
     $m->checked('tags') and push @$filter,
 	tag_id => { '!=', undef };
@@ -200,12 +211,19 @@ sub children {			# return children of given text path
     $m->checked('month') and push @$filter,
 	time => { '>', time - 31 * 86400 };
     my($path, $file) = $self->{tree}->pathpics($parent || '/', \@sort, \@$filter);
-    my @path = sort {		# sort paths per menu selection
-    	($m->checked('pname') ? $a->path cmp $b->path : 0) ||
-    	    ($m->checked('pfirst') ? $a->time(0) <=> $b->time(0) : 0) ||
-    	    ($m->checked('pmid') ? $a->time(1) <=> $b->time(1) : 0) ||
-    	    ($m->checked('plast') ? $a->time(2) <=> $b->time(2) : 0)
-    } @$path;
+    # my @path = sort {		# sort paths per menu selection
+    # 	($m->checked('pname') ? $a->path cmp $b->path : 0) ||
+    # 	    ($m->checked('pfirst') ? $a->time(0) <=> $b->time(0) : 0) ||
+    # 	    ($m->checked('pmid') ? $a->time(1) <=> $b->time(1) : 0) ||
+    # 	    ($m->checked('plast') ? $a->time(2) <=> $b->time(2) : 0) ||
+    # 	    ($m->checked('prnd') ? rand(1) <=> rand(1) : 0)
+    # } @$path;
+    my @path =			# sort paths per menu selection
+    	$m->checked('pname')  ? sort { $a->path cmp $b->path } @$path :
+	$m->checked('pfirst') ? sort { $a->time(0) <=> $b->time(0) } @$path :
+	$m->checked('pmid')   ? sort { $a->time(1) <=> $b->time(1) } @$path :
+	$m->checked('plast')  ? sort { $a->time(2) <=> $b->time(2) } @$path :
+	$m->checked('prnd')   ? sort { rand(1) <=> rand(1) } @$path : @$path;
     @path = reverse @path if $m->checked('pdsc');
     return [ $m->checked('picsfirst') ? (@$file, @path) : (@path, @$file) ];
 }
