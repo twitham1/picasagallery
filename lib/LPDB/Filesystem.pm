@@ -83,6 +83,7 @@ sub update {
     my %id;			# cache: {path} = id
     sub _savedirs {		# recursive up to root /
 	my($this) = @_;
+	defined $this and length $this or $this = './';
 	$this =~ m@/$@ or return;
 	unless ($id{$this}) {
 	    status ' ' x 60, "saving dir $this";
