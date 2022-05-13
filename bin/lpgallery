@@ -98,8 +98,8 @@ my $usage = "usage: $0 [startup perl configuration files, see manual]";
 our $conf = {
     dbfile => '.lpdb.db',
     thumbfile => '.lpdb-thumb.db',
-    dbtrace => 0,		# see SQL of database?
-    thumbtrace => 0,		# see SQL of thumbs?
+    updatesqltrace => 0,       # see SQL of DB updates?
+    guisqltrace => 0,	       # see SQL of GUI?
     thumbviewer => sub {},     # called at startup, gets viewer object
     imageviewer => sub {},     # called at startup, gets viewer object
 };
@@ -107,12 +107,12 @@ our $conf = {
 # configuration files: last option setting wins
 for ("$ENV{HOME}/.lpdb.pl", "./.lpdb.pl", @ARGV) {
     if (-f $_) {
-	s{^(\w+)}{./$1};
+#	s{^(\w+)}{./$1};
 	warn "using config $_\n";
 	my $tmp = require $_ or die "$usage\n$_: $!";
 	map { $conf->{$_} = $tmp->{$_} } keys %$tmp;
     } else {
-	warn "no config at $_\n";
+	warn "no config at $_, skipping\n";
     }
 }
 
@@ -136,17 +136,13 @@ my $lpdb;			# LPDB object, a local picture database
 my $child;
 if ($child = fork) {		# GUI starts after child is updating DB
     warn "$0: $$ forked $child to update $conf->{dbfile}\n";
+    $conf->{guisqltrace} and $conf->{sqltrace} = 1;
     sleep 10 if $create;
-    $lpdb = new LPDB({dbfile => $conf->{dbfile},
-		      thumbfile => $conf->{thumbfile},
-		      sqltrace => $conf->{dbtrace},
-		     });
+    $lpdb = new LPDB($conf);
 } else {			# child updates DB, creating if needed
+    $conf->{updatesqltrace} and $conf->{sqltrace} = 1;
     unlink $conf->{dbfile} if $create;
-    $lpdb = new LPDB({dbfile => $conf->{dbfile},
-    		      thumbfile => $conf->{thumbfile},
-		      sqltrace => $conf->{thumbtrace},
-    		     });
+    $lpdb = new LPDB($conf);
     $lpdb->create if $create;
     $lpdb->update('.');
     warn "$0: $$ done updating $conf->{dbfile}\n";

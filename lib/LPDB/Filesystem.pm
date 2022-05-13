@@ -20,7 +20,7 @@ our @EXPORT = qw(update create);
 
 my $exiftool;	  # global hacks for File::Find !!!  We'll never
 my $schema;	  # find more than once per process, so this is OK.
-my $conf;
+our $conf;
 my $done = 0;			# records processed
 my $tty = -t STDERR;
 
@@ -62,6 +62,8 @@ sub update {
     @dirs or @dirs = ('.');
     $schema = $self->schema;
     $conf = $self->conf;
+    # warn "self=$self, conf=$conf, reject=$conf->{reject}";
+    # warn "reject: ", $self->conf('reject');
     unless ($exiftool) {
 	$exiftool = new Image::ExifTool;
 	$exiftool->Options(FastScan => 1);

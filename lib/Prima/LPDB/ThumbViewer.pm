@@ -211,13 +211,6 @@ sub children {			# return children of given text path
     $m->checked('month') and push @$filter,
 	time => { '>', time - 31 * 86400 };
     my($path, $file) = $self->{tree}->pathpics($parent || '/', \@sort, \@$filter);
-    # my @path = sort {		# sort paths per menu selection
-    # 	($m->checked('pname') ? $a->path cmp $b->path : 0) ||
-    # 	    ($m->checked('pfirst') ? $a->time(0) <=> $b->time(0) : 0) ||
-    # 	    ($m->checked('pmid') ? $a->time(1) <=> $b->time(1) : 0) ||
-    # 	    ($m->checked('plast') ? $a->time(2) <=> $b->time(2) : 0) ||
-    # 	    ($m->checked('prnd') ? rand(1) <=> rand(1) : 0)
-    # } @$path;
     my @path =			# sort paths per menu selection
     	$m->checked('pname')  ? sort { $a->path cmp $b->path } @$path :
 	$m->checked('pfirst') ? sort { $a->time(0) <=> $b->time(0) } @$path :
