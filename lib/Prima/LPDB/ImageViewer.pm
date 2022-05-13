@@ -74,19 +74,23 @@ sub init {
 
     my $top = $self->insert(@opt, name => 'NORTH', text => ' ',
 			    transparent => 1, # hack, using label as container
-    			    pack => { side => 'top', fill => 'x', pad => 25 });
+			    pack => { qw/side top fill x pad 35/ });
     $top->insert(@opt, name => 'NW', pack => { side => 'left' });
-    $top->insert(@opt, name => 'NE', pack => { side => 'right' });
-    $top->insert(@opt, name => 'N', pack => { side => 'top' });
+    $top->insert(@opt, name => 'NE', pack => { side => 'right' },
+		 alignment => ta::Right);
+    $top->insert(@opt, name => 'N', pack => { side => 'top' },
+		 alignment => ta::Center);
 
-    $self->insert(@opt, name => 'CENTER', text => ' ', pack => { side => 'top' });
+    $self->insert(@opt, qw/name CENTER text/ => ' ', pack => { qw/side top/ });
 
     my $bot = $self->insert(@opt, name => 'SOUTH', text => ' ',
 			    transparent => 1, # hack, using label as container
-    			    pack => { side => 'bottom', fill => 'x', pad => 25 });
-    $bot->insert(@opt, name => 'SW', pack => { side => 'left', anchor => 's' });
-    $bot->insert(@opt, name => 'SE', pack => { side => 'right', anchor => 's' });
-    $bot->insert(@opt, name => 'S', pack => { side => 'bottom', anchor => 's' });
+			    pack => { qw/side bottom fill x pad 35/ });
+    $bot->insert(@opt, name => 'SW', pack => { qw/side left anchor s/ });
+    $bot->insert(@opt, name => 'SE', pack => { qw/side right anchor s/ },
+		 alignment => ta::Right);
+    $bot->insert(@opt, name => 'S', pack => { qw/side bottom anchor s/ },
+		 alignment => ta::Center);
 
     return %profile;
 }
