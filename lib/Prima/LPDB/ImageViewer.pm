@@ -102,14 +102,30 @@ sub viewimage
     my $filename = $picture->pathtofile or return;
     my $i = Image::Magick->new;
     my $e = $i->Read($filename);
-    if ($e) {
-    	warn $e;      # opts are last-one-wins, so we override colors:
-    	$i = Image::Magick->new(qw/magick png24 size 320x320/,
-    				qw/background red fill white gravity center/);
-    	$i->Read("caption:$e");	# put error message in the image
+    if ($e) {		    # generate image containing the error text
+	warn $e;
+	my @s = (800, 450);
+	my $b = $s[0] / 10;
+	my $i = Prima::Icon->new(
+	    width  => $s[0],
+	    height => $s[1],
+	    type   => im::bpp8,
+	    );
+	$i->begin_paint;
+	$i->color(cl::Red);
+	$i->bar(0, 0, @s);
+	$i->color(cl::White);
+	$i->rectangle($b/2, $b/2, $s[0] - $b/2, $s[1] - $b/2);
+	$i->font({size => 15, style => fs::Bold});
+	$i->draw_text("ERROR!\nDatabase might need updated!\n$e",
+		      $b, $b, $s[0] - $b, $s[1] - $b,
+		      dt::Center|dt::VCenter|dt::Default);
+	$i->end_paint;
+	$self->image($i);
+    } else {
+	$i->AutoOrient;		# automated rot fix via EXIF!!!
+	$self->image(magick_to_prima($i));
     }
-    $i->AutoOrient;		# automated rot fix via EXIF!!!
-
     if ($self->popup->checked('overlay')) {
 	$self->alignment($self->alignment == ta::Left ? ta::Right : ta::Left);
 	$self->valignment($self->valignment == ta::Top ? ta::Bottom : ta::Top);
@@ -117,14 +133,10 @@ sub viewimage
 	$self->valignment(ta::Middle);
 	$self->alignment(ta::Center);
     }
-    $self->image(magick_to_prima($i));
     $self->{picture} = $picture;
     $self->{fileName} = $filename;
     $self->popup->checked('autozoom', 1);
     $self->apply_auto_zoom;
-    $self->repaint;
-    # $self->selected(1);
-    # $self->focused(1);
     $self->status;
 }
 
@@ -137,7 +149,7 @@ sub on_paint { # update metadata label overlays, later in front of earlier
     my $y = $th->count;
     my($w, $h) = $self->size;
     my $each = $w / $y;	   # TODO: move to a new frame progress object
-    $self->color(cl::Magenta);
+    $self->color(cl::LightGreen);
     $self->bar($each * ($x - 1), $h, $each * $x, $h - 10);
     unless ($self->popup->checked('info')) {
 	$self->NORTH->hide;
@@ -182,7 +194,7 @@ sub on_paint { # update metadata label overlays, later in front of earlier
     $self->NORTH->show;
     $self->SOUTH->show;
     $each = $h / $y;	   # TODO: move to a new frame progress object
-    $self->color(cl::Magenta);
+    $self->color(cl::LightGreen);
     $self->bar(0, $h - $each * ($x - 1), 5, $h - $each * $x);
     $self->color(cl::Fore);
 }
@@ -253,8 +265,8 @@ sub on_keydown
 	$self->key_down(ord 'i');
     }
     # if ($key == kb::F11) {
-    # 	warn "f11 hit";
-    # 	$self->fullscreen(!$self->fullscreen);
+    #	warn "f11 hit";
+    #	$self->fullscreen(!$self->fullscreen);
     # }
 
     return if $self->{stretch};
@@ -324,13 +336,13 @@ sub delay {
 sub slideshow {
     my($self) = @_;
     $self->{timer} ||= Prima::Timer->create(
-    	timeout => 3000,	# milliseconds
-    	onTick => sub {
+	timeout => 3000,	# milliseconds
+	onTick => sub {
 	    $self->autoZoom or return;
 	    $self->key_down(0, kb::Right );
 	    $self->CENTER->hide;
-    	}
-    	);
+	}
+	);
     $self->{seconds} ||= 4;
     my $sec = $self->{seconds};
     if ($self->popup->checked('slideshow') and $self->autoZoom) {
