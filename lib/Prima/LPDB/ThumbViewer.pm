@@ -72,6 +72,7 @@ sub profile_default
 		 ['~Images' => [
 		      ['(iname' => '~Name' => 'sorter'],
 		      ['*itime' => '~Time' => 'sorter'],
+		      ['isize' => '~Size' => 'sorter'],
 		      [')irnd' => '~Random' => 'sorter'],
 		      [],
 		      ['*(iasc' => '~Ascending' => 'sorter'],
@@ -192,6 +193,9 @@ sub children {			# return children of given text path
     } elsif ($m->checked('iname')) {
 	push @sort,
 	{ ($m->checked('idsc') ? '-desc' : '-asc') => 'me.basename' }
+    } elsif ($m->checked('isize')) {
+	push @sort,
+	{ ($m->checked('idsc') ? '-desc' : '-asc') => 'me.bytes' }
     } elsif ($m->checked('irnd')) {
 	push @sort, { '-asc' => 'RANDOM()' }
     }

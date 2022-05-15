@@ -6,9 +6,11 @@
 package LPDB::Schema::Result::Picture;
 
 sub pathtofile {	   # return full filesystem path to image file
-    my($self) = @_;
-    my $path = $self->dir->directory . $self->basename;
-    return $path;
+    return $_[0]->dir->directory . $_[0]->basename;
+}
+
+sub pixels {			# return pixels of the picture
+    return $_[0]->width * $_[0]->height;
 }
 
 # sub thumbnail {
