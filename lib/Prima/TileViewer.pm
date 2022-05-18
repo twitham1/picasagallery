@@ -44,17 +44,6 @@ sub profile_default {
 # allow remote control number pad to scroll to tenths of large pages
 sub on_keydown {
     my ($self, $code, $key, $mod) = @_;
-    # $self->notify(q(MouseUp),0,0,0) if defined $self->{mouseTransaction};
-    # return if $mod & km::DeadKey;
-
-    # if ($key == kb::Prior) {
-    # 	$self->bigger;
-    # 	return;
-    # } elsif ($key == kb::Next) {
-    # 	$self->smaller;
-    # 	return;
-    # }
-
     my $c = $code & 0xFF;
     if ($c >= ord '0' and $c <= ord '9' and $self->{count}) {
 	$self->focusedItem(int(($code - ord '0') / 10 * $self->{count}));
@@ -62,6 +51,17 @@ sub on_keydown {
 	return;
     }
     $self->SUPER::on_keydown( $code, $key, $mod);
+}
+
+sub on_mousewheel		# zoom in/out or scroll
+{
+    my($self, $mod, $x, $y, $z) = @_;
+    if ($mod & km::Ctrl) {
+	$z < 0 ? $self->smaller : $self->bigger;
+	$self->clear_event;
+	return;
+    }
+    $self->SUPER::on_mousewheel($mod, $x, $y, $z);
 }
 
 =head2 Methods

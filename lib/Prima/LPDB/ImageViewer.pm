@@ -50,9 +50,9 @@ sub profile_default
 	    ['fullscreen', '~Full Screen', 'f', ord 'f' =>
 	     sub { $_[0]->fullscreen($_[0]->popup->toggle($_[1]) )} ],
 	    ['bigger', '~Zoom In', 'z', ord 'z' =>
-	     sub { $_[0]->key_down(0, kb::Prior ) }],
+	     sub { $_[0]->bigger }],
 	    ['smaller', 'Zoom ~Out', 'q', ord 'q' =>
-	     sub { $_[0]->key_down(0, kb::Next ) }],
+	     sub { $_[0]->smaller }],
 	    ['*@autozoom', '~Auto Zoom', 'Enter', kb::Enter, 'autozoom' ],
 	],
 	);
@@ -225,22 +225,25 @@ sub autozoom {
     $self->autoZoom;
 }
 
+sub bigger {
+    my($self) = @_;
+    $self->autoZoom(0);
+    $self->popup->checked('autozoom', 0);
+    $self->zoom($self->zoom * 1.2);
+}
+sub smaller {
+    my($self) = @_;
+    $self->autoZoom(0);
+    $self->popup->checked('autozoom', 0);
+    $self->zoom($self->zoom / 1.2);
+}
+
 sub on_keydown
 {
     my ( $self, $code, $key, $mod) = @_;
 #    warn "keydown: @_";
     if ($key == kb::Enter) {
 	return;			# now in sub autozoom
-    }
-    if ($key == kb::Prior) {
-	$self->popup->checked('autozoom', 0);
-	$self->zoom($self->zoom * 1.2);
-	return;
-    }
-    if ($key == kb::Next) {
-	$self->popup->checked('autozoom', 0);
-	$self->zoom($self->zoom / 1.2);
-	return;
     }
     if ($key == kb::Escape) {	# return focus to caller
 	$self->popup->checked('slideshow', 0);
@@ -294,21 +297,33 @@ sub on_keydown
 	$self->clear_event;
 	return;
     }
+    $self->right if $key == kb::Right;
+    $self->left	if $key == kb::Left;
+    $self->down	if $key == kb::Down;
+    $self->up	if $key == kb::Up;
+}
+sub right{my @d=$_[0]->deltas; $_[0]->deltas($d[0] + $_[0]->width/5, $d[1])}
+sub left {my @d=$_[0]->deltas; $_[0]->deltas($d[0] - $_[0]->width/5, $d[1])}
+sub up   {my @d=$_[0]->deltas; $_[0]->deltas($d[0], $d[1] - $_[0]->width/5)}
+sub down {my @d=$_[0]->deltas; $_[0]->deltas($d[0], $d[1] + $_[0]->width/5)}
 
-    my $xstep = int($self-> width  / 5) || 1;
-    my $ystep = int($self-> height / 5) || 1;
-
-    my ($dx, $dy) = $self-> deltas;
-
-    $dx += $xstep if $key == kb::Right;
-    $dx -= $xstep if $key == kb::Left;
-    $dy += $ystep if $key == kb::Down;
-    $dy -= $ystep if $key == kb::Up;
-    $self->deltas($dx, $dy);
+sub on_mousewheel {
+    my($self, $mod, $x, $y, $z) = @_;
+    if ($mod & km::Ctrl) {
+	$z > 0 ? $self->bigger : $self->smaller;
+    } elsif ($mod & km::Shift) {
+	$self->autoZoom
+	    ? $self->key_down(0, $z > 0 ? kb::Up : kb::Down)
+	    : $z > 0 ? $self->left : $self->right;
+    } else {
+	$self->autoZoom
+	    ? $self->key_down(0, $z > 0 ? kb::Left : kb::Right)
+	    : $z > 0 ? $self->up : $self->down;
+    }
+    return;
 }
 
-sub status
-{
+sub status {
     my($self) = @_;
     my $w = $self->owner;
     my $img = $self->image;

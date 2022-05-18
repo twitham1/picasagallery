@@ -341,6 +341,18 @@ sub cwd {
     return $self->{cwd} || '/';
 }
 
+sub on_mouseclick
+{
+    my($self, $btn, $mod, $x, $y, $dbl) = @_;
+    return if $btn != mb::Left || !$dbl;
+    my $item = $self->point2item($x, $y);
+    if ($item == $self->focusedItem) {
+	$self->key_down(0, kb::Enter);
+    } else {
+	$self->focusedItem($item);
+    }
+}
+
 sub on_keydown
 {
     my ($self, $code, $key, $mod) = @_;
