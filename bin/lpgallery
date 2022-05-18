@@ -1,87 +1,5 @@
 #!/usr/bin/perl
 
-=pod
-
-=head1 NAME
-
-lpgallery - remote-control (keyboard) driven local picture browser
-
-=head1 SYNOPSIS
-
-lpgallery [startup file]
-
-UNDER CONSTRUCTION - Picasa features don't yet exist!!!
-
-=head1 DESCRIPTION
-
-B<lpgallery> presents local pictures (optionally managed by Picasa) in
-a keyboard (or remote) controlled browser, similar to mythgallery of
-mythtv.  The main window navigates a "virtual filesytem" thumbnail
-tree of multiple paths to galleries of the images.  A second window
-presents any one image at a time.
-
-=head2 Thumbnail Grid
-
-The main window is a grid of thumnail images.  Picture collections are
-represented by a stack of three images: the oldest, center and
-youngest picture in the path below that point in the tree.  Arrow keys
-move around the grid while the B<Enter> key moves into a lower path or
-presents a single picture.  The B<Escape> key moves back up to the
-parent path.  Metadata about the selected path is displayed above and
-below the grid.
-
-The top level virtual directories are:
-
-=over
-
-=item [Folders]
-
-literal filesystem layout of picture files.  Any directory containing
-images is called a "gallery".  By default images remain grouped in
-these physical gallery collections in all virtual paths that follow
-unless the Sort -> Gallery Groups menu option is changed to Ungrouped.
-
-=item [Tags]
-
-tag strings found in EXIF picture metadata
-
-=item [Timeline]
-
-pictures grouped chronologically into years or months
-
-=item [Albums]
-
-pictures organized by Albums (Picasa only)
-
-=item [People]
-
-thumbnails of named face rectangles from the images (Picasa only)
-
-=item [Stars]
-
-pictures marked with stars as favorites (Picasa only)
-
-=back
-
-=head2 Image Viewer
-
-A second window opens when hitting B<Enter> on an image from the grid.
-This displays one picture at maximum size for the window.  Arrow keys
-will now navigate both windows.  B<Enter> again will zoom to original
-size.  Scroll with the arrow keys for images larger than the window.
-Finally, B<Escape> returns back to the thumbnail browser.
-
-The B<i> "info" key cycles through metadata overlay levels.  This adds
-common picture and camera metadata in the corners and (for Picasa
-only) draws named rectangles around recognized faces.
-
-=head1 OPTIONS
-
-The B<M> key brings up a Menu of options including sorting, filtering,
-starting a slide show and so on.
-
-=cut
-
 # by twitham@sbcglobal.net in 2020 based on picasagallery of 2013
 
 use strict;
@@ -222,19 +140,97 @@ run Prima;
 
 exit 0;
 
+__END__
+
 =pod
+
+=head1 NAME
+
+lpgallery - remote-control (keyboard) driven local picture browser
+
+=head1 SYNOPSIS
+
+lpgallery [startup file]
+
+UNDER CONSTRUCTION - Picasa features don't yet exist!!!
+
+=head1 DESCRIPTION
+
+B<lpgallery> presents local pictures (optionally managed by Picasa) in
+a keyboard (or remote) controlled browser, similar to mythgallery of
+mythtv.  The main window navigates a "virtual filesytem" thumbnail
+tree of multiple paths to galleries of the images.  A second window
+presents any one image at a time.
+
+=head2 Thumbnail Grid
+
+The main window is a grid of thumnail images.  Picture collections are
+represented by a stack of three images: the oldest, center and
+youngest picture in the path below that point in the tree.  Arrow keys
+move around the grid while the B<Enter> key moves into a lower path or
+presents a single picture.  The B<Escape> key moves back up to the
+parent path.  Metadata about the selected path is displayed above and
+below the grid.
+
+The top level virtual directories are:
+
+=over
+
+=item [Folders]
+
+Literal filesystem layout of picture files.  Any directory containing
+images is called a "gallery".  By default images remain grouped in
+these physical gallery collections in all virtual paths that follow
+unless the Sort -> Gallery Groups menu option is changed to Ungrouped.
+
+=item [Tags]
+
+tag strings found in EXIF picture metadata
+
+=item [Timeline]
+
+pictures grouped chronologically into years or months
+
+=item [Albums]
+
+pictures organized by Albums (Picasa only)
+
+=item [People]
+
+thumbnails of named face rectangles from the images (Picasa only)
+
+=item [Stars]
+
+pictures marked with stars as favorites (Picasa only)
 
 =back
 
+=head2 Image Viewer
+
+A second window opens when hitting B<Enter> on an image from the grid.
+This displays one picture at maximum size for the window.  Arrow keys
+will now navigate both windows.  B<Enter> again will zoom to original
+size.  Scroll with the arrow keys for images larger than the window.
+Finally, B<Escape> returns back to the thumbnail browser.
+
+The B<i> "info" key cycles through metadata overlay levels.  This adds
+common picture and camera metadata in the corners and (for Picasa
+only) draws named rectangles around recognized faces.
+
+=head1 OPTIONS
+
+The B<M> key brings up a Menu of options including sorting, filtering,
+starting a slide show and so on.  Refer to the menu to find other
+keyboard shortcuts.
+
 =head1 TODO
 
-Add full exiftool metadata overlay or side panel
-
-Add filtering
+Add full exiftool metadata in new window
 
 Add all Picasa features
 
 =head1 SEE ALSO
+
 L<LPDB>, L<picasagallery>, L<Prima>
 
 =head1 AUTHOR
