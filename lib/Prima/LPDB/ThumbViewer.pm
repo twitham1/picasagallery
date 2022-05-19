@@ -22,7 +22,8 @@ use Prima::Label;
 use Prima::Image::Magick qw/:all/;
 use POSIX qw/strftime/;
 use Prima::LPDB::ImageViewer;
-use Prima::Fullscreen;
+use Prima::Fullscreen; # shipped with LPDB, but could be part of Prima
+use Prima::PointerHider; # shipped with LPDB, but could be part of Prima
 
 use vars qw(@ISA);
 @ISA = qw(Prima::TileViewer Prima::Fullscreen);
@@ -111,6 +112,8 @@ sub thumb { $_[0]->{thumb} }
 sub init {
     my $self = shift;
     my(%hash) = @_;
+    my %profile = $self->SUPER::init(@_);
+
     $self->{lpdb} = $hash{lpdb} or die "lpdb object required";
     $self->{tree} = new LPDB::Tree($self->{lpdb});
     $self->{thumb} = new LPDB::Thumbnail($self->{lpdb});
@@ -129,8 +132,7 @@ sub init {
     $self->{lpdb}->{tschema}->txn_begin;
     $self->{timer}->start;
 
-    my %profile = $self->SUPER::init(@_);
-
+    $self->insert('Prima::PointerHider');
     $self->insert('Prima::Fullscreen', window => $self->owner);
 
     $self->packForget; # to get packs around the perimeter of the SUPER widget

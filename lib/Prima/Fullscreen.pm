@@ -18,7 +18,7 @@ use Prima::Classes;
 
 
 use vars qw(@ISA);
-@ISA = qw(Prima::Object);
+@ISA = qw(Prima::Component);
 
 sub fullscreen {
     # my($win, $which) = @_;
@@ -58,7 +58,6 @@ sub fullscreen {
 	$win->origin(0, 1);
 	$win->size(@d);
 	# $win->onTop(1);
-	$::application->pointerVisible(0); # TODO: make configurable!!!
 	return 1;
     } elsif ($self->{where}) {	# restore orignal frame
 	# $win->onTop(0);
@@ -66,7 +65,6 @@ sub fullscreen {
 	# $win->borderStyle(bs::Sizeable);
 	$win->frameSize((@{$self->{where}})[0,1]);
 	$win->frameOrigin((@{$self->{where}})[2,3]);
-	$::application->pointerVisible(1);
 	return 0;
     }
 }
