@@ -355,7 +355,7 @@ sub on_mouseclick
     }
 }
 
-sub on_keydown
+sub on_keydown			# code == -1 for remote navigation
 {
     my ($self, $code, $key, $mod) = @_;
 #    warn "keydown  @_";
@@ -371,8 +371,8 @@ sub on_keydown
 	    $self->focusedItem(0);
 	    $self->repaint;
 	} elsif ($this->isa('LPDB::Schema::Result::Picture')) {
-	    # show picture in other window and raise it
-	    $self->viewer->IV->viewimage($this);
+	    # show picture in other window and raise it unless remote
+	    $self->viewer($code == -1 ? 1 : 0)->IV->viewimage($this);
 	}
 	$self->clear_event;
 	return;
@@ -542,7 +542,8 @@ sub draw_picture {
 # TODO, move this to ImageViewer or ImageWindow or somewhere?
 
 sub viewer {		 # reuse existing image viewer, or recreate it
-    my $self = shift;
+    my($self, $noraise) = @_;
+    warn "viewer: $self, $noraise";
     my $iv;
     if ($self and $self->{viewer} and
 	Prima::Object::alive($self->{viewer})) {
@@ -569,7 +570,7 @@ sub viewer {		 # reuse existing image viewer, or recreate it
 	}
     }
     # $self->{viewer}->select;
-    $self->{viewer}->bring_to_front;
+    $noraise or $self->{viewer}->bring_to_front;
     $self->{viewer}->repaint;
     $self->{viewer};
 }

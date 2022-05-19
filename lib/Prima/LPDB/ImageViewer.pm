@@ -292,7 +292,7 @@ sub on_keydown
 	    # $self->draw_path($self, $idx, 5, 5, 200, 200, 0, 0, 0, 0);
 	    $self->key_down($code, kb::Escape);
 	} else {
-	    $th->key_down($code, kb::Enter);
+	    $th->key_down(-1, kb::Enter); # don't re-raise myself
 	}
 	$self->clear_event;
 	return;
