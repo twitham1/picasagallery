@@ -10,6 +10,8 @@ overlay with metadata.
 
 =cut
 
+# TODO: add 9 touch/mouse click zones like from picasagallery
+
 package Prima::LPDB::ImageViewer;
 
 use strict;

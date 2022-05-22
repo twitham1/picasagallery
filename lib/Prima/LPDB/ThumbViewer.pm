@@ -19,6 +19,7 @@ use LPDB::Thumbnail;
 use Prima::TileViewer;
 use Prima::FrameSet;
 use Prima::Label;
+use Prima::MsgBox;
 use Prima::Image::Magick qw/:all/;
 use POSIX qw/strftime/;
 use Prima::LPDB::ImageViewer;
@@ -232,7 +233,17 @@ sub goto {  # for robot navigation (slideshow) also used by escape key
     # warn "goto: $path";
     $path =~ m{(.*/)/(.+/?)} or	   # path // pathtofile
 	$path =~ m{(.*/)(.+/?)} or # path / basename
-	warn "bad path $path" and return;
+	do {
+	    if ($path eq '/') {
+		my $out = message("Do you really want to exit?",
+				  mb::Yes|mb::No, { defButton => mb::No });
+		$::application->close if $out & mb::Yes;
+#		warn "user said $out";
+	    } else {		# shouldn't happen!
+		warn "bad path $path";
+	    }
+	    return;
+    };
     $self->cwd($1);
     $self->items($self->children($1));
     $self->focusedItem(-1);
@@ -543,7 +554,7 @@ sub draw_picture {
 
 sub viewer {		 # reuse existing image viewer, or recreate it
     my($self, $noraise) = @_;
-    warn "viewer: $self, $noraise";
+#    warn "viewer: $self, $noraise";
     my $iv;
     if ($self and $self->{viewer} and
 	Prima::Object::alive($self->{viewer})) {
@@ -582,7 +593,7 @@ sub viewer {		 # reuse existing image viewer, or recreate it
 =back
 
 =head1 SEE ALSO
-L<Prima::TileViewer>, L<LPDB>
+L<Prima::TileViewer>, L<Prima::ImageViewer>, L<LPDB>
 
 =head1 AUTHOR
 

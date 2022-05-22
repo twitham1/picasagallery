@@ -61,6 +61,7 @@ sub new {
 			   { RaiseError => 1, AutoCommit => 1,
 			     # DBIx::Class::Storage::DBI::SQLite(3pm):
 			     on_connect_call => 'use_foreign_keys',
+			     sqlite_unicode => 1,
 			   })
 	or die $DBI::errstr;
     # Default is no enforcement, and must be set per connection.
