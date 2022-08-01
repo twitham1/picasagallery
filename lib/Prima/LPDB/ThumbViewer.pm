@@ -20,7 +20,6 @@ use Prima::TileViewer;
 use Prima::FrameSet;
 use Prima::Label;
 use Prima::MsgBox;
-use Prima::Image::Magick qw/:all/;
 use POSIX qw/strftime/;
 use Prima::LPDB::ImageViewer;
 use Prima::Fullscreen; # shipped with LPDB, but could be part of Prima
@@ -497,11 +496,10 @@ sub draw_path {
     for my $pic ($path->stack) {
 	my $where = shift @where;
 	$pic or next;
-	my $thumb = $self->{thumb}->get($pic->file_id);
-	$thumb or next;
+	my $im = $self->{thumb}->get($pic->file_id);
+	$im or next;
 	$first or $first = $pic;
 	$last = $pic;
-	$im = magick_to_prima($thumb);
 	$b = $self->_draw_thumb($im, $where, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
     }
 
@@ -530,9 +528,8 @@ sub draw_picture {
     my ($self, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col) = @_;
 
     my $pic = $self->{items}[$idx];
-    my $thumb = $self->{thumb}->get($pic->file_id);
-    $thumb or return "warn: can't get thumb!\n";
-    my $im = magick_to_prima($thumb);
+    my $im = $self->{thumb}->get($pic->file_id);
+    $im or return "warn: can't get thumb!\n";
     my $b = $self->_draw_thumb($im, 0, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col);
 
     $canvas->textOpaque(!$b);

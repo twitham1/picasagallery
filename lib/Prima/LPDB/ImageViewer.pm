@@ -17,8 +17,6 @@ package Prima::LPDB::ImageViewer;
 use strict;
 use warnings;
 use Prima::ImageViewer;
-use Image::Magick;
-use Prima::Image::Magick qw/:all/;
 use Prima::Fullscreen;
 
 use vars qw(@ISA);
@@ -102,9 +100,13 @@ sub viewimage
 {
     my ($self, $picture) = @_;
     my $filename = $picture->pathtofile or return;
-    my $i = Image::Magick->new;
-    my $e = $i->Read($filename);
-    if ($e) {		    # generate image containing the error text
+    if (my $i = Prima::Image->load($filename)) {
+	if (my $rot = $picture->rotation) {
+	    $i->rotate(-1 * $rot);
+	}
+	$self->image($i);
+    } else {		    # generate image containing the error text
+	my $e = "$@";
 	warn $e;
 	my @s = (800, 450);
 	my $b = $s[0] / 10;
@@ -119,14 +121,11 @@ sub viewimage
 	$i->color(cl::White);
 	$i->rectangle($b/2, $b/2, $s[0] - $b/2, $s[1] - $b/2);
 	$i->font({size => 15, style => fs::Bold});
-	$i->draw_text("ERROR!\nDatabase might need updated!\n$e",
+	$i->draw_text("ERROR!\n$filename\n$e",
 		      $b, $b, $s[0] - $b, $s[1] - $b,
 		      dt::Center|dt::VCenter|dt::Default);
 	$i->end_paint;
 	$self->image($i);
-    } else {
-	$i->AutoOrient;		# automated rot fix via EXIF!!!
-	$self->image(magick_to_prima($i));
     }
     if ($self->popup->checked('overlay')) {
 	$self->alignment($self->alignment == ta::Left ? ta::Right : ta::Left);
@@ -144,6 +143,13 @@ sub viewimage
 
 sub on_paint { # update metadata label overlays, later in front of earlier
     my($self, $canvas) = @_;
+
+    # PS: I've read somewhere that ist::Quadratic produces best
+    # visual results for the scaled-down images, while ist::Sinc
+    # and ist::Gaussian for the scaled-up. /dk = Dmitry Karasik
+    $self->scaling($self->zoom > 1 ? ist::Gaussian : ist::Quadratic);
+    #$self->scaling(ist::Box);
+
     $self->SUPERon_paint(@_);	# hack!!! see below!!!
     $self->CENTER->hide;	# play/stop indicator
     my $th = $self->{thumbviewer};
@@ -453,22 +459,52 @@ sub SUPERon_paint
 PAINT:
 	$canvas-> clear( $atx, $aty, $atx + $imXz, $aty + $imYz) if $self-> {icon};
 
-	# # maybe smooth resize the image here!!!
+	if ( $self-> {scaling} != ist::Box && ( $imXz != $imX || $imYz != $imY ) ) {
+		my (
+			$xFrom, $yFrom,
+			$xDestLen, $yDestLen,
+			$xLen, $yLen
+		) = (
+			0, 0,
+			$imXz, $imYz,
+			$imXz, $imYz
+		);
+		if ( $iS > $iI ) {
+			# scaling kernel may need pixels beyond the cliprect
+			if ( $xDest >= $iI) {
+				$xDest -= $iI;
+				$imXz  += $iS;
+				$imX   += $iI;
+				$xFrom += $iS;
+			}
+			if ( $xDest + $imX <= $self->{imageX} - $iI ) {
+				$imX   += $iI;
+				$imXz  += $iS;
+			}
+			if ( $yDest >= $iI ) {
+				$yDest -= $iI;
+				$imYz  += $iS;
+				$imY   += $iI;
+				$yFrom += $iS;
+			}
+			if ( $yDest + $imY <= $self->{imageY} - $iI ) {
+				$imY   += $iI;
+				$imYz  += $iS;
+			}
+		}
+		my $i = $self->{image}->extract( $xDest, $yDest, $imX, $imY );
+		$i->scaling( $self->{scaling} );
+		$i->size( $imXz, $imYz );
+		return $canvas-> put_image_indirect(
+			$i,
+			$atx, $aty,
+			$xFrom, $yFrom,
+			$xDestLen, $yDestLen,
+			$xLen, $yLen,
+			rop::CopyPut
+		);
+	}
 
-	# my %copy = ( %{$self->{image}} ); # how to make a copy?
-	# my $tmp = \%copy;
-	# bless($tmp, 'Prima::Image');
-	# use Data::Dumper;
-	# print Dumper $self->{image}, $tmp;
-	# $tmp->scaling(ist::Gaussian); # should be configurable!!!
-	# $tmp->size($imXz, $imYz);
-	# return $canvas-> put_image_indirect(
-	#     $tmp,
-	#     $atx, $aty,
-	#     0, 0,
-	#     $imXz, $imYz, $imXz, $imYz,
-	#     rop::CopyPut
-	#     );
 	return $canvas-> put_image_indirect(
 		$self-> {image},
 		$atx, $aty,

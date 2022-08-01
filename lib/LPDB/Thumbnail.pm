@@ -8,7 +8,7 @@ LPDB::Thumbnail - thumbnail images of local pictures in sqlite
 
 use strict;
 use warnings;
-use Image::Magick;
+use Prima;
 use LPDB::Schema;
 use LPDB::Schema::Object;
 
@@ -19,6 +19,18 @@ sub new {
 		 conf => $lpdb->conf };
     bless $self, $class;
     return $self;
+}
+
+sub _aspect {		    # modified from _draw_thumb of ThumbViewer
+    my($sw, $sh, $dw, $dh) = @_;
+    my $src = $sw / $sh;	# aspect ratios
+    my $dst = $dw / $dh;
+    if ($src > $dst) {		# image wider than cell: pad top/bot
+	$dh = $dw / $src;
+    } else {		      # image taller than cell: pad left/right
+	$dw = $dh * $src;
+    }
+    return $dw, $dh;
 }
 
 # return thumbnail of given file ID
@@ -37,10 +49,13 @@ sub get {
 	unless ($data) {	# try to fix broken save
 	    return $self->put($id, $cid) ? $self->get($id, $cid, $try) : undef;
 	}
-	my $i = Image::Magick->new;
-	my $e = $i->BlobToImage($data);
-	$e and warn "($e) for Picture $id, $data" and return;
-	return $i;
+	open my $fh, '<', \$data
+	    or die $!;
+	binmode $fh;
+	my $x = Prima::Image->load($fh)
+	    or die $@;
+	return $x;
+	
     } else {			# not in DB, try to add it
 	return $self->put($id, $cid) ? $self->get($id, $cid, $try) : undef;
     }
@@ -51,10 +66,10 @@ sub put {
     $cid ||= 0;
     # warn "putting $id/$cid in $self\n";
     my $schema = $self->{schema};
-    my $this = $schema->resultset('Picture')->find(
+    my $picture = $schema->resultset('Picture')->find(
     	{file_id => $id},
-	{columns => [qw/basename dir_id/]});
-    my $path = $this->pathtofile;
+	{columns => [qw/basename dir_id width height rotation/]});
+    my $path = $picture->pathtofile;
     -f $path or
 	warn "$path doesn't exist\n" and return;
     my $modified = (stat $path)[9];
@@ -65,23 +80,48 @@ sub put {
     $row->modified || 0 >= $modified and
 	return $row->image;	# unchanged
 
-    # jpegs read 3X faster if we ask for size 2X the thumbnail!
-    my @opt = $cid ? () : 	# crop faces at full resolution
-	$path =~ /jpe?g$/i ? ('jpeg:size' => '640x640') : ();
-
-    my $i = Image::Magick->new(@opt);
-    my $e = $i->Read($path);
-    if ($e) {
-    	warn $e;      # opts are last-one-wins, so we override colors:
-    	$i = Image::Magick->new(qw/magick png24 size 320x320/,
-    				qw/background red fill white gravity center/);
-    	$i->Read("caption:$e");	# put error message in the image
+    my $i;
+    my $codec;
+    if ($i = Prima::Image->load($path, loadExtras => 1)) {
+	# PS: I've read somewhere that ist::Quadratic produces best
+	# visual results for the scaled-down images, while ist::Sinc
+	# and ist::Gaussian for the scaled-up. /Dmitry Karasik
+	$i->scaling(ist::Quadratic);
+	if (my $rot = $picture->rotation) {
+	    $i->rotate(-1 * $rot);
+	}			# 1920/6=320:
+	$i->size(_aspect($picture->width, $picture->height, 320, 320));
+    } else {		    # generate image containing the error text
+	my $e = "$@";
+	warn "hello: ", $e;
+	my @s = (320, 320); # wonder why this section doesn't work???!!!
+	my $b = $s[0] / 10;
+	$i = Prima::Image->new(
+	    width  => $s[0],
+	    height => $s[1],
+	    type   => im::bpp8,
+	    );
+	$i->begin_paint;
+	$i->color(cl::Red);
+	$i->bar(0, 0, @s);
+	$i->color(cl::White);
+	$i->rectangle($b/2, $b/2, $s[0] - $b/2, $s[1] - $b/2);
+	$i->font({size => 15, style => fs::Bold});
+	$i->draw_text("$path:\n$e",
+		      $b, $b, $s[0] - $b, $s[1] - $b,
+		      dt::Center|dt::VCenter|dt::Default);
+	$i->end_paint;
     }
-    $i->AutoOrient;		# automated rot fix via EXIF!!!
-    $i->Thumbnail(geometry => '320x320'); # 1920/6=320
-    my @b = $i->ImageToBlob;
+    $codec = $i->{extras}{codecID} || 1;
+#    warn "codec: $codec";
+    my $data;
+    open my $fh, '>', \$data
+	or die $!;
+    binmode $fh;
+    $i->save($fh, codecID => $codec)
+	or die $@;
+    $row->image($data);
     $row->modified(time);
-    $row->image($b[0]);
     $row->update;
 
     return $row->image;
