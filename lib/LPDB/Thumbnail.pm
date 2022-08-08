@@ -70,18 +70,16 @@ sub put {
     	{file_id => $id},
 	{columns => [qw/basename dir_id width height rotation/]});
     my $path = $picture->pathtofile;
-    -f $path or
-	warn "$path doesn't exist\n" and return;
-    my $modified = (stat $path)[9];
+    my $modified = -f $path ? (stat _)[9] : 0;
     my $tschema = $self->{tschema};
     my $row = $tschema->resultset('Thumb')->find_or_create(
 	{ file_id => $id,
 	  contact_id => $cid });
-    $row->modified || 0 >= $modified and
+    $modified and $row->modified || 0 >= $modified and
 	return $row->image;	# unchanged
-
     my $i;
     my $codec;
+#    warn "doing $path\n";
     if ($i = Prima::Image->load($path, loadExtras => 1)) {
 	# PS: I've read somewhere that ist::Quadratic produces best
 	# visual results for the scaled-down images, while ist::Sinc
@@ -93,9 +91,9 @@ sub put {
 	$i->size(_aspect($picture->width, $picture->height, 320, 320));
     } else {		    # generate image containing the error text
 	my $e = "$@";
-	warn "hello: ", $e;
-	my @s = (320, 320); # wonder why this section doesn't work???!!!
-	my $b = $s[0] / 10;
+#	warn "hello: ", $e;
+	my @s = (320, 320);
+	my $b = 10;
 	$i = Prima::Image->new(
 	    width  => $s[0],
 	    height => $s[1],
@@ -105,7 +103,6 @@ sub put {
 	$i->color(cl::Red);
 	$i->bar(0, 0, @s);
 	$i->color(cl::White);
-	$i->rectangle($b/2, $b/2, $s[0] - $b/2, $s[1] - $b/2);
 	$i->font({size => 15, style => fs::Bold});
 	$i->draw_text("$path:\n$e",
 		      $b, $b, $s[0] - $b, $s[1] - $b,
@@ -113,7 +110,7 @@ sub put {
 	$i->end_paint;
     }
     $codec = $i->{extras}{codecID} || 1;
-#    warn "codec: $codec";
+    #    warn "codec: $codec";
     my $data;
     open my $fh, '>', \$data
 	or die $!;
@@ -121,9 +118,8 @@ sub put {
     $i->save($fh, codecID => $codec)
 	or die $@;
     $row->image($data);
-    $row->modified(time);
+    $row->modified($modified ? time : 0);
     $row->update;
-
     return $row->image;
 }
 
