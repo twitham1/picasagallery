@@ -35,7 +35,7 @@ sub profile_default
 	stretch => 0,
 	timer => undef,
 	seconds => 4,
-#	buffer => 1,
+	buffer => 1,		# undecided on which is better...
 	popupItems => [
 	    ['~Escape back to Thumb Gallery' =>
 	     sub { $_[0]->key_down(0, kb::Escape) } ],
@@ -107,7 +107,7 @@ sub viewimage
 	$self->image($i);
     } else {		    # generate image containing the error text
 	my $e = "$@";
-	warn $e;
+	warn "$filename: $e";
 	my @s = (800, 450);
 	my $b = $s[0] / 10;
 	my $i = Prima::Icon->new(
@@ -183,13 +183,13 @@ sub on_paint { # update metadata label overlays, later in front of earlier
     push @info, $make if $make;
     (my $model = $info->{Model} || '') =~ s/$make//g; # redundant
     push @info, $model if $model;
-    push @info, "$info->{ExposureTime}s" if $info->{ExposureTime};
-    push @info, $info->{FocalLength} if $info->{FocalLength};
+    push @info, "$info->{ExposureTime}s"	if $info->{ExposureTime};
+    push @info, $info->{FocalLength}		if $info->{FocalLength};
     push @info, "($info->{FocalLengthIn35mmFormat})"
 	if $info->{FocalLengthIn35mmFormat};
-    push @info, "f/$info->{FNumber}" if $info->{FNumber};
-    push @info, "ISO: $info->{ISO}" if $info->{ISO};
-    push @info, $info->{Flash} if $info->{Flash};
+    push @info, "f/$info->{FNumber}"		if $info->{FNumber};
+    push @info, "ISO: $info->{ISO}"		if $info->{ISO};
+    push @info, $info->{Flash}			if $info->{Flash};
     push @info, $info->{Orientation} if
 	$info->{Orientation} and $info->{Orientation} =~ /Rotate/;
     ($x, $y) = $th->xofy($th->focusedItem);
