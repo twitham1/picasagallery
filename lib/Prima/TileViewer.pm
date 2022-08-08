@@ -36,6 +36,7 @@ sub profile_default {
 	autoHScroll	=> 0,
 	crops		=> 0,
 	borderWidth	=> 0,
+	buffered	=> 1, # 1 is cleaner, but can't see thumbnails in progress
 	);
     @$def{keys %prf} = values %prf;
     return $def;
