@@ -44,7 +44,7 @@ use Picasa;			 # for groking Picasa data!
 
 # config file can override any settings here (Picasa.pm also uses a few):
 our $conf = {
-    config	=> '.picasagallery_conf.pl', # config to require, if present
+    config	=> './.picasagallery_conf.pl', # config to require, if present
     metadata	=> '.picasagallery.cache',   # cache of picture data
     metaperl	=> 0,	 # filename for cache in perl format, 0 = none
     cache	=> '.thumbcache', # where to put thumbnails
