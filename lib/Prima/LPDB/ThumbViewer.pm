@@ -16,7 +16,7 @@ use strict;
 use warnings;
 use LPDB::Tree;
 use LPDB::Thumbnail;
-use Prima::TileViewer;
+use Prima::TileViewer; # shipped with LPDB, but could be part of Prima
 use Prima::FrameSet;
 use Prima::Label;
 use Prima::MsgBox;
@@ -267,6 +267,7 @@ sub current {			# path to current selected item
 }
 
 sub _trimfile { (my $t = $_) =~ s{//.*}{}; $t }
+
 sub on_selectitem { # update metadata labels, later in front of earlier
     my ($self, $idx, $state) = @_;
     my $x = $idx->[0] + 1;
@@ -318,6 +319,7 @@ sub on_selectitem { # update metadata labels, later in front of earlier
 				    _trimfile($_), 'goto' ] }
 			    $self->{tree}->related($me, $id) ]);
 }
+
 sub xofy {	      # find pic position in current gallery directory
     my($self, $me) = @_;
     my $all = $self->{items};
@@ -481,6 +483,7 @@ sub _draw_thumb {		# pos 0 = full size, pos 1,2,3 = picture stack
     }
     return $b;
 }
+
 sub draw_path {
     my ($self, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col) = @_;
 
@@ -524,6 +527,7 @@ sub draw_path {
 		       dt::Left|dt::Bottom|dt::Default);
     $canvas->rect_focus( $x1, $y1, $x2, $y2 ) if $foc;
 }
+
 sub draw_picture {
     my ($self, $canvas, $idx, $x1, $y1, $x2, $y2, $sel, $foc, $pre, $col) = @_;
 
