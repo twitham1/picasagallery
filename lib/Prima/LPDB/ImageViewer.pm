@@ -147,8 +147,8 @@ sub on_paint { # update metadata label overlays, later in front of earlier
     # PS: I've read somewhere that ist::Quadratic produces best
     # visual results for the scaled-down images, while ist::Sinc
     # and ist::Gaussian for the scaled-up. /dk = Dmitry Karasik
-    $self->scaling($self->zoom > 1 ? ist::Gaussian : ist::Quadratic);
-    #$self->scaling(ist::Box);
+    $self->{scaling} = $self->zoom > 1 ? ist::Gaussian : ist::Quadratic;
+    #$self->{scaling} = ist::Box;
 
     $self->SUPERon_paint(@_);	# hack!!! see below!!!
     $self->CENTER->hide;	# play/stop indicator
