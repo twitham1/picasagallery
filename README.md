@@ -24,23 +24,27 @@ deprecated and replaced by a full rewrite now split out to:
 
 # See also
 
-	 https://github.com/twitham1/LPDB
-
-LPDB replaces the in memory database with a SQLite database to reduce
-the memory footprint and enable arbitrary queries.  Its bin/lpgallery
-replaces the Tk interface with a Prima one with more features including
-variable thumnail size.
+https://github.com/twitham1/LPDB LPDB replaces the in memory database
+with a SQLite database to reduce the memory footprint and enable
+arbitrary queries.  Its bin/lpgallery replaces the Tk interface with a
+Prima one with more features including variable thumnail size.
 
 # How to Install and Use
 
 I never added tests and cleaned up the code to make this good enough
 to submit to CPAN.  I will likely not bother until LPDB is closer to
-production.  So until then, you can grab the latest .tar.gz build from
-my working directory:
+production and submit that instead.  So to run picasagallery you can
+install from this source:
+
+```
+  dzil install
+```
+
+or grab the latest .tar.gz build from my working directory:
 
 * http://twitham.homelinux.org/twitham/picasagallery/
 
-Then simply install as usual:
+and install as usual:
 ```
   tar zxvf picasagallery-0.1.tar.gz
   cd picasagallery-0.1
