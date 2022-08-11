@@ -19,17 +19,24 @@ other things like merging pictures and their metadata, see
 # Status / TODO
 
 This is "works-for-me" ware - it may not work for you.  It was sort of
-a quick hack to see if it could even be done.  I would like to replace
-the in memory database with a SQLite database to reduce the memory
-footprint and simplify some code.  And I would like to replace the GUI
-with Prima for even better performance.  See [TODO](TODO).
+a quick hack to see if this could even be done.  It is slowly being
+deprecated and replaced by a full rewrite now split out to:
+
+# See also
+
+	 https://github.com/twitham1/LPDB
+
+LPDB replaces the in memory database with a SQLite database to reduce
+the memory footprint and enable arbitrary queries.  Its bin/lpgallery
+replaces the Tk interface with a Prima one with more features including
+variable thumnail size.
 
 # How to Install and Use
 
 I never added tests and cleaned up the code to make this good enough
-to submit to CPAN.  I may not bother until the SQLite/Prima re-write.
-So until then, you can grab the latest .tar.gz build from my working
-directory:
+to submit to CPAN.  I will likely not bother until LPDB is closer to
+production.  So until then, you can grab the latest .tar.gz build from
+my working directory:
 
 * http://twitham.homelinux.org/twitham/picasagallery/
 
